@@ -15,6 +15,7 @@
  *   / Σ montants notifiés (marchés notifiés dans l'année), affiché en jours pour 10 000 €.
  * - CA signé / facturé / encaissé : compteur de CA de l'année civile.
  * - Motifs de No-go : motif de la décision ; motifs de rejet : pièce-type à améliorer.
+ * - L'affaire d'exercice Mouthe est exclue de tous les indicateurs (décision du 12/11/2026).
  */
 
 function Indicateurs_tableau(quand) {
@@ -23,7 +24,7 @@ function Indicateurs_tableau(quand) {
   var dans = function (v) { var d = date_(v); return d && aujourdhui_(d) >= debut && aujourdhui_(d) <= auj; };
   var annee = auj.getFullYear();
   var deLAnnee = function (v) { var d = date_(v); return d && d.getFullYear() === annee; };
-  var affaires = Affaires_lister();
+  var affaires = Indicateurs_affaires_();
   var criteres = Db_lire(TABLES.CRITERES);
 
   // Affaires par statut (en cours) et clôturées sur 12 mois
@@ -92,6 +93,15 @@ function Indicateurs_tableau(quand) {
   };
 }
 
+/** Affaires prises en compte : toutes sauf l'exercice Mouthe (consultable, hors indicateurs). */
+function Indicateurs_affaires_() {
+  return Affaires_lister().filter(function (a) { return !Indicateurs_estExercice_(a); });
+}
+
+function Indicateurs_estExercice_(a) {
+  return a.reference_acheteur === REF_EXERCICE_MOUTHE || /^\[EXERCICE\]/.test(String(a.objet || ''));
+}
+
 /** Écarts de prix et de note technique d'une affaire perdue. */
 function Indicateurs_ecarts_(a, criteres) {
   var prix = montant_(a.montant_ht), attrib = montant_(a.prix_attributaire);
@@ -118,7 +128,7 @@ function Indicateurs_enseignements() {
     .map(function (a) {
       var e = Indicateurs_ecarts_(a, criteres);
       return {
-        id: a.id, acheteur: a.acheteur, objet: a.objet, date_resultat: date_(a.date_resultat) ? jourIso_(date_(a.date_resultat)) : '',
+        id: a.id, acheteur: a.acheteur, objet: a.objet, exercice: Indicateurs_estExercice_(a), date_resultat: date_(a.date_resultat) ? jourIso_(date_(a.date_resultat)) : '',
         montant_ht: montant_(a.montant_ht) || null, prix_attributaire: montant_(a.prix_attributaire) || null,
         attributaire: a.attributaire || '', rang: montant_(a.rang) || null,
         ecartPrix: e.ecartPrix, noteKompa: e.noteKompa, noteAttributaire: e.noteAttributaire, ecartNote: e.ecartNote,

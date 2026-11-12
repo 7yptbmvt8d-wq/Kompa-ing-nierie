@@ -1545,7 +1545,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
         '<th scope="col" class="num">Écart prix</th><th scope="col" class="num">Note tech.</th><th scope="col" class="num">Écart</th><th scope="col" class="num">Rang</th>' +
         '<th scope="col">Motifs et enseignements</th></tr></thead><tbody>' +
         l.map(function (x) {
-          return '<tr><td><a href="#affaire/' + esc(x.id) + '" class="mono">' + esc(x.id) + '</a><div><strong>' + esc(x.acheteur) + '</strong></div><div class="legende">' + esc(x.objet) + '</div></td>' +
+          return '<tr><td><a href="#affaire/' + esc(x.id) + '" class="mono">' + esc(x.id) + '</a><div><strong>' + esc(x.acheteur) + '</strong></div><div class="legende">' + esc(x.objet) + '</div>' + (x.exercice ? '<span class="statut statut--neutre">exercice — hors indicateurs</span>' : '') + '</td>' +
             '<td class="mono">' + jour(x.date_resultat) + '</td>' +
             '<td class="num mono">' + (x.montant_ht ? K.euros(x.montant_ht) : '—') + '</td>' +
             '<td class="num mono">' + (x.prix_attributaire ? K.euros(x.prix_attributaire) : '—') + '<div class="legende">' + esc(x.attributaire) + '</div></td>' +
