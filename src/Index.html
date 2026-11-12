@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <?!= include('Tokens'); ?>
+  <?!= include('Styles'); ?>
+</head>
+<body>
+  <header class="entete">
+    <div class="entete__barre">
+      <a class="marque" href="#accueil" aria-label="Kompa Affaires — accueil">
+        <!-- Symbole provisoire : remplacer par le symbole Kompa du kit de charte -->
+        <span class="marque__symbole" aria-hidden="true">K</span>
+        <span class="marque__nom">Kompa <span>Affaires</span></span>
+      </a>
+      <nav class="nav" aria-label="Navigation principale">
+        <a href="#accueil">Accueil</a>
+        <a href="#veille">Veille</a>
+        <a href="#affaires">Affaires</a>
+        <a href="#echeancier">Échéancier</a>
+        <a href="#enseignements">Enseignements</a>
+        <a href="#parametres">Paramètres</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="ecran" tabindex="-1"></main>
+
+  <footer class="pied mono" id="pied"></footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <?!= include('App'); ?>
+</body>
+</html>

@@ -1,0 +1,246 @@
+<script>
+/* Kompa Affaires — interface (lot 1 : socle). */
+(function () {
+  'use strict';
+
+  // ——— Appels serveur ———
+  function appel(nom) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resoudre, rejeter) {
+      var runner = google.script.run
+        .withSuccessHandler(function (r) {
+          if (r && r.ok) resoudre(r.data);
+          else rejeter(new Error((r && r.erreur) || 'Réponse vide du serveur.'));
+        })
+        .withFailureHandler(function (e) { rejeter(e instanceof Error ? e : new Error(String(e))); });
+      runner[nom].apply(runner, args);
+    });
+  }
+
+  // ——— Utilitaires ———
+  var $ = function (sel, racine) { return (racine || document).querySelector(sel); };
+  var $$ = function (sel, racine) { return Array.prototype.slice.call((racine || document).querySelectorAll(sel)); };
+
+  function esc(v) {
+    return String(v === null || v === undefined ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function dateHeure(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d)) return '';
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  var toastMinuteur = null;
+  function toast(message, erreur) {
+    var t = $('#toast');
+    t.textContent = message;
+    t.className = 'toast' + (erreur ? ' toast--erreur' : '');
+    t.hidden = false;
+    clearTimeout(toastMinuteur);
+    toastMinuteur = setTimeout(function () { t.hidden = true; }, erreur ? 6000 : 2500);
+  }
+
+  function estMobile() { return window.matchMedia('(max-width: 760px)').matches; }
+
+  function bandeauErreur(e) {
+    return '<div class="bandeau bandeau--erreur" role="alert"><strong>Erreur.</strong> ' + esc(e.message || e) + '</div>';
+  }
+
+  function titre(t, sousTitre) {
+    return '<div class="titre-ecran"><h1>' + esc(t) + '</h1>' + (sousTitre ? '<p>' + esc(sousTitre) + '</p>' : '') + '</div>';
+  }
+
+  function carteAttente(t, lot, texte) {
+    return '<section class="carte carte--attente"><div class="carte__lot">' + esc(lot) + '</div>' +
+      '<h2>' + esc(t) + '</h2><p>' + esc(texte) + '</p></section>';
+  }
+
+  // ——— Écrans ———
+  var ECRANS = {
+    accueil: { titre: 'Accueil', rendu: ecranAccueil },
+    veille: { titre: 'Veille', rendu: ecranAttente('Veille', 'Lot 3', [
+      ['Avis collectés', 'BOAMP et alertes des plateformes, filtrés, dédoublonnés et pré-scorés chaque matin à 6 h.'],
+      ['Étudier / Ignorer', 'Un clic pour transformer un avis en affaire.']
+    ]) },
+    affaires: { titre: 'Affaires', rendu: ecranAttente('Affaires', 'Lot 2', [
+      ['Vue en colonnes', 'Une colonne par statut, glisser-déposer pour changer de statut.'],
+      ['Fiche affaire', 'Identification, échéances, décision, offre, résultat, enseignements, exécution, journal.']
+    ]) },
+    echeancier: { titre: 'Échéancier', rendu: ecranAttente('Échéancier', 'Lot 4', [
+      ['Calendrier', 'Remises, questions, visites, décisions attendues.'],
+      ['Relances', 'Motifs de rejet, décisions en attente, encaissements, avec modèles de courriers.']
+    ]) },
+    enseignements: { titre: 'Enseignements', rendu: ecranAttente('Enseignements', 'Lot 5', [
+      ['Offres perdues', 'Écarts de prix et de note avec l\'attributaire, motifs, actions correctives.']
+    ]) },
+    parametres: { titre: 'Paramètres', rendu: ecranParametres }
+  };
+
+  function ecranAttente(nom, lot, cartes) {
+    return function (el) {
+      el.innerHTML = titre(nom, 'Disponible au ' + lot.toLowerCase()) +
+        '<div class="grille">' + cartes.map(function (c) { return carteAttente(c[0], lot, c[1]); }).join('') + '</div>';
+    };
+  }
+
+  function ecranAccueil(el) {
+    el.innerHTML = titre('Accueil', '') +
+      '<div class="grille">' +
+        '<section class="carte carte--large" id="carte-etat"><h2>État du socle</h2><div class="chargement">Lecture du classeur…</div></section>' +
+        carteAttente('Tableau de bord', 'Lot 5', 'Affaires par statut, taux d\'attribution, CA face aux seuils de TVA et de la micro-entreprise.') +
+        carteAttente('Échéances à 7 jours', 'Lot 4', 'Remises, questions à l\'acheteur, visites de site.') +
+        carteAttente('Relances à faire', 'Lot 4', 'Motifs de rejet, décisions en attente, factures à encaisser.') +
+      '</div>';
+
+    appel('apiEtat').then(function (etat) {
+      var present = etat.onglets.filter(function (o) { return o.present; }).length;
+      var ok = present === etat.onglets.length;
+      $('#carte-etat').innerHTML = '<h2>État du socle</h2>' +
+        '<dl class="liste-def">' +
+          '<dt>Classeur</dt><dd><span class="statut ' + (ok ? 'statut--ok">Connecté' : 'statut--ko">Incomplet') + '</span> ' +
+            '<a href="' + esc(etat.classeur.url) + '" target="_blank" rel="noopener">' + esc(etat.classeur.nom) + '</a></dd>' +
+          '<dt>Onglets</dt><dd class="mono">' + present + ' / ' + etat.onglets.length + '</dd>' +
+          '<dt>Compte</dt><dd class="mono">' + esc(etat.compte) + '</dd>' +
+          '<dt>E-mails restants</dt><dd class="mono">' + esc(etat.quotaEmailRestant) + ' aujourd\'hui</dd>' +
+          '<dt>Déclencheurs</dt><dd class="mono">' + (etat.declencheurs.length ? esc(etat.declencheurs.join(', ')) : '<span class="vide">aucun</span>') + '</dd>' +
+          '<dt>Lu à</dt><dd class="mono">' + esc(dateHeure(etat.maintenant)) + '</dd>' +
+        '</dl>';
+      $('#pied').textContent = etat.app + ' · v' + etat.version;
+    }).catch(function (e) {
+      $('#carte-etat').innerHTML = '<h2>État du socle</h2>' + bandeauErreur(e);
+    });
+  }
+
+  function ecranParametres(el) {
+    el.innerHTML = titre('Paramètres', 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.') +
+      '<div class="chargement">Lecture des paramètres…</div>';
+
+    appel('apiParametres').then(function (groupes) {
+      var mobile = estMobile();
+      var html = titre('Paramètres', mobile
+        ? 'Lecture seule sur téléphone — modification sur PC.'
+        : 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.');
+      groupes.forEach(function (g) {
+        html += '<section class="groupe-param"><h2>' + esc(g.titre) + '</h2>';
+        html += mobile ? paramsMobile(g.parametres) : paramsPC(g.parametres);
+        html += '</section>';
+      });
+      el.innerHTML = html;
+      if (!mobile) brancherParams(el);
+    }).catch(function (e) {
+      el.innerHTML = titre('Paramètres', '') + bandeauErreur(e);
+    });
+  }
+
+  function paramsPC(params) {
+    return '<div class="tableau-conteneur"><table>' +
+      '<colgroup><col class="col-cle"><col class="col-val"><col class="col-com"><col><col class="col-act"></colgroup>' +
+      '<thead><tr><th scope="col">Clé</th><th scope="col">Valeur</th><th scope="col">Commentaire</th><th scope="col">Modifié le</th><th scope="col"><span class="seul-lecteur">Action</span></th></tr></thead><tbody>' +
+      params.map(function (p) {
+        var long = p.valeur.indexOf(';') >= 0 || p.valeur.length > 40;
+        var id = 'p-' + p.cle.replace(/[^a-z0-9]/gi, '-');
+        var champ = long
+          ? '<textarea class="champ mono" id="' + id + '" rows="2">' + esc(p.valeur) + '</textarea>'
+          : '<input class="champ mono" id="' + id + '" type="text" value="' + esc(p.valeur) + '">';
+        return '<tr data-cle="' + esc(p.cle) + '" data-initial="' + esc(p.valeur) + '">' +
+          '<td><label class="param-cle" for="' + id + '">' + esc(p.cle) + '</label></td>' +
+          '<td>' + champ + '</td>' +
+          '<td class="param-com">' + esc(p.commentaire) + '</td>' +
+          '<td class="param-date">' + esc(dateHeure(p.modifie_le)) + '</td>' +
+          '<td><button class="bouton" type="button" disabled>Enregistrer</button></td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table></div>';
+  }
+
+  function paramsMobile(params) {
+    return params.map(function (p) {
+      return '<div class="param-carte">' +
+        '<div class="param-cle">' + esc(p.cle) + '</div>' +
+        '<div class="param-com">' + esc(p.commentaire) + '</div>' +
+        '<div class="param-val">' + (p.valeur ? esc(p.valeur.split(';').join(' · ')) : '<span class="vide">non renseigné</span>') + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function brancherParams(racine) {
+    $$('tr[data-cle]', racine).forEach(function (tr) {
+      var champ = $('.champ', tr);
+      var bouton = $('button', tr);
+      var majEtat = function () {
+        var modifie = champ.value !== tr.getAttribute('data-initial');
+        champ.classList.toggle('est-modifie', modifie);
+        bouton.disabled = !modifie;
+      };
+      var enregistrer = function () {
+        if (bouton.disabled) return;
+        bouton.disabled = true;
+        bouton.textContent = 'Envoi…';
+        appel('apiParametreEnregistrer', tr.getAttribute('data-cle'), champ.value).then(function (p) {
+          tr.setAttribute('data-initial', p.valeur);
+          champ.value = p.valeur;
+          $('.param-date', tr).textContent = dateHeure(p.modifie_le);
+          bouton.textContent = 'Enregistrer';
+          majEtat();
+          toast('Paramètre « ' + p.cle + ' » enregistré.');
+        }).catch(function (e) {
+          bouton.textContent = 'Enregistrer';
+          majEtat();
+          toast(e.message, true);
+        });
+      };
+      champ.addEventListener('input', majEtat);
+      champ.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' && (champ.tagName === 'INPUT' || ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); enregistrer(); }
+        if (ev.key === 'Escape') { champ.value = tr.getAttribute('data-initial'); majEtat(); }
+      });
+      bouton.addEventListener('click', enregistrer);
+    });
+  }
+
+  // ——— Navigation ———
+  // La web app tourne dans un iframe : on gère l'écran courant en JS et on reflète
+  // l'ancre dans l'URL de la page parente via google.script.history (liens directs).
+  var historique = window.google && google.script && google.script.history;
+
+  function afficher(nom, pousser) {
+    if (!ECRANS[nom]) nom = 'accueil';
+    $$('.nav a').forEach(function (a) {
+      if (a.getAttribute('href') === '#' + nom) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    });
+    document.title = ECRANS[nom].titre + ' — Kompa Affaires';
+    var el = $('#ecran');
+    ECRANS[nom].rendu(el);
+    if (pousser && historique) historique.push({ ecran: nom }, {}, nom);
+    window.scrollTo(0, 0);
+  }
+
+  document.addEventListener('click', function (ev) {
+    var a = ev.target.closest('a[href^="#"]');
+    if (!a) return;
+    ev.preventDefault();
+    afficher(a.getAttribute('href').slice(1), true);
+  });
+
+  if (historique) {
+    historique.setChangeHandler(function (e) { afficher((e.state && e.state.ecran) || e.location.hash || 'accueil', false); });
+  }
+
+  function demarrer() {
+    if (window.google && google.script && google.script.url) {
+      google.script.url.getLocation(function (loc) { afficher(loc.hash || 'accueil', false); });
+    } else {
+      afficher((location.hash || '').slice(1) || 'accueil', false);
+    }
+  }
+
+  $('#pied').textContent = 'Kompa Affaires';
+  demarrer();
+})();
+</script>

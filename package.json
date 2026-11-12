@@ -1,0 +1,11 @@
+{
+  "name": "kompa-affaires",
+  "version": "1.0.0-lot1",
+  "private": true,
+  "description": "Kompa Affaires — veille et suivi des marchés publics d'AMO (Google Apps Script)",
+  "scripts": {
+    "test": "node tools/test-socle.js",
+    "apercu": "node tools/apercu.js",
+    "push": "clasp push"
+  }
+}
