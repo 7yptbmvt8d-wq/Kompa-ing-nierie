@@ -722,6 +722,25 @@ function apiEmailEnvoyer() {
 }
 
 
+// ════════ ApiFiscal.js ════════
+
+/**
+ * API des déclarations URSSAF (CA au rythme des déclarations, estimation des sommes dues).
+ */
+
+function apiFiscal(annee) {
+  return repondre_(function () { return Fiscal_declarations(Number(annee) || null); });
+}
+
+function apiDeclarer(idPeriode, caDeclare, dateDeclaration) {
+  return repondre_(function () { Fiscal_marquerDeclaree(idPeriode, caDeclare, dateDeclaration); Relances_synchroniser(); return Fiscal_declarations(Number(String(idPeriode).slice(0, 4))); });
+}
+
+function apiAnnulerDeclaration(idPeriode) {
+  return repondre_(function () { Fiscal_annulerDeclaration(idPeriode); Relances_synchroniser(); return Fiscal_declarations(Number(String(idPeriode).slice(0, 4))); });
+}
+
+
 // ════════ ApiTableau.js ════════
 
 /**
@@ -1037,6 +1056,13 @@ var TABLES = {
     colonnes: ['cle', 'valeur', 'commentaire'],
     texteBrut: ['valeur'] // évite que Sheets convertisse « 04 » en 4
   },
+  DECLARATIONS: {
+    onglet: 'Déclarations',
+    cle: 'id',
+    colonnes: ['id', 'ca_declare', 'date_declaration', 'commentaire'],
+    nombres: ['ca_declare'],
+    texteBrut: ['id']
+  },
   JOURNAL_MOTEUR: {
     onglet: 'Journal moteur',
     cle: 'id',
@@ -1181,6 +1207,10 @@ function Courriers_modele(idRelance) {
         politesse
       ];
       break;
+    case TYPE_RELANCE_URSSAF:
+      return { type: r.type, destinataire: 'URSSAF — autoentrepreneur.urssaf.fr', objet: 'Déclaration de chiffre d\'affaires',
+        corps: 'Pas de courrier : déclaration en ligne.\n\n1. Se connecter sur https://autoentrepreneur.urssaf.fr\n2. Déclarer et payer → période concernée\n3. ' +
+          (r.commentaire || 'Saisir le CA encaissé de la période.') + '\n4. Payer, puis marquer la période « déclarée » sur l\'accueil de Kompa Affaires.' };
     default:
       objet = ref + (r.type || 'Relance');
       corps = ['Madame, Monsieur,', '', '[texte]', '', politesse];
@@ -1453,6 +1483,16 @@ function Echeances_calculer(debut, fin, quand) {
     }
   });
 
+  // Déclarations URSSAF (périodes terminées non déclarées)
+  Fiscal_echeances_(debut, fin, auj).forEach(function (e) {
+    var p = e.periode;
+    out.push({
+      date: aujourdhui_(e.date), type: 'Déclaration', libelle: 'Déclaration URSSAF ' + p.libelle + ' — CA encaissé ' + Courriers_euros_(p.ca),
+      id_affaire: '', acheteur: 'URSSAF', objet: 'Déclarer le CA encaissé du ' + jourIso_(date_(p.debut)) + ' au ' + jourIso_(date_(p.fin)),
+      statut: p.etat, jours: ecartJours_(e.date, auj), urgent: ecartJours_(e.date, auj) >= 0 && ecartJours_(e.date, auj) <= 7, depassee: e.depassee
+    });
+  });
+
   return out.sort(function (x, y) { return x.date - y.date || x.type.localeCompare(y.type); });
 }
 
@@ -1519,6 +1559,16 @@ function Relances_synchroniser(quand) {
     }
   });
 
+  // Déclaration URSSAF : période terminée et non déclarée
+  [auj.getFullYear() - 1, auj.getFullYear()].forEach(function (an) {
+    Fiscal_declarations(an, auj).periodes.forEach(function (p) {
+      if (p.etat !== 'à déclarer' && p.etat !== 'en retard') return;
+      due('urssaf:' + p.id, { id_affaire: '', type: TYPE_RELANCE_URSSAF, date_prevue: ajouterJours_(aujourdhui_(date_(p.fin)), 1),
+        commentaire: 'Déclarer sur autoentrepreneur.urssaf.fr le CA encaissé ' + p.libelle + ' : ' + Courriers_euros_(p.ca) + ', avant le ' +
+          Utilities.formatDate(date_(p.echeance), APP.FUSEAU, 'dd/MM/yyyy') + '.' });
+    });
+  });
+
   Db_insererPlusieurs(TABLES.RELANCES, aCreer);
 
   // Clôture automatique des relances devenues sans objet
@@ -1529,6 +1579,7 @@ function Relances_synchroniser(quand) {
     if (r.type === TYPES_RELANCE.MOTIFS || r.type === TYPES_RELANCE.MOTIFS_RAPPEL) sansObjet = a && String(a.motifs_rejet || '').trim() !== '';
     else if (r.type === TYPES_RELANCE.DECISION) sansObjet = !a || a.statut !== 'Déposée';
     else if (r.type === TYPES_RELANCE.ENCAISSEMENT) sansObjet = !dues[r.cle]; // facture encaissée entre-temps
+    else if (r.type === TYPE_RELANCE_URSSAF) sansObjet = !dues[r.cle]; // période déclarée
     if (sansObjet) {
       Db_maj(TABLES.RELANCES, r.id, { statut: 'sans objet', date_faite: auj,
         commentaire: (r.commentaire ? r.commentaire + ' ' : '') + '[Clôturée automatiquement]' });
@@ -1546,7 +1597,7 @@ function Relances_aFaire(quand, tout) {
   return Db_lire(TABLES.RELANCES)
     .filter(function (r) { return r.statut === 'à faire' && (tout || !date_(r.date_prevue) || aujourdhui_(date_(r.date_prevue)) <= auj); })
     .map(function (r) {
-      var a = affaires[r.id_affaire] || {};
+      var a = affaires[r.id_affaire] || (r.type === TYPE_RELANCE_URSSAF ? { acheteur: 'URSSAF', objet: r.commentaire } : {});
       return Object.assign({}, r, { acheteur: a.acheteur || '', objet: a.objet || '', jours: date_(r.date_prevue) ? ecartJours_(date_(r.date_prevue), auj) : 0 });
     })
     .sort(function (x, y) { return (date_(x.date_prevue) || 0) - (date_(y.date_prevue) || 0); });
@@ -1627,7 +1678,7 @@ function Email_construire(quand, depuis) {
   var avisFrance = horsPaca.filter(function (a) { return a.classement === 'à étudier'; });
   var autresFrance = horsPaca.length - avisFrance.length;
   var echeances = Echeances_calculer(auj, ajouterJours_(auj, 7), quand)
-    .filter(function (e) { return ['Remise', 'Questions', 'Visite'].indexOf(e.type) >= 0; });
+    .filter(function (e) { return ['Remise', 'Questions', 'Visite', 'Déclaration'].indexOf(e.type) >= 0; });
   var relances = Relances_aFaire(quand);
   var ind = Indicateurs_resume(quand);
 
@@ -1669,7 +1720,7 @@ function Email_construire(quand, depuis) {
     (autresFrance ? '<tr><td colspan="3" style="padding:10px 0;color:' + C.gris + ';font-size:13px">+ ' + autresFrance + ' autre' + (autresFrance > 1 ? 's' : '') +
       ' avis « possible » hors ' + h(paca) + ' : <a href="' + h(url) + '#veille" style="color:' + C.ardoise + '">voir dans l\'app</a></td></tr>' : ''));
   if (echeances.length) corps += section('Échéances des 7 prochains jours', echeances.length, echeances.map(function (e) {
-    return ligneSimple(jr(e.date) + (e.jours === 0 ? ' (aujourd\'hui)' : ' (J-' + e.jours + ')'), e.libelle, e, url + '#affaire/' + e.id_affaire, e.urgent);
+    return ligneSimple(jr(e.date) + (e.jours === 0 ? ' (aujourd\'hui)' : e.jours < 0 ? ' (retard)' : ' (J-' + e.jours + ')'), e.libelle, e, url + (e.id_affaire ? '#affaire/' + e.id_affaire : '#accueil'), e.urgent || e.depassee);
   }).join(''));
   if (relances.length) corps += section('Relances à faire', relances.length, relances.map(function (r) {
     return ligneSimple(jr(r.date_prevue), r.type, r, url + '#echeancier', r.jours < 0);
@@ -1866,6 +1917,133 @@ function supprimerAffairesTest() {
 }
 
 
+// ════════ Fiscal.js ════════
+
+/**
+ * Déclarations de CA à l'URSSAF (micro-entreprise), au rythme choisi : trimestriel (défaut) ou mensuel.
+ *
+ * Base : CA ENCAISSÉ de la période (date et montant d'encaissement des factures).
+ * Échéances : trimestriel → 30/04, 31/07, 31/10, 31/01 ; mensuel → dernier jour du mois suivant.
+ * Estimation des sommes à payer : CA × taux (paramètres fiscal.*, à vérifier chaque année
+ * dans l'espace autoentrepreneur.urssaf.fr) — cotisations sociales, CFP, versement libératoire.
+ */
+
+var TYPE_RELANCE_URSSAF = 'Déclaration URSSAF';
+
+/** Périodes de l'année (trimestres ou mois) avec bornes et échéance de déclaration. */
+function Fiscal_periodes_(annee) {
+  var mensuel = Params_texte('fiscal.periodicite', 'trimestrielle').toLowerCase().indexOf('mens') === 0;
+  var out = [];
+  var n = mensuel ? 12 : 4, pas = mensuel ? 1 : 3;
+  for (var i = 0; i < n; i++) {
+    var debut = new Date(annee, i * pas, 1);
+    var fin = new Date(annee, i * pas + pas, 0);
+    var echeance = new Date(annee, i * pas + pas + 1, 0); // dernier jour du mois suivant la période
+    out.push({
+      id: annee + '-' + (mensuel ? 'M' + ('0' + (i + 1)).slice(-2) : 'T' + (i + 1)),
+      libelle: mensuel ? Utilities.formatDate(debut, APP.FUSEAU, 'MM/yyyy') : 'T' + (i + 1) + ' ' + annee,
+      debut: debut, fin: fin, echeance: echeance
+    });
+  }
+  return out;
+}
+
+function Fiscal_taux_() {
+  var t = function (cle) { var v = Params_nombre(cle, null); return v === null ? null : v / 100; };
+  var vl = Params_texte('fiscal.versement_liberatoire', 'non').toLowerCase() === 'oui';
+  return {
+    cotisations: t('fiscal.taux_cotisations'),
+    cfp: t('fiscal.taux_cfp'),
+    vl: vl,
+    impot: vl ? t('fiscal.taux_versement_liberatoire') : 0
+  };
+}
+
+/**
+ * Déclarations de l'année : CA encaissé, estimation des sommes dues, échéance et état
+ * (à venir, en cours, à déclarer, en retard, déclarée).
+ */
+function Fiscal_declarations(annee, quand) {
+  var auj = aujourdhui_(quand);
+  annee = annee || auj.getFullYear();
+  var taux = Fiscal_taux_();
+  var factures = Db_lire(TABLES.FACTURES);
+  var declarees = {};
+  Db_lire(TABLES.DECLARATIONS).forEach(function (d) { declarees[d.id] = d; });
+  var arr = function (x) { return x === null ? null : arrondi_(x); };
+  var debutSuivi = date_(Params_texte('fiscal.debut_suivi', ''));
+
+  var periodes = Fiscal_periodes_(annee).map(function (p) {
+    var ca = factures.reduce(function (s, f) {
+      var d = date_(f.date_encaissement);
+      return d && aujourdhui_(d) >= p.debut && aujourdhui_(d) <= p.fin ? s + montant_(f.montant_encaisse) : s;
+    }, 0);
+    var cotisations = taux.cotisations === null ? null : ca * taux.cotisations;
+    var cfp = taux.cfp === null ? null : ca * taux.cfp;
+    var impot = taux.impot === null ? null : ca * taux.impot;
+    var total = cotisations === null || cfp === null || impot === null ? null : cotisations + cfp + impot;
+    var dec = declarees[p.id];
+    var etat = dec && dec.date_declaration ? 'déclarée'
+      : debutSuivi && p.fin < aujourdhui_(debutSuivi) ? 'non suivie'
+      : auj < p.debut ? 'à venir'
+      : auj <= p.fin ? 'en cours'
+      : auj <= p.echeance ? 'à déclarer' : 'en retard';
+    return {
+      id: p.id, libelle: p.libelle, debut: jourIso_(p.debut), fin: jourIso_(p.fin), echeance: jourIso_(p.echeance),
+      ca: arrondi_(ca), cotisations: arr(cotisations), cfp: arr(cfp), impot: arr(impot), total: arr(total),
+      etat: etat, joursAvantEcheance: ecartJours_(p.echeance, auj),
+      ca_declare: dec ? montant_(dec.ca_declare) : null,
+      date_declaration: dec && date_(dec.date_declaration) ? jourIso_(date_(dec.date_declaration)) : ''
+    };
+  });
+  var somme = function (k) {
+    return periodes.some(function (p) { return p[k] === null; }) ? null : arrondi_(periodes.reduce(function (s, p) { return s + p[k]; }, 0));
+  };
+  return {
+    annee: annee,
+    periodicite: Params_texte('fiscal.periodicite', 'trimestrielle'),
+    debutSuivi: debutSuivi ? jourIso_(debutSuivi) : '',
+    taux: { cotisations: taux.cotisations, cfp: taux.cfp, impot: taux.impot, versementLiberatoire: taux.vl },
+    tauxManquants: taux.cotisations === null || taux.cfp === null || taux.impot === null,
+    periodes: periodes,
+    totaux: { ca: somme('ca'), cotisations: somme('cotisations'), cfp: somme('cfp'), impot: somme('impot'), total: somme('total') }
+  };
+}
+
+/** Marque une période déclarée (CA déclaré, date). */
+function Fiscal_marquerDeclaree(idPeriode, caDeclare, dateDeclaration) {
+  if (!/^\d{4}-(T[1-4]|M(0[1-9]|1[0-2]))$/.test(String(idPeriode))) throw new Error('Période inconnue : ' + idPeriode);
+  var champs = {
+    ca_declare: montant_(caDeclare),
+    date_declaration: date_(dateDeclaration) || aujourdhui_()
+  };
+  if (Db_trouver(TABLES.DECLARATIONS, idPeriode)) return Db_maj(TABLES.DECLARATIONS, idPeriode, champs);
+  return Db_inserer(TABLES.DECLARATIONS, Object.assign({ id: idPeriode }, champs));
+}
+
+function Fiscal_annulerDeclaration(idPeriode) {
+  if (!Db_trouver(TABLES.DECLARATIONS, idPeriode)) return null;
+  return Db_maj(TABLES.DECLARATIONS, idPeriode, { date_declaration: '', ca_declare: '' });
+}
+
+/** Échéances de déclaration (pour l'échéancier) : périodes terminées non déclarées + prochaine. */
+function Fiscal_echeances_(debut, fin, quand) {
+  var auj = aujourdhui_(quand);
+  var annees = [auj.getFullYear() - 1, auj.getFullYear()];
+  var out = [];
+  annees.forEach(function (an) {
+    Fiscal_declarations(an, auj).periodes.forEach(function (p) {
+      if (p.etat === 'déclarée' || p.etat === 'à venir' || p.etat === 'non suivie') return;
+      var e = date_(p.echeance);
+      var dans = aujourdhui_(e) >= aujourdhui_(debut) && aujourdhui_(e) <= aujourdhui_(fin);
+      if (!dans && p.etat !== 'en retard') return;
+      out.push({ date: e, periode: p, depassee: p.etat === 'en retard' });
+    });
+  });
+  return out;
+}
+
+
 // ════════ Indicateurs.js ════════
 
 /**
@@ -2041,6 +2219,7 @@ var GROUPES_PARAMETRES = [
   ['echeance', 'Échéances et relances'],
   ['email', 'E-mail du matin'],
   ['courrier', 'Courriers'],
+  ['fiscal', 'Déclarations URSSAF'],
   ['liste', 'Listes de valeurs'],
   ['sauvegarde', 'Sauvegarde'],
   ['app', 'Application']
@@ -2098,6 +2277,14 @@ var PARAMETRES_DEFAUT = [
   ['seuil.plafond_vise', '80000', 'Plafond de CA annuel que vous vous fixez, sous le plafond légal (€)'],
   ['seuil.micro_plafond', '83600', 'Plafond micro-entreprise, prestations de services (€)'],
   ['seuil.alerte_pct', '80', 'Première alerte à ce pourcentage du seuil'],
+
+  // Déclarations URSSAF (micro-entreprise)
+  ['fiscal.debut_suivi', '', 'Début du suivi des déclarations (aaaa-mm-jj) : les périodes terminées avant ne sont ni affichées en retard ni relancées. Rempli à l\'installation'],
+  ['fiscal.periodicite', 'trimestrielle', 'Rythme de déclaration du CA à l\'URSSAF : trimestrielle ou mensuelle'],
+  ['fiscal.taux_cotisations', '', 'Taux des cotisations sociales (%) — À RENSEIGNER : taux appliqué sur votre espace autoentrepreneur.urssaf.fr'],
+  ['fiscal.taux_cfp', '0.2', 'Contribution à la formation professionnelle (%), professions libérales — à vérifier chaque année'],
+  ['fiscal.versement_liberatoire', 'oui', 'Versement libératoire de l\'impôt sur le revenu : oui ou non'],
+  ['fiscal.taux_versement_liberatoire', '2.2', 'Taux du versement libératoire (%), activité libérale (BNC) — à vérifier chaque année'],
 
   // Échéances (§ 5)
   ['echeance.remise_alertes_j', '7;3;1', 'Alertes avant la date limite de remise (jours)'],
@@ -2184,7 +2371,11 @@ function Params_initialiser_() {
   Db_lire(TABLES.PARAMETRES).forEach(function (l) { existants[String(l.cle)] = true; });
   var nouveaux = PARAMETRES_DEFAUT
     .filter(function (p) { return !existants[p[0]]; })
-    .map(function (p) { return { cle: p[0], valeur: p[1], commentaire: p[2] }; });
+    .map(function (p) {
+      // Valeur dynamique : date du jour pour le début du suivi des déclarations
+      var valeur = p[0] === 'fiscal.debut_suivi' && !p[1] ? Utilities.formatDate(new Date(), APP.FUSEAU, 'yyyy-MM-dd') : p[1];
+      return { cle: p[0], valeur: valeur, commentaire: p[2] };
+    });
   Db_insererPlusieurs(TABLES.PARAMETRES, nouveaux);
   Params_cache_ = null;
   return nouveaux.length;

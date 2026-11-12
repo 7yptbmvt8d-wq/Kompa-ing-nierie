@@ -83,6 +83,10 @@ function Courriers_modele(idRelance) {
         politesse
       ];
       break;
+    case TYPE_RELANCE_URSSAF:
+      return { type: r.type, destinataire: 'URSSAF — autoentrepreneur.urssaf.fr', objet: 'Déclaration de chiffre d\'affaires',
+        corps: 'Pas de courrier : déclaration en ligne.\n\n1. Se connecter sur https://autoentrepreneur.urssaf.fr\n2. Déclarer et payer → période concernée\n3. ' +
+          (r.commentaire || 'Saisir le CA encaissé de la période.') + '\n4. Payer, puis marquer la période « déclarée » sur l\'accueil de Kompa Affaires.' };
     default:
       objet = ref + (r.type || 'Relance');
       corps = ['Madame, Monsieur,', '', '[texte]', '', politesse];

@@ -89,6 +89,16 @@ function Echeances_calculer(debut, fin, quand) {
     }
   });
 
+  // Déclarations URSSAF (périodes terminées non déclarées)
+  Fiscal_echeances_(debut, fin, auj).forEach(function (e) {
+    var p = e.periode;
+    out.push({
+      date: aujourdhui_(e.date), type: 'Déclaration', libelle: 'Déclaration URSSAF ' + p.libelle + ' — CA encaissé ' + Courriers_euros_(p.ca),
+      id_affaire: '', acheteur: 'URSSAF', objet: 'Déclarer le CA encaissé du ' + jourIso_(date_(p.debut)) + ' au ' + jourIso_(date_(p.fin)),
+      statut: p.etat, jours: ecartJours_(e.date, auj), urgent: ecartJours_(e.date, auj) >= 0 && ecartJours_(e.date, auj) <= 7, depassee: e.depassee
+    });
+  });
+
   return out.sort(function (x, y) { return x.date - y.date || x.type.localeCompare(y.type); });
 }
 
@@ -155,6 +165,16 @@ function Relances_synchroniser(quand) {
     }
   });
 
+  // Déclaration URSSAF : période terminée et non déclarée
+  [auj.getFullYear() - 1, auj.getFullYear()].forEach(function (an) {
+    Fiscal_declarations(an, auj).periodes.forEach(function (p) {
+      if (p.etat !== 'à déclarer' && p.etat !== 'en retard') return;
+      due('urssaf:' + p.id, { id_affaire: '', type: TYPE_RELANCE_URSSAF, date_prevue: ajouterJours_(aujourdhui_(date_(p.fin)), 1),
+        commentaire: 'Déclarer sur autoentrepreneur.urssaf.fr le CA encaissé ' + p.libelle + ' : ' + Courriers_euros_(p.ca) + ', avant le ' +
+          Utilities.formatDate(date_(p.echeance), APP.FUSEAU, 'dd/MM/yyyy') + '.' });
+    });
+  });
+
   Db_insererPlusieurs(TABLES.RELANCES, aCreer);
 
   // Clôture automatique des relances devenues sans objet
@@ -165,6 +185,7 @@ function Relances_synchroniser(quand) {
     if (r.type === TYPES_RELANCE.MOTIFS || r.type === TYPES_RELANCE.MOTIFS_RAPPEL) sansObjet = a && String(a.motifs_rejet || '').trim() !== '';
     else if (r.type === TYPES_RELANCE.DECISION) sansObjet = !a || a.statut !== 'Déposée';
     else if (r.type === TYPES_RELANCE.ENCAISSEMENT) sansObjet = !dues[r.cle]; // facture encaissée entre-temps
+    else if (r.type === TYPE_RELANCE_URSSAF) sansObjet = !dues[r.cle]; // période déclarée
     if (sansObjet) {
       Db_maj(TABLES.RELANCES, r.id, { statut: 'sans objet', date_faite: auj,
         commentaire: (r.commentaire ? r.commentaire + ' ' : '') + '[Clôturée automatiquement]' });
@@ -182,7 +203,7 @@ function Relances_aFaire(quand, tout) {
   return Db_lire(TABLES.RELANCES)
     .filter(function (r) { return r.statut === 'à faire' && (tout || !date_(r.date_prevue) || aujourdhui_(date_(r.date_prevue)) <= auj); })
     .map(function (r) {
-      var a = affaires[r.id_affaire] || {};
+      var a = affaires[r.id_affaire] || (r.type === TYPE_RELANCE_URSSAF ? { acheteur: 'URSSAF', objet: r.commentaire } : {});
       return Object.assign({}, r, { acheteur: a.acheteur || '', objet: a.objet || '', jours: date_(r.date_prevue) ? ecartJours_(date_(r.date_prevue), auj) : 0 });
     })
     .sort(function (x, y) { return (date_(x.date_prevue) || 0) - (date_(y.date_prevue) || 0); });

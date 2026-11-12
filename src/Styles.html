@@ -57,6 +57,7 @@ h2 { font-size: var(--kompa-fs-h3); font-weight: 600; color: var(--kompa-encre);
 .grille { display: grid; gap: var(--kompa-s4); grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 .carte { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius); background: var(--kompa-blanc); padding: var(--kompa-s5); }
 .carte--large { grid-column: span 2; }
+.carte--pleine { grid-column: 1 / -1; }
 .carte--attente { background: var(--kompa-brume); border-color: var(--kompa-brume); }
 .carte--attente p { color: var(--kompa-gris); margin: 0; font-size: var(--kompa-fs-small); }
 .carte__lot { font-family: var(--kompa-font-mono); font-weight: 500; font-size: 13px; color: var(--kompa-gris); margin-bottom: var(--kompa-s1); }

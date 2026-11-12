@@ -172,7 +172,9 @@ Le tableau de bord tient sur un écran et se lit en 10 secondes : où en sont le
 - Franchise de TVA (services) : 37 500 €, seuil majoré 41 250 € — alerte à 80 % puis à 100 %.
 - Plafond de la micro-entreprise (prestations de services) : 83 600 € — alerte à 80 % puis à 100 %.
 
-Les seuils sont des paramètres, à mettre à jour quand la loi change. En V1, factures et encaissements sont saisis à la main ; la V2 les reprendra de Qonto.
+Les seuils sont des paramètres, à mettre à jour quand la loi change.
+
+**Déclarations URSSAF** (ajout du 12/11/2026) : CA encaissé présenté au rythme des déclarations (trimestriel), avec date limite, estimation des cotisations, de la CFP et du versement libératoire, et relance tant que la période n'est pas déclarée — voir [declarations-urssaf.md](declarations-urssaf.md). En V1, factures et encaissements sont saisis à la main ; la V2 les reprendra de Qonto.
 
 ## 8. Écrans
 

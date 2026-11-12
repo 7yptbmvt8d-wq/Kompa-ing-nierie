@@ -16,6 +16,7 @@ var GROUPES_PARAMETRES = [
   ['echeance', 'Échéances et relances'],
   ['email', 'E-mail du matin'],
   ['courrier', 'Courriers'],
+  ['fiscal', 'Déclarations URSSAF'],
   ['liste', 'Listes de valeurs'],
   ['sauvegarde', 'Sauvegarde'],
   ['app', 'Application']
@@ -73,6 +74,14 @@ var PARAMETRES_DEFAUT = [
   ['seuil.plafond_vise', '80000', 'Plafond de CA annuel que vous vous fixez, sous le plafond légal (€)'],
   ['seuil.micro_plafond', '83600', 'Plafond micro-entreprise, prestations de services (€)'],
   ['seuil.alerte_pct', '80', 'Première alerte à ce pourcentage du seuil'],
+
+  // Déclarations URSSAF (micro-entreprise)
+  ['fiscal.debut_suivi', '', 'Début du suivi des déclarations (aaaa-mm-jj) : les périodes terminées avant ne sont ni affichées en retard ni relancées. Rempli à l\'installation'],
+  ['fiscal.periodicite', 'trimestrielle', 'Rythme de déclaration du CA à l\'URSSAF : trimestrielle ou mensuelle'],
+  ['fiscal.taux_cotisations', '', 'Taux des cotisations sociales (%) — À RENSEIGNER : taux appliqué sur votre espace autoentrepreneur.urssaf.fr'],
+  ['fiscal.taux_cfp', '0.2', 'Contribution à la formation professionnelle (%), professions libérales — à vérifier chaque année'],
+  ['fiscal.versement_liberatoire', 'oui', 'Versement libératoire de l\'impôt sur le revenu : oui ou non'],
+  ['fiscal.taux_versement_liberatoire', '2.2', 'Taux du versement libératoire (%), activité libérale (BNC) — à vérifier chaque année'],
 
   // Échéances (§ 5)
   ['echeance.remise_alertes_j', '7;3;1', 'Alertes avant la date limite de remise (jours)'],
@@ -159,7 +168,11 @@ function Params_initialiser_() {
   Db_lire(TABLES.PARAMETRES).forEach(function (l) { existants[String(l.cle)] = true; });
   var nouveaux = PARAMETRES_DEFAUT
     .filter(function (p) { return !existants[p[0]]; })
-    .map(function (p) { return { cle: p[0], valeur: p[1], commentaire: p[2] }; });
+    .map(function (p) {
+      // Valeur dynamique : date du jour pour le début du suivi des déclarations
+      var valeur = p[0] === 'fiscal.debut_suivi' && !p[1] ? Utilities.formatDate(new Date(), APP.FUSEAU, 'yyyy-MM-dd') : p[1];
+      return { cle: p[0], valeur: valeur, commentaire: p[2] };
+    });
   Db_insererPlusieurs(TABLES.PARAMETRES, nouveaux);
   Params_cache_ = null;
   return nouveaux.length;

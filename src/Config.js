@@ -123,6 +123,13 @@ var TABLES = {
     colonnes: ['cle', 'valeur', 'commentaire'],
     texteBrut: ['valeur'] // évite que Sheets convertisse « 04 » en 4
   },
+  DECLARATIONS: {
+    onglet: 'Déclarations',
+    cle: 'id',
+    colonnes: ['id', 'ca_declare', 'date_declaration', 'commentaire'],
+    nombres: ['ca_declare'],
+    texteBrut: ['id']
+  },
   JOURNAL_MOTEUR: {
     onglet: 'Journal moteur',
     cle: 'id',

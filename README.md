@@ -4,7 +4,7 @@ Veille et suivi des marchés publics d'AMO de Kompa Ingénierie.
 Google Apps Script + Google Sheets + web app, dans le compte Google Kompa.
 
 Spécification : [docs/cahier-des-charges-v1.md](docs/cahier-des-charges-v1.md) ·
-Recette : [lot 1](docs/recette-lot-1.md) · [lot 2](docs/recette-lot-2.md) · [lot 3](docs/recette-lot-3.md) · [lot 4](docs/recette-lot-4.md) · [lot 5](docs/recette-lot-5.md)
+Déclarations URSSAF : [docs/declarations-urssaf.md](docs/declarations-urssaf.md) · Recette : [lot 1](docs/recette-lot-1.md) · [lot 2](docs/recette-lot-2.md) · [lot 3](docs/recette-lot-3.md) · [lot 4](docs/recette-lot-4.md) · [lot 5](docs/recette-lot-5.md)
 
 ## Avancement
 
@@ -46,6 +46,8 @@ src/                    code source (Apps Script)
   Courriers.js          modèles de courriers des relances
   Email.js              e-mail du matin (§ 6)
   Indicateurs.js        indicateurs du tableau de bord et enseignements (§ 7)
+  Fiscal.js             déclarations URSSAF : CA encaissé par trimestre, échéances, estimation
+  ApiFiscal.js          API des déclarations URSSAF
   ApiTableau.js         API du tableau de bord et des enseignements
   ApiEcheances.js       API de l'échéancier et de l'e-mail
   Setup.js              installer(), déclencheurs, sauvegarde hebdomadaire

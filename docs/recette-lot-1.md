@@ -7,10 +7,10 @@
 | # | Action | Résultat attendu | OK |
 |---|---|---|---|
 | 0 | Suivre [installation.md](installation.md), étapes A à D | URL `/exec` obtenue | [ ] |
-| 1 | Éditeur Apps Script : exécuter `installer()` | Journal : URL du classeur, 9 onglets, ~50 paramètres ajoutés, déclencheur `sauvegardeHebdo` | [ ] |
+| 1 | Éditeur Apps Script : exécuter `installer()` | Journal : URL du classeur, 10 onglets (« Déclarations » depuis le 12/11/2026), ~50 paramètres ajoutés, déclencheur `sauvegardeHebdo` | [ ] |
 | 2 | Ouvrir le classeur « Kompa Affaires — données » | Onglets Avis, Affaires, Historique, Critères, Factures, Relances, Acheteurs, Paramètres, Journal moteur ; en-têtes brume, ligne 1 figée | [ ] |
 | 3 | Onglet Paramètres | `zone.departements_paca` = `04;05;06;13;83;84` (zéros conservés) | [ ] |
-| 4 | Ouvrir l'URL `/exec` sur PC | En-tête ardoise avec le symbole Kompa ; carte « État du socle » — Connecté, 9 / 9 onglets, compte Kompa | [ ] |
+| 4 | Ouvrir l'URL `/exec` sur PC | En-tête ardoise avec le symbole Kompa ; carte « État du socle » — Connecté, 10 / 10 onglets, compte Kompa | [ ] |
 | 4 bis | Classeur → onglet Factures : saisir une ligne (date, montant, date_encaissement, montant_encaisse de l'année), recharger l'app | Compteur de CA : encaissé mis à jour, reste avant chaque seuil recalculé ; alerte rouille au-delà de 80 % d'un seuil | [ ] |
 | 5 | PC → Paramètres → `capacite.montant_max_mission` : saisir le montant, Enregistrer | Message « Paramètre … enregistré », date « Modifié le » mise à jour | [ ] |
 | 6 | Classeur → onglet Paramètres | La valeur saisie et `modifie_le` apparaissent sur la ligne | [ ] |

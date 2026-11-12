@@ -55,6 +55,79 @@
     }).catch(function (e) { el.innerHTML = '<h2>Tableau de bord</h2>' + K.bandeauErreur(e); });
   };
 
+  // ——— Déclarations URSSAF (accueil) ———
+  var ETATS_DECL = {
+    'déclarée': 'statut--ok', 'en retard': 'statut--ko', 'à déclarer': 'statut--alerte',
+    'en cours': 'statut--encours', 'à venir': 'statut--neutre', 'non suivie': 'statut--neutre'
+  };
+
+  K.fiscalAccueil = function (el) {
+    K.appel('apiFiscal').then(function (d) { rendreFiscal(el, d); })
+      .catch(function (e) { el.innerHTML = '<h2>Déclarations URSSAF</h2>' + K.bandeauErreur(e); });
+  };
+
+  function rendreFiscal(el, d) {
+    var eur = function (x) { return x === null || x === undefined ? '<span class="vide">—</span>' : K.euros(x); };
+    var tx = function (x) { return x === null ? '?' : (x * 100).toFixed(1).replace('.', ',').replace(',0', '') + ' %'; };
+    var lignes = d.periodes.map(function (p) {
+      var etat = '<span class="statut ' + (ETATS_DECL[p.etat] || 'statut--neutre') + '">' + esc(p.etat) + '</span>' +
+        (p.date_declaration ? ' <span class="legende mono">' + jour(p.date_declaration) + '</span>' : '');
+      var action = (p.etat === 'à déclarer' || p.etat === 'en retard')
+        ? '<button type="button" class="bouton" data-declarer="' + esc(p.id) + '" data-ca="' + esc(p.ca) + '" data-libelle="' + esc(p.libelle) + '">Déclarée</button>'
+        : p.etat === 'déclarée' ? '<button type="button" class="bouton bouton--discret" data-annuler-decl="' + esc(p.id) + '">Annuler</button>' : '';
+      return '<tr><td><strong>' + esc(p.libelle) + '</strong><div class="legende mono">' + jour(p.debut) + ' – ' + jour(p.fin) + '</div></td>' +
+        '<td class="num mono">' + eur(p.ca) + '</td><td class="num mono">' + eur(p.cotisations) + '</td><td class="num mono">' + eur(p.cfp) + '</td>' +
+        '<td class="num mono">' + eur(p.impot) + '</td><td class="num mono"><strong>' + eur(p.total) + '</strong></td>' +
+        '<td class="mono">' + jour(p.echeance) + '</td><td>' + etat + '</td><td class="actions-veille">' + action + '</td></tr>';
+    }).join('');
+    var t = d.totaux;
+    el.innerHTML = '<div class="tableau-tete"><h2>Déclarations URSSAF ' + d.annee + ' — ' + esc(d.periodicite) + 's</h2>' +
+        '<span class="legende">Base : CA encaissé de la période</span></div>' +
+      (d.tauxManquants ? '<div class="bandeau">Renseignez le taux de vos cotisations sociales (<span class="mono">fiscal.taux_cotisations</span>, onglet Paramètres › Déclarations URSSAF) pour estimer les sommes à payer. Il figure sur votre espace autoentrepreneur.urssaf.fr.</div>' : '') +
+      '<div class="tableau-conteneur"><table><thead><tr><th scope="col">Période</th><th scope="col" class="num">CA encaissé</th>' +
+      '<th scope="col" class="num">Cotisations (' + tx(d.taux.cotisations) + ')</th><th scope="col" class="num">CFP (' + tx(d.taux.cfp) + ')</th>' +
+      '<th scope="col" class="num">Impôt' + (d.taux.versementLiberatoire ? ' (VL ' + tx(d.taux.impot) + ')' : ' (sans VL)') + '</th>' +
+      '<th scope="col" class="num">Total estimé</th><th scope="col">À déclarer avant</th><th scope="col">État</th><th scope="col"><span class="seul-lecteur">Action</span></th></tr></thead><tbody>' +
+      lignes +
+      '<tr class="ligne-total"><td>Année ' + d.annee + '</td><td class="num mono">' + eur(t.ca) + '</td><td class="num mono">' + eur(t.cotisations) + '</td>' +
+      '<td class="num mono">' + eur(t.cfp) + '</td><td class="num mono">' + eur(t.impot) + '</td><td class="num mono">' + eur(t.total) + '</td><td colspan="3"></td></tr>' +
+      '</tbody></table></div>' +
+      '<p class="legende">Estimations calculées avec les taux de l\'onglet Paramètres, à vérifier chaque année sur votre espace URSSAF. ' +
+      'Une relance « Déclaration URSSAF » apparaît dans l\'échéancier et l\'e-mail du matin tant qu\'une période terminée n\'est pas marquée déclarée.</p>';
+
+    Array.prototype.forEach.call(el.querySelectorAll('[data-declarer]'), function (b) {
+      b.addEventListener('click', function () { dialogueDeclarer(el, b.getAttribute('data-declarer'), b.getAttribute('data-libelle'), b.getAttribute('data-ca')); });
+    });
+    Array.prototype.forEach.call(el.querySelectorAll('[data-annuler-decl]'), function (b) {
+      b.addEventListener('click', function () {
+        K.appel('apiAnnulerDeclaration', b.getAttribute('data-annuler-decl')).then(function (r) { K.toast('Déclaration annulée.'); rendreFiscal(el, r); })
+          .catch(function (e) { K.toast(e.message, true); });
+      });
+    });
+  }
+
+  function dialogueDeclarer(el, id, libelle, ca) {
+    var d = document.createElement('dialog');
+    d.className = 'dialogue';
+    var auj = new Date(), p = function (n) { return String(n).padStart(2, '0'); };
+    d.innerHTML = '<form method="dialog" novalidate><h2>Déclaration ' + esc(libelle) + '</h2>' +
+      '<div class="form-grille">' +
+      '<div class="champ-bloc"><label for="d-ca">CA déclaré (€)</label><input class="champ mono num" id="d-ca" inputmode="decimal" value="' + esc(ca) + '"></div>' +
+      '<div class="champ-bloc"><label for="d-date">Date de la déclaration</label><input class="champ mono" type="date" id="d-date" value="' + auj.getFullYear() + '-' + p(auj.getMonth() + 1) + '-' + p(auj.getDate()) + '"></div>' +
+      '</div><div class="dialogue__actions"><button type="button" class="bouton bouton--discret" data-fermer>Annuler</button><button type="submit" class="bouton">Enregistrer</button></div></form>';
+    document.body.appendChild(d);
+    var fermer = function () { d.close(); d.remove(); };
+    d.querySelector('[data-fermer]').addEventListener('click', fermer);
+    d.addEventListener('cancel', function () { d.remove(); });
+    d.querySelector('form').addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      K.appel('apiDeclarer', id, d.querySelector('#d-ca').value, d.querySelector('#d-date').value).then(function (r) {
+        fermer(); K.toast(libelle + ' marquée déclarée.'); rendreFiscal(el, r);
+      }).catch(function (e) { K.toast(e.message, true); });
+    });
+    d.showModal();
+  }
+
   // ——— Écran Enseignements ———
   function ecranEnseignements(el) {
     el.innerHTML = K.titre('Enseignements', '') + '<div class="chargement">Lecture des affaires perdues…</div>';

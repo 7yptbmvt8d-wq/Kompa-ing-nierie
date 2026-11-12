@@ -44,6 +44,9 @@ function assembler() {
   console.log = () => {};
   env.ctx.creerAffaireExerciceMouthe();
   env.ctx.creerAffairesTestIndicateurs();
+  env.ctx.Params_enregistrer('fiscal.debut_suivi', '2026-01-01');
+  env.ctx.Params_enregistrer('fiscal.taux_cotisations', '23,2');
+  env.ctx.Params_cache_ = null;
   const A = env.ctx;
   const cree = (d, quand) => A.Affaires_creer(d, { date: quand }).id;
   const e1 = cree({ acheteur: 'Commune de Digne-les-Bains', type_acheteur: 'Commune', departement: '04', objet: 'Étude de faisabilité — réhabilitation du gymnase municipal', procedure: 'MAPA', date_limite_remise: '2026-11-14', pre_score: 85 }, '2026-11-02');
@@ -199,7 +202,7 @@ function assembler() {
   await p.click('nav a[href="#echeancier"]');
   await p.waitForSelector('.cal-grille');
   await p.screenshot({ path: path.join(sortie, 'pc-echeancier.png'), fullPage: true });
-  await p.click('[data-courrier]');
+  await p.locator('tr', { hasText: 'Motifs du rejet' }).first().locator('[data-courrier]').click();
   await p.waitForSelector('dialog.dialogue--large textarea.courrier');
   const texte = await p.inputValue('textarea.courrier');
   assert.match(texte, /code de la commande publique/);
@@ -230,6 +233,18 @@ function assembler() {
   await p.click('nav a[href="#enseignements"]');
   await p.waitForSelector('.table-enseignements tbody tr');
   await p.screenshot({ path: path.join(sortie, 'pc-enseignements.png'), fullPage: true });
+
+  // ——— Déclarations URSSAF ———
+  await p.click('nav a[href="#accueil"]');
+  await p.waitForSelector('#carte-urssaf table');
+  const nbDeclarer = await p.locator('[data-declarer]').count();
+  assert.ok(nbDeclarer >= 1, 'aucune période à déclarer');
+  await p.locator('#carte-urssaf').screenshot({ path: path.join(sortie, 'pc-urssaf.png') });
+  await p.click('[data-declarer]');
+  await p.waitForSelector('dialog #d-ca');
+  await p.click('dialog button[type=submit]');
+  await p.waitForFunction((n) => document.querySelectorAll('[data-declarer]').length === n - 1, nbDeclarer);
+  assert.strictEqual(A.Db_lire(A.TABLES.DECLARATIONS).length, 1);
 
   // Petit portable (1280 px) : pas de débordement de la page
   await p.setViewportSize({ width: 1280, height: 800 });

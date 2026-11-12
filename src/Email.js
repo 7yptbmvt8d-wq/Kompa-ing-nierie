@@ -63,7 +63,7 @@ function Email_construire(quand, depuis) {
   var avisFrance = horsPaca.filter(function (a) { return a.classement === 'à étudier'; });
   var autresFrance = horsPaca.length - avisFrance.length;
   var echeances = Echeances_calculer(auj, ajouterJours_(auj, 7), quand)
-    .filter(function (e) { return ['Remise', 'Questions', 'Visite'].indexOf(e.type) >= 0; });
+    .filter(function (e) { return ['Remise', 'Questions', 'Visite', 'Déclaration'].indexOf(e.type) >= 0; });
   var relances = Relances_aFaire(quand);
   var ind = Indicateurs_resume(quand);
 
@@ -105,7 +105,7 @@ function Email_construire(quand, depuis) {
     (autresFrance ? '<tr><td colspan="3" style="padding:10px 0;color:' + C.gris + ';font-size:13px">+ ' + autresFrance + ' autre' + (autresFrance > 1 ? 's' : '') +
       ' avis « possible » hors ' + h(paca) + ' : <a href="' + h(url) + '#veille" style="color:' + C.ardoise + '">voir dans l\'app</a></td></tr>' : ''));
   if (echeances.length) corps += section('Échéances des 7 prochains jours', echeances.length, echeances.map(function (e) {
-    return ligneSimple(jr(e.date) + (e.jours === 0 ? ' (aujourd\'hui)' : ' (J-' + e.jours + ')'), e.libelle, e, url + '#affaire/' + e.id_affaire, e.urgent);
+    return ligneSimple(jr(e.date) + (e.jours === 0 ? ' (aujourd\'hui)' : e.jours < 0 ? ' (retard)' : ' (J-' + e.jours + ')'), e.libelle, e, url + (e.id_affaire ? '#affaire/' + e.id_affaire : '#accueil'), e.urgent || e.depassee);
   }).join(''));
   if (relances.length) corps += section('Relances à faire', relances.length, relances.map(function (r) {
     return ligneSimple(jr(r.date_prevue), r.type, r, url + '#echeancier', r.jours < 0);

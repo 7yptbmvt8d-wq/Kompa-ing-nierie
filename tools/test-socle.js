@@ -12,13 +12,13 @@ const test = (nom, fn) => tests.push({ nom, fn });
 // Les objets créés dans le contexte vm n'ont pas les mêmes prototypes : on compare des copies JSON.
 const brut = (x) => JSON.parse(JSON.stringify(x));
 
-test('installer() crée le classeur, les 9 onglets et supprime la feuille par défaut', () => {
+test('installer() crée le classeur, les 10 onglets et supprime la feuille par défaut', () => {
   const env = creerEnvironnement();
   const rapport = env.ctx.installer({ exercice: false });
   const ss = Object.values(env.classeurs)[0];
   assert.strictEqual(ss.getName(), 'Kompa Affaires — données');
   const noms = ss.getSheets().map((f) => f.getName());
-  assert.deepStrictEqual(noms, ['Avis', 'Affaires', 'Historique', 'Critères', 'Factures', 'Relances', 'Acheteurs', 'Paramètres', 'Journal moteur']);
+  assert.deepStrictEqual(noms, ['Avis', 'Affaires', 'Historique', 'Critères', 'Factures', 'Relances', 'Acheteurs', 'Paramètres', 'Déclarations', 'Journal moteur']);
   assert.ok(rapport.parametresAjoutes > 40);
   assert.deepStrictEqual(brut(rapport.declencheurs), ['sauvegardeHebdo', 'collecteQuotidienne', 'envoyerEmailMatin']);
 });
@@ -99,7 +99,7 @@ test('apiEtat renvoie l\'état du classeur, sérialisable', () => {
   env.ctx.installer({ exercice: false });
   const r = env.ctx.apiEtat();
   assert.ok(r.ok, r.erreur);
-  assert.strictEqual(r.data.onglets.length, 9);
+  assert.strictEqual(r.data.onglets.length, 10);
   assert.ok(r.data.onglets.every((o) => o.present));
   assert.strictEqual(r.data.onglets.find((o) => o.nom === 'Paramètres').lignes, env.ctx.PARAMETRES_DEFAUT.length);
 });
@@ -759,6 +759,99 @@ test('affaires [TEST] : création idempotente puis suppression complète', () =>
   assert.strictEqual(env.ctx.Db_lire(T.FACTURES).length, 0);
   assert.strictEqual(env.ctx.Db_lire(T.CRITERES).filter((c) => c.id_affaire !== 'KA-2026-001').length, 0);
   assert.strictEqual(brut(env.ctx.Compteur_ca(2026)).encaisse, 0);
+});
+
+// ——— Déclarations URSSAF (CA au rythme des déclarations) ———
+
+const jeuFiscal = () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  A.installer({ exercice: false });
+  A.Params_enregistrer('fiscal.debut_suivi', '2026-01-01');
+  A.Params_enregistrer('fiscal.taux_cotisations', '23,2');
+  A.Params_cache_ = null;
+  const g = A.Affaires_creer({ acheteur: 'Commune de Gap', objet: 'AMO' }, { date: '2026-01-10' }).id;
+  A.Affaires_changerStatut(g, 'Go', {}, { date: '2026-01-12' });
+  A.Affaires_changerStatut(g, 'Déposée', { montant_ht: 30000, jours_reponse: 3, date_depot: '2026-01-20' }, { date: '2026-01-20' });
+  A.Affaires_changerStatut(g, 'Gagnée', { date_notification: '2026-02-01', montant_notifie: 30000 }, { date: '2026-02-01' });
+  A.Factures_ajouter(g, { numero: 'F1', date: '2026-02-15', montant: 10000, date_encaissement: '2026-03-20', montant_encaisse: 10000 }); // T1
+  A.Factures_ajouter(g, { numero: 'F2', date: '2026-06-15', montant: 8000, date_encaissement: '2026-07-10', montant_encaisse: 8000 });   // T3
+  A.Factures_ajouter(g, { numero: 'F3', date: '2026-09-15', montant: 5000, date_encaissement: '2026-09-30', montant_encaisse: 5000 });   // T3
+  A.Factures_ajouter(g, { numero: 'F4', date: '2026-10-15', montant: 7000 });                                                          // non encaissée
+  return { env, A };
+};
+
+test('URSSAF trimestriel : CA encaissé par trimestre, échéances, estimation, états', () => {
+  const { A } = jeuFiscal();
+  const d = brut(A.Fiscal_declarations(2026, new Date(2026, 10, 12)));
+  assert.deepStrictEqual(d.periodes.map((p) => p.id), ['2026-T1', '2026-T2', '2026-T3', '2026-T4']);
+  assert.deepStrictEqual(d.periodes.map((p) => p.ca), [10000, 0, 13000, 0]);
+  assert.deepStrictEqual(d.periodes.map((p) => p.echeance), ['2026-04-30', '2026-07-31', '2026-10-31', '2027-01-31']);
+  assert.deepStrictEqual(d.periodes.map((p) => p.etat), ['en retard', 'en retard', 'en retard', 'en cours']);
+  const t3 = d.periodes[2];
+  assert.strictEqual(t3.cotisations, 3016);   // 13 000 × 23,2 %
+  assert.strictEqual(t3.cfp, 26);             // 13 000 × 0,2 %
+  assert.strictEqual(t3.impot, 286);          // 13 000 × 2,2 % (versement libératoire)
+  assert.strictEqual(t3.total, 3328);
+  assert.strictEqual(d.totaux.ca, 23000);
+  assert.strictEqual(d.tauxManquants, false);
+});
+
+test('URSSAF : taux de cotisations non renseigné → estimation absente, CA présent', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const d = brut(env.ctx.Fiscal_declarations(2026));
+  assert.strictEqual(d.tauxManquants, true);
+  assert.strictEqual(d.periodes[0].total, null);
+  assert.strictEqual(d.periodes[0].ca, 0);
+});
+
+test('URSSAF : relance et échéance tant que non déclaré ; déclaration → sans objet', () => {
+  const { A } = jeuFiscal();
+  const quand = new Date(2026, 10, 12);
+  A.Relances_synchroniser(quand);
+  const urssaf = () => A.Db_lire(A.TABLES.RELANCES).filter((x) => x.type === 'Déclaration URSSAF');
+  assert.strictEqual(urssaf().length, 3); // T1, T2, T3 en retard
+  assert.match(urssaf().find((x) => x.cle === 'urssaf:2026-T3').commentaire, /13 000,00 €, avant le 31\/10\/2026/);
+  const ech = brut(A.Echeances_calculer(new Date(2026, 10, 12), new Date(2026, 11, 31), quand)).filter((e) => e.type === 'Déclaration');
+  assert.strictEqual(ech.length, 3);
+  assert.ok(ech.every((e) => e.depassee && e.acheteur === 'URSSAF'));
+  ['2026-T1', '2026-T2', '2026-T3'].forEach((id) => assert.ok(A.apiDeclarer(id, '', '2026-11-12').ok));
+  A.Relances_synchroniser(quand);
+  assert.ok(urssaf().every((x) => x.statut === 'sans objet'));
+  const d = brut(A.Fiscal_declarations(2026, quand));
+  assert.deepStrictEqual(d.periodes.map((p) => p.etat), ['déclarée', 'déclarée', 'déclarée', 'en cours']);
+  assert.ok(A.apiAnnulerDeclaration('2026-T3').ok);
+  assert.strictEqual(brut(A.Fiscal_declarations(2026, quand)).periodes[2].etat, 'en retard');
+  assert.strictEqual(A.apiDeclarer('2026-T9', 1, '').ok, false);
+});
+
+test('URSSAF : périodes antérieures au début du suivi non relancées', () => {
+  const { A } = jeuFiscal();
+  A.Params_enregistrer('fiscal.debut_suivi', '2026-11-01');
+  A.Params_cache_ = null;
+  const d = brut(A.Fiscal_declarations(2026, new Date(2026, 10, 12)));
+  assert.deepStrictEqual(d.periodes.map((p) => p.etat), ['non suivie', 'non suivie', 'non suivie', 'en cours']);
+  A.Relances_synchroniser(new Date(2026, 10, 12));
+  assert.strictEqual(A.Db_lire(A.TABLES.RELANCES).filter((x) => x.type === 'Déclaration URSSAF').length, 0);
+});
+
+test('URSSAF mensuel : 12 périodes, échéance fin du mois suivant', () => {
+  const { A } = jeuFiscal();
+  A.Params_enregistrer('fiscal.periodicite', 'mensuelle');
+  A.Params_cache_ = null;
+  const d = brut(A.Fiscal_declarations(2026, new Date(2026, 10, 12)));
+  assert.strictEqual(d.periodes.length, 12);
+  assert.strictEqual(d.periodes[2].id, '2026-M03');
+  assert.strictEqual(d.periodes[2].ca, 10000);
+  assert.strictEqual(d.periodes[2].echeance, '2026-04-30');
+  assert.strictEqual(d.periodes[11].echeance, '2027-01-31');
+});
+
+test('installer() : début du suivi URSSAF = date d\'installation', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  assert.match(env.ctx.Params_texte('fiscal.debut_suivi'), /^\d{4}-\d{2}-\d{2}$/);
 });
 
 let echecs = 0;
