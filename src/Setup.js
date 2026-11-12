@@ -8,6 +8,7 @@
 
 function installer(options) {
   var debut = Date.now();
+  Db_viderCache_();
   var classeur = Setup_classeur_();
   var rapport = { classeur: classeur.getUrl(), onglets: [], colonnesAjoutees: 0 };
 
@@ -23,6 +24,8 @@ function installer(options) {
   if (!(options && options.exercice === false)) {
     try { rapport.exerciceMouthe = creerAffaireExerciceMouthe(); } catch (e) { rapport.exerciceMouthe = 'erreur : ' + e.message; }
   }
+  // Dossiers Drive des affaires existantes
+  try { rapport.dossiersDrive = creerDossiersManquants(); } catch (e) { rapport.dossiersDrive = 'erreur : ' + e.message; }
   rapport.declencheurs = Setup_declencheurs_();
   rapport.duree_s = Math.round((Date.now() - debut) / 100) / 10;
 

@@ -17,6 +17,7 @@ var GROUPES_PARAMETRES = [
   ['email', 'E-mail du matin'],
   ['courrier', 'Courriers'],
   ['fiscal', 'Déclarations URSSAF'],
+  ['drive', 'Dossiers Drive'],
   ['liste', 'Listes de valeurs'],
   ['sauvegarde', 'Sauvegarde'],
   ['app', 'Application']
@@ -39,6 +40,7 @@ var PARAMETRES_DEFAUT = [
     '… sauf s\'il contient aussi celui-ci'],
   ['veille.libelle_gmail', 'Veille', 'Libellé Gmail des alertes des plateformes'],
   ['veille.heure_collecte', '6', 'Heure de la collecte quotidienne (0-23)'],
+  ['veille.archivage_jours', '60', 'Avis échus depuis plus de N jours déplacés dans l\'onglet « Avis archivés » (allège l\'écran Veille)'],
   ['veille.fenetre_jours', '3', 'Avis BOAMP et alertes des N derniers jours (le dédoublonnage évite les reprises)'],
   ['veille.plateformes_domaines', 'marches-publics.gouv.fr;marches-publics.info;achatpublic.com;marches-securises.fr;e-marchespublics.com;marchesonline.com;francemarches.com;klekoon.com;maximilien.fr;demat-ampa.fr;awsolutions.fr;boamp.fr',
     'Domaines des plateformes : sert à repérer le lien de la consultation dans les alertes e-mail'],
@@ -110,6 +112,15 @@ var PARAMETRES_DEFAUT = [
   ['liste.procedures', 'MAPA;AO;Consultation directe', 'Procédures'],
   ['liste.statuts_relance', 'à faire;faite;sans objet', 'Statuts d\'une relance'],
   ['liste.pieces_types', 'note méthodologique;CV;références;prix', 'Pièces-types à améliorer'],
+
+  // Dossiers Drive des affaires
+  ['drive.actif', 'oui', 'Créer un dossier Drive pour chaque affaire : oui ou non'],
+  ['drive.dossier_racine', '', 'Dossier racine (URL ou identifiant). Vide = créé automatiquement « Kompa Affaires — Dossiers »'],
+  ['drive.nom_racine', 'Kompa Affaires — Dossiers', 'Nom du dossier racine s\'il est créé automatiquement'],
+  ['drive.sous_dossiers_etude', '01 DCE;02 Questions et visite', 'Sous-dossiers créés avec l\'affaire (En étude)'],
+  ['drive.sous_dossiers_go', '03 Candidature;04 Offre;05 Dépôt', 'Sous-dossiers créés au passage en Go'],
+  ['drive.sous_dossiers_resultat', '06 Résultat', 'Sous-dossiers créés au résultat (gagnée, perdue, sans suite)'],
+  ['drive.sous_dossiers_gagnee', '07 Exécution;08 Facturation', 'Sous-dossiers créés au passage en Gagnée'],
 
   // Sauvegarde (§ 2)
   ['sauvegarde.nb_copies', '8', 'Nombre de copies hebdomadaires conservées dans Drive'],

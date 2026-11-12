@@ -21,6 +21,8 @@ function collecteQuotidienne() {
     var ctx = Veille_contexte_();
     var bilan = [Veille_executer_(SOURCE_BOAMP, function () { return Veille_lireBoamp_(ctx); }, ctx),
       Veille_executer_(SOURCE_GMAIL, function () { return Veille_lireGmail_(ctx); }, ctx)];
+    try { Relances_synchroniser(); } catch (e) { console.error('Relances : ' + e.message); }
+    try { Veille_archiver_(); } catch (e) { console.error('Archivage : ' + e.message); }
     console.log(JSON.stringify(bilan));
     return bilan;
   } finally {
@@ -337,6 +339,24 @@ function Veille_scorer_(a, ctx) {
   delete a.descripteurs;
   delete a.texte;
   return a;
+}
+
+// ——— Archivage (allège l'onglet Avis) ———
+
+/** Déplace dans « Avis archivés » les avis échus depuis plus de N jours (sans date : parus il y a plus de 2N jours). */
+function Veille_archiver_(quand) {
+  var auj = aujourdhui_(quand);
+  var n = Params_nombre('veille.archivage_jours', 60);
+  var limite = ajouterJours_(auj, -n), limiteParution = ajouterJours_(auj, -2 * n);
+  var aArchiver = Db_lire(TABLES.AVIS).filter(function (a) {
+    var dl = date_(a.date_limite), dp = date_(a.date_parution);
+    return dl ? aujourdhui_(dl) < limite : (dp ? aujourdhui_(dp) < limiteParution : false);
+  });
+  if (!aArchiver.length) return 0;
+  var ids = aArchiver.map(function (a) { return String(a.id); });
+  Db_insererPlusieurs(TABLES.AVIS_ARCHIVES, aArchiver);
+  Db_supprimerSi(TABLES.AVIS, function (a) { return ids.indexOf(String(a.id)) >= 0; });
+  return aArchiver.length;
 }
 
 // ——— Actions sur les avis ———

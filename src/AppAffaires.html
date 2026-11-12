@@ -144,10 +144,10 @@
   // ——— Écran Affaires ———
   function ecranAffaires(el) {
     el.innerHTML = K.titre('Affaires', '') + '<div class="chargement">Lecture des affaires…</div>';
-    K.appel('apiAffaires').then(function (r) {
+    K.charger('affaires', 'apiAffaires', [], function (r) {
       etat.meta = r.meta;
       rendreAffaires(el, r.affaires);
-    }).catch(function (e) { el.innerHTML = K.titre('Affaires', '') + K.bandeauErreur(e); });
+    }, function (e) { el.innerHTML = K.titre('Affaires', '') + K.bandeauErreur(e); });
   }
 
   function rendreAffaires(el, affaires) {
@@ -263,7 +263,10 @@
         if (!enCours || !col.classList.contains('est-cible')) return;
         var statut = col.getAttribute('data-statut');
         var a = enCours;
-        var apres = function () { ecranAffaires($('#ecran')); };
+        var apres = function (fiche) {
+          ['statut', 'date_statut', 'montant_ht', 'montant_notifie', 'score_final'].forEach(function (k) { a[k] = fiche.affaire[k]; });
+          rendreAffaires($('#ecran'), affaires);
+        };
         K.appel('apiAffaire', a.id).then(function (f) {
           if (statut !== COLONNE_CLOTUREES) return passerStatut(f.affaire, statut, apres);
           var choix = clotureesPermises(a);
@@ -295,16 +298,16 @@
 
   function ecranFiche(el, id) {
     el.innerHTML = '<p><a href="#affaires">← Affaires</a></p><div class="chargement">Lecture de l\'affaire…</div>';
-    K.appel('apiAffaire', id).then(function (f) {
+    K.charger('affaire:' + id, 'apiAffaire', [id], function (f) {
       etat.meta = f.meta;
       rendreFiche(el, f);
-    }).catch(function (e) { el.innerHTML = '<p><a href="#affaires">← Affaires</a></p>' + K.bandeauErreur(e); });
+    }, function (e) { el.innerHTML = '<p><a href="#affaires">← Affaires</a></p>' + K.bandeauErreur(e); });
   }
 
   function rendreFiche(el, f) {
     var a = f.affaire, meta = etat.meta;
     var liens = (a.lien_avis ? '<a class="bouton bouton--discret" href="' + esc(a.lien_avis) + '" target="_blank" rel="noopener" data-externe>Avis</a>' : '') +
-      (a.lien_dce ? '<a class="bouton bouton--discret" href="' + esc(a.lien_dce) + '" target="_blank" rel="noopener" data-externe>Dossier DCE</a>' : '');
+      (a.lien_dce ? '<a class="bouton bouton--discret" href="' + esc(a.lien_dce) + '" target="_blank" rel="noopener" data-externe>Dossier Drive</a>' : '');
     var actions = f.transitions.map(function (s) {
       return '<button type="button" class="bouton" data-passer="' + esc(s) + '">' + esc(s) + '</button>';
     }).join('');
@@ -454,8 +457,13 @@
       ev.preventDefault();
       var t = $('#note-texte', fn).value;
       if (!t.trim()) return;
-      K.appel('apiAffaireNote', a.id, t).then(function (fiche) { K.toast('Note ajoutée.'); recharger(fiche); })
-        .catch(function (e) { K.toast(e.message, true); });
+      var zone = $('.notes', el) || (function () { var d = document.createElement('div'); d.className = 'notes pre'; fn.insertAdjacentElement('afterend', d); return d; })();
+      var p = function (n) { return String(n).padStart(2, '0'); }, d = new Date();
+      zone.textContent = (zone.textContent ? zone.textContent + '\n' : '') + '[' + p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + '] ' + t.trim();
+      $('#note-texte', fn).value = '';
+      K.toast('Note ajoutée.');
+      K.appel('apiAffaireNote', a.id, t).then(function (fiche) { recharger(fiche); })
+        .catch(function (e) { K.toast('Note non enregistrée : ' + e.message, true); });
     });
   }
 

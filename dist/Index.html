@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Kompa Affaires 1.0.0-lot5 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
+<!-- Kompa Affaires 1.1.0 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
 <html lang="fr">
 <head>
   <base target="_top">
@@ -380,16 +380,65 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
   'use strict';
 
   // ——— Appels serveur ———
+  /** Appels en lecture seule : tous les autres modifient les données et vident la mémoire d'affichage. */
+  var LECTURES = ['apiEtat', 'apiParametres', 'apiCompteurCA', 'apiAccueil', 'apiAffaires', 'apiAffaire', 'apiVeille',
+    'apiEcheancier', 'apiSuivi', 'apiCourrier', 'apiEmailApercu', 'apiTableau', 'apiEnseignements', 'apiFiscal'];
+
   function appel(nom) {
     var args = Array.prototype.slice.call(arguments, 1);
     return new Promise(function (resoudre, rejeter) {
       var runner = google.script.run
         .withSuccessHandler(function (r) {
-          if (r && r.ok) resoudre(r.data);
-          else rejeter(new Error((r && r.erreur) || 'Réponse vide du serveur.'));
+          if (r && r.ok) {
+            if (LECTURES.indexOf(nom) < 0) viderMemoire();
+            resoudre(r.data);
+          } else rejeter(new Error((r && r.erreur) || 'Réponse vide du serveur.'));
         })
         .withFailureHandler(function (e) { rejeter(e instanceof Error ? e : new Error(String(e))); });
       runner[nom].apply(runner, args);
+    });
+  }
+
+  // ——— Mémoire d'affichage : la dernière version connue s'affiche tout de suite ———
+  var memoire = {};
+  var jetonEcran = 0;
+  function lireMemoire(cle) {
+    if (memoire[cle]) return memoire[cle];
+    try { var v = localStorage.getItem('ka.m.' + cle); if (v) return (memoire[cle] = JSON.parse(v)); } catch (e) { /* indisponible */ }
+    return null;
+  }
+  function ecrireMemoire(cle, donnees) {
+    memoire[cle] = donnees;
+    try { localStorage.setItem('ka.m.' + cle, JSON.stringify(donnees)); } catch (e) { /* plein ou indisponible */ }
+  }
+  function viderMemoire() {
+    memoire = {};
+    try {
+      Object.keys(localStorage).forEach(function (k) { if (k.indexOf('ka.m.') === 0) localStorage.removeItem(k); });
+    } catch (e) { /* indisponible */ }
+  }
+  /** Saisie en cours sur l'écran : ne pas le redessiner sous les doigts de l'utilisateur. */
+  function saisieEnCours() {
+    var a = document.activeElement;
+    return !!(document.querySelector('dialog[open]') || document.querySelector('#ecran .est-modifie') ||
+      (a && a.closest && a.closest('#ecran') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)));
+  }
+  /**
+   * Affiche tout de suite la dernière version connue (si elle existe), puis la version fraîche
+   * dès qu'elle arrive, si elle diffère et si aucune saisie n'est en cours.
+   */
+  function charger(cle, nom, args, rendu, surErreur) {
+    var jeton = jetonEcran;
+    var ancien = lireMemoire(cle);
+    if (ancien) rendu(ancien, true);
+    return appel.apply(null, [nom].concat(args || [])).then(function (frais) {
+      ecrireMemoire(cle, frais);
+      if (jeton !== jetonEcran) return; // écran quitté entre-temps
+      if (!ancien || (JSON.stringify(frais) !== JSON.stringify(ancien) && !saisieEnCours())) rendu(frais, false);
+    }).catch(function (e) {
+      if (jeton !== jetonEcran) return;
+      if (ancien) toast('Données non actualisées : ' + e.message, true);
+      else if (surErreur) surErreur(e);
     });
   }
 
@@ -447,33 +496,32 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
         '<section class="carte" id="carte-etat"><h2>État du socle</h2><div class="chargement">Lecture du classeur…</div></section>' +
       '</div>';
 
-    if (window.KA && window.KA.tableauAccueil) window.KA.tableauAccueil($('#tableau-de-bord'));
-    if (window.KA && window.KA.fiscalAccueil) window.KA.fiscalAccueil($('#carte-urssaf'));
-    if (window.KA && window.KA.suiviAccueil) window.KA.suiviAccueil($('#carte-echeances'), $('#carte-relances'));
-
-    appel('apiCompteurCA').then(function (ca) {
-      $('#carte-ca').innerHTML = rendreCompteur(ca);
-    }).catch(function (e) {
-      $('#carte-ca').innerHTML = '<h2>Chiffre d\'affaires</h2>' + bandeauErreur(e);
+    charger('accueil', 'apiAccueil', [], function (d) {
+      var K = window.KA;
+      if (K.tableauAccueil) K.tableauAccueil($('#tableau-de-bord'), d.tableau);
+      if (K.fiscalAccueil) K.fiscalAccueil($('#carte-urssaf'), d.fiscal);
+      if (K.suiviAccueil) K.suiviAccueil($('#carte-echeances'), $('#carte-relances'), d.suivi);
+      $('#carte-ca').innerHTML = rendreCompteur(d.ca);
+      rendreEtat(d.etat);
+    }, function (e) {
+      $('#tableau-de-bord').innerHTML = '<h2>Tableau de bord</h2>' + bandeauErreur(e);
     });
+  }
 
-    appel('apiEtat').then(function (etat) {
-      var present = etat.onglets.filter(function (o) { return o.present; }).length;
-      var ok = present === etat.onglets.length;
-      $('#carte-etat').innerHTML = '<h2>État du socle</h2>' +
-        '<dl class="liste-def">' +
-          '<dt>Classeur</dt><dd><span class="statut ' + (ok ? 'statut--ok">Connecté' : 'statut--ko">Incomplet') + '</span> ' +
-            '<a href="' + esc(etat.classeur.url) + '" target="_blank" rel="noopener">' + esc(etat.classeur.nom) + '</a></dd>' +
-          '<dt>Onglets</dt><dd class="mono">' + present + ' / ' + etat.onglets.length + '</dd>' +
-          '<dt>Compte</dt><dd class="mono">' + esc(etat.compte) + '</dd>' +
-          '<dt>E-mails restants</dt><dd class="mono">' + esc(etat.quotaEmailRestant) + ' aujourd\'hui</dd>' +
-          '<dt>Déclencheurs</dt><dd class="mono">' + (etat.declencheurs.length ? esc(etat.declencheurs.join(', ')) : '<span class="vide">aucun</span>') + '</dd>' +
-          '<dt>Lu à</dt><dd class="mono">' + esc(dateHeure(etat.maintenant)) + '</dd>' +
-        '</dl>';
-      $('#pied').textContent = etat.app + ' · v' + etat.version;
-    }).catch(function (e) {
-      $('#carte-etat').innerHTML = '<h2>État du socle</h2>' + bandeauErreur(e);
-    });
+  function rendreEtat(etat) {
+    var present = etat.onglets.filter(function (o) { return o.present; }).length;
+    var ok = present === etat.onglets.length;
+    $('#carte-etat').innerHTML = '<h2>État du socle</h2>' +
+      '<dl class="liste-def">' +
+        '<dt>Classeur</dt><dd><span class="statut ' + (ok ? 'statut--ok">Connecté' : 'statut--ko">Incomplet') + '</span> ' +
+          '<a href="' + esc(etat.classeur.url) + '" target="_blank" rel="noopener">' + esc(etat.classeur.nom) + '</a></dd>' +
+        '<dt>Onglets</dt><dd class="mono">' + present + ' / ' + etat.onglets.length + '</dd>' +
+        '<dt>Compte</dt><dd class="mono">' + esc(etat.compte) + '</dd>' +
+        '<dt>E-mails restants</dt><dd class="mono">' + esc(etat.quotaEmailRestant) + ' aujourd\'hui</dd>' +
+        '<dt>Déclencheurs</dt><dd class="mono">' + (etat.declencheurs.length ? esc(etat.declencheurs.join(', ')) : '<span class="vide">aucun</span>') + '</dd>' +
+        '<dt>Lu à</dt><dd class="mono">' + esc(dateHeure(etat.maintenant)) + '</dd>' +
+      '</dl>';
+    $('#pied').textContent = etat.app + ' · v' + etat.version;
   }
 
   var formatEuro = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
@@ -540,14 +588,14 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
     el.innerHTML = titre('Paramètres', 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.') +
       '<div class="chargement">Lecture des paramètres…</div>';
 
-    appel('apiParametres').then(function (groupes) {
+    charger('parametres', 'apiParametres', [], function (groupes) {
       var html = titre('Paramètres', 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.');
       groupes.forEach(function (g) {
         html += '<section class="groupe-param"><h2>' + esc(g.titre) + '</h2>' + paramsPC(g.parametres) + '</section>';
       });
       el.innerHTML = html;
       brancherParams(el);
-    }).catch(function (e) {
+    }, function (e) {
       el.innerHTML = titre('Paramètres', '') + bandeauErreur(e);
     });
   }
@@ -626,6 +674,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
       else a.removeAttribute('aria-current');
     });
     document.title = (param || ECRANS[nom].titre) + ' — Kompa Affaires';
+    jetonEcran++;
     var el = $('#ecran');
     ECRANS[nom].rendu(el, param);
     if (pousser && historique) historique.push({ ecran: chemin }, {}, chemin);
@@ -656,7 +705,8 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
   // Utilitaires partagés avec les autres scripts de l'interface (AppAffaires…).
   window.KA = {
     appel: appel, $: $, $$: $$, esc: esc, toast: toast, titre: titre, bandeauErreur: bandeauErreur,
-    dateHeure: dateHeure, euros: euros, ecrans: ECRANS, afficher: afficher
+    dateHeure: dateHeure, euros: euros, ecrans: ECRANS, afficher: afficher,
+    charger: charger, viderMemoire: viderMemoire
   };
   // Démarrage une fois tous les scripts chargés : les écrans des autres lots s'enregistrent avant.
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer);
@@ -809,10 +859,10 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
   // ——— Écran Affaires ———
   function ecranAffaires(el) {
     el.innerHTML = K.titre('Affaires', '') + '<div class="chargement">Lecture des affaires…</div>';
-    K.appel('apiAffaires').then(function (r) {
+    K.charger('affaires', 'apiAffaires', [], function (r) {
       etat.meta = r.meta;
       rendreAffaires(el, r.affaires);
-    }).catch(function (e) { el.innerHTML = K.titre('Affaires', '') + K.bandeauErreur(e); });
+    }, function (e) { el.innerHTML = K.titre('Affaires', '') + K.bandeauErreur(e); });
   }
 
   function rendreAffaires(el, affaires) {
@@ -928,7 +978,10 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
         if (!enCours || !col.classList.contains('est-cible')) return;
         var statut = col.getAttribute('data-statut');
         var a = enCours;
-        var apres = function () { ecranAffaires($('#ecran')); };
+        var apres = function (fiche) {
+          ['statut', 'date_statut', 'montant_ht', 'montant_notifie', 'score_final'].forEach(function (k) { a[k] = fiche.affaire[k]; });
+          rendreAffaires($('#ecran'), affaires);
+        };
         K.appel('apiAffaire', a.id).then(function (f) {
           if (statut !== COLONNE_CLOTUREES) return passerStatut(f.affaire, statut, apres);
           var choix = clotureesPermises(a);
@@ -960,16 +1013,16 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 
   function ecranFiche(el, id) {
     el.innerHTML = '<p><a href="#affaires">← Affaires</a></p><div class="chargement">Lecture de l\'affaire…</div>';
-    K.appel('apiAffaire', id).then(function (f) {
+    K.charger('affaire:' + id, 'apiAffaire', [id], function (f) {
       etat.meta = f.meta;
       rendreFiche(el, f);
-    }).catch(function (e) { el.innerHTML = '<p><a href="#affaires">← Affaires</a></p>' + K.bandeauErreur(e); });
+    }, function (e) { el.innerHTML = '<p><a href="#affaires">← Affaires</a></p>' + K.bandeauErreur(e); });
   }
 
   function rendreFiche(el, f) {
     var a = f.affaire, meta = etat.meta;
     var liens = (a.lien_avis ? '<a class="bouton bouton--discret" href="' + esc(a.lien_avis) + '" target="_blank" rel="noopener" data-externe>Avis</a>' : '') +
-      (a.lien_dce ? '<a class="bouton bouton--discret" href="' + esc(a.lien_dce) + '" target="_blank" rel="noopener" data-externe>Dossier DCE</a>' : '');
+      (a.lien_dce ? '<a class="bouton bouton--discret" href="' + esc(a.lien_dce) + '" target="_blank" rel="noopener" data-externe>Dossier Drive</a>' : '');
     var actions = f.transitions.map(function (s) {
       return '<button type="button" class="bouton" data-passer="' + esc(s) + '">' + esc(s) + '</button>';
     }).join('');
@@ -1119,8 +1172,13 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
       ev.preventDefault();
       var t = $('#note-texte', fn).value;
       if (!t.trim()) return;
-      K.appel('apiAffaireNote', a.id, t).then(function (fiche) { K.toast('Note ajoutée.'); recharger(fiche); })
-        .catch(function (e) { K.toast(e.message, true); });
+      var zone = $('.notes', el) || (function () { var d = document.createElement('div'); d.className = 'notes pre'; fn.insertAdjacentElement('afterend', d); return d; })();
+      var p = function (n) { return String(n).padStart(2, '0'); }, d = new Date();
+      zone.textContent = (zone.textContent ? zone.textContent + '\n' : '') + '[' + p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + '] ' + t.trim();
+      $('#note-texte', fn).value = '';
+      K.toast('Note ajoutée.');
+      K.appel('apiAffaireNote', a.id, t).then(function (fiche) { recharger(fiche); })
+        .catch(function (e) { K.toast('Note non enregistrée : ' + e.message, true); });
     });
   }
 
@@ -1158,8 +1216,8 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 
   function ecranVeille(el) {
     el.innerHTML = K.titre('Veille', '') + '<div class="chargement">Lecture des avis…</div>';
-    K.appel('apiVeille').then(function (r) { rendre(el, r); })
-      .catch(function (e) { el.innerHTML = K.titre('Veille', '') + K.bandeauErreur(e); });
+    K.charger('veille', 'apiVeille', [], function (r) { rendre(el, r); },
+      function (e) { el.innerHTML = K.titre('Veille', '') + K.bandeauErreur(e); });
   }
 
   function rendre(el, r) {
@@ -1260,6 +1318,8 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
     $$('[data-etudier]', el).forEach(function (b) {
       b.addEventListener('click', function () {
         b.disabled = true;
+        b.textContent = 'Création…';
+        K.toast('Création de l\'affaire et de son dossier Drive…');
         K.appel('apiAvisEtudier', b.getAttribute('data-etudier')).then(function (affaire) {
           K.toast('Affaire ' + affaire.id + ' créée (En étude).');
           K.afficher('affaire/' + affaire.id, true);
@@ -1270,12 +1330,16 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
       $$('[' + attr + ']', el).forEach(function (b) {
         b.addEventListener('click', function () {
           var id = b.getAttribute(attr);
-          K.appel('apiAvisStatut', id, statut).then(function () {
-            var a = r.avis.filter(function (x) { return x.id === id; })[0];
-            if (a) a.statut = statut;
-            K.toast(message);
+          var a = r.avis.filter(function (x) { return x.id === id; })[0];
+          var avant = a ? a.statut : null;
+          if (a) a.statut = statut;
+          rendre(el, r);
+          K.toast(message);
+          K.appel('apiAvisStatut', id, statut).catch(function (e) {
+            if (a) a.statut = avant;
             rendre(el, r);
-          }).catch(function (e) { K.toast(e.message, true); });
+            K.toast('Non enregistré : ' + e.message, true);
+          });
         });
       });
     };
@@ -1316,8 +1380,10 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 
   function ecranEcheancier(el) {
     el.innerHTML = K.titre('Échéancier', '') + '<div class="chargement">Calcul des échéances…</div>';
-    K.appel('apiEcheancier', moisAffiche).then(function (r) { moisAffiche = r.mois; rendre(el, r); })
-      .catch(function (e) { el.innerHTML = K.titre('Échéancier', '') + K.bandeauErreur(e); });
+    K.charger('echeancier:' + (moisAffiche || 'courant'), 'apiEcheancier', [moisAffiche], function (r) {
+      if (!moisAffiche) moisAffiche = r.mois;
+      rendre(el, r);
+    }, function (e) { el.innerHTML = K.titre('Échéancier', '') + K.bandeauErreur(e); });
   }
 
   function rendre(el, r) {
@@ -1444,11 +1510,16 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
     $$('[data-courrier]', el).forEach(function (b) { b.addEventListener('click', function () { ouvrirCourrier(b.getAttribute('data-courrier')); }); });
     $$('[data-relance]', el).forEach(function (b) {
       b.addEventListener('click', function () {
-        b.disabled = true;
-        K.appel('apiRelanceStatut', b.getAttribute('data-relance'), b.getAttribute('data-statut')).then(function () {
-          K.toast('Relance marquée « ' + b.getAttribute('data-statut') + ' ».');
-          ecranEcheancier(el);
-        }).catch(function (e) { b.disabled = false; K.toast(e.message, true); });
+        var id = b.getAttribute('data-relance'), statut = b.getAttribute('data-statut');
+        var avant = r.relances.slice();
+        r.relances = r.relances.filter(function (x) { return x.id !== id; });
+        rendre(el, r);
+        K.toast('Relance marquée « ' + statut + ' ».');
+        K.appel('apiRelanceStatut', id, statut).catch(function (e) {
+          r.relances = avant;
+          rendre(el, r);
+          K.toast('Non enregistré : ' + e.message, true);
+        });
       });
     });
     $('[data-action="apercu"]', el).addEventListener('click', apercuEmail);
@@ -1462,8 +1533,8 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
   }
 
   // Cartes de l'accueil : échéances à 7 jours et relances à faire
-  K.suiviAccueil = function (elEch, elRel) {
-    K.appel('apiSuivi').then(function (s) {
+  K.suiviAccueil = function (elEch, elRel, donnees) {
+    (donnees ? Promise.resolve(donnees) : K.appel('apiSuivi')).then(function (s) {
       elEch.innerHTML = '<h2>Échéances à 7 jours</h2>' + (s.echeances.length ? '<ul class="liste-suivi">' + s.echeances.map(function (e) {
         return '<li><span class="mono">' + jour(e.date) + '</span> ' + (e.depassee ? '<span class="statut statut--ko">' + relatif(e.jours) + '</span>' : e.urgent ? '<span class="statut statut--alerte">' + relatif(e.jours) + '</span>' : '<span class="legende mono">' + relatif(e.jours) + '</span>') +
           '<br><a href="#affaire/' + esc(e.id_affaire) + '">' + esc(e.libelle) + '</a> — ' + esc(e.acheteur) + '</li>';
@@ -1508,8 +1579,8 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
   }
 
   // ——— Tableau de bord (accueil) ———
-  K.tableauAccueil = function (el) {
-    K.appel('apiTableau').then(function (t) {
+  K.tableauAccueil = function (el, donnees) {
+    (donnees ? Promise.resolve(donnees) : K.appel('apiTableau')).then(function (t) {
       var a = t.attribution;
       var tuiles = '<div class="tuiles">' +
         tuile('Affaires en cours', nb(t.enCours), t.parStatut.filter(function (s) { return s.actif && s.nombre; }).map(function (s) { return esc(s.statut) + ' ' + s.nombre; }).join(' · ') || 'aucune', 'En étude, Go, Déposée, Gagnée') +
@@ -1540,8 +1611,8 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
     'en cours': 'statut--encours', 'à venir': 'statut--neutre', 'non suivie': 'statut--neutre'
   };
 
-  K.fiscalAccueil = function (el) {
-    K.appel('apiFiscal').then(function (d) { rendreFiscal(el, d); })
+  K.fiscalAccueil = function (el, donnees) {
+    (donnees ? Promise.resolve(donnees) : K.appel('apiFiscal')).then(function (d) { rendreFiscal(el, d); })
       .catch(function (e) { el.innerHTML = '<h2>Déclarations URSSAF</h2>' + K.bandeauErreur(e); });
   };
 
@@ -1610,7 +1681,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
   // ——— Écran Enseignements ———
   function ecranEnseignements(el) {
     el.innerHTML = K.titre('Enseignements', '') + '<div class="chargement">Lecture des affaires perdues…</div>';
-    K.appel('apiEnseignements').then(function (r) {
+    K.charger('enseignements', 'apiEnseignements', [], function (r) {
       var l = r.lignes;
       var tuiles = '<div class="tuiles tuiles--3">' +
         tuile('Écart de prix moyen', pctSigne(r.moyennes.ecartPrix), '12 mois glissants · + = plus cher que l\'attributaire', '') +
@@ -1642,7 +1713,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
         '<section class="carte"><h2>Motifs de No-go (12 mois)</h2>' +
         barres(r.motifsNogo.map(function (m) { return { libelle: m.motif, valeur: m.nombre }; }), 'Aucun No-go sur 12 mois.') + '</section></div>';
       el.innerHTML = K.titre('Enseignements', l.length + ' offre' + (l.length > 1 ? 's' : '') + ' perdue' + (l.length > 1 ? 's' : '')) + tuiles + table + '<h2 class="sous-titre">Répartition</h2>' + motifs;
-    }).catch(function (e) { el.innerHTML = K.titre('Enseignements', '') + K.bandeauErreur(e); });
+    }, function (e) { el.innerHTML = K.titre('Enseignements', '') + K.bandeauErreur(e); });
   }
 
   K.ecrans.enseignements = { titre: 'Enseignements', rendu: ecranEnseignements };

@@ -7,7 +7,7 @@
 
 var APP = {
   NOM: 'Kompa Affaires',
-  VERSION: '1.0.0-lot5',
+  VERSION: '1.1.0',
   CLASSEUR: 'Kompa Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
@@ -139,6 +139,9 @@ var TABLES = {
     nombres: ['avis_lus', 'avis_retenus', 'exclus', 'doublons', 'duree_s']
   }
 };
+
+/** Avis archivés (échus depuis longtemps) : mêmes colonnes que les avis. */
+TABLES.AVIS_ARCHIVES = Object.assign({}, TABLES.AVIS, { onglet: 'Avis archivés' });
 
 /** Colonnes complètes d'une table (métier + dates système). */
 function colonnesTable_(table) {

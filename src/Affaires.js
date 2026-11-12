@@ -87,7 +87,7 @@ var FICHE_BLOCS = [
     ['procedure', 'Procédure', 'liste:liste.procedures'],
     ['plateforme', 'Plateforme', 'texte'],
     ['lien_avis', 'Lien vers l\'avis', 'lien'],
-    ['lien_dce', 'Dossier DCE (Google Drive)', 'lien']
+    ['lien_dce', 'Dossier Drive de l\'affaire', 'lien']
   ] },
   { id: 'echeances', titre: 'Échéances', champs: [
     ['date_limite_remise', 'Date limite de remise', 'date'],
@@ -200,6 +200,7 @@ function Affaires_creer(donnees, options) {
   if (champs.groupement === undefined) champs.groupement = 'Seul';
   var a = Db_inserer(TABLES.AFFAIRES, champs);
   Historique_ajouter_(a.id, '', STATUTS.EN_ETUDE, quand, options.commentaire || 'Création de l\'affaire');
+  Drive_preparerAffaireSansErreur_(a.id); // dossier Drive de l'affaire (année / affaire / 01, 02)
   return Affaires_get_(a.id);
 }
 
@@ -289,6 +290,8 @@ function Affaires_changerStatut(id, nouveau, champsSaisis, options) {
       commentaire: 'Demander les motifs du rejet, les notes et le prix de l\'attributaire.'
     });
   }
+  // Sous-dossiers Drive de l'étape atteinte (Go, résultat, Gagnée)
+  if ([STATUTS.GO, STATUTS.GAGNEE, STATUTS.PERDUE, STATUTS.SANS_SUITE].indexOf(nouveau) >= 0) Drive_preparerAffaireSansErreur_(id);
   return Affaires_get_(id);
 }
 
@@ -305,18 +308,7 @@ function Historique_ajouter_(idAffaire, ancien, nouveau, quand, commentaire) {
 function Criteres_enregistrer(idAffaire, lignes) {
   Affaires_get_(idAffaire);
   var T = TABLES.CRITERES;
-  var onglet = Db_onglet_(T);
-  var entetes = Db_entetes_(onglet);
-  var iAff = entetes.indexOf('id_affaire');
-  // Suppression des lignes existantes de l'affaire (du bas vers le haut)
-  Db_verrou_(function () {
-    var n = onglet.getLastRow() - 1;
-    if (n < 1) return;
-    var ids = onglet.getRange(2, iAff + 1, n, 1).getValues();
-    for (var i = ids.length - 1; i >= 0; i--) {
-      if (String(ids[i][0]) === String(idAffaire)) onglet.deleteRow(i + 2);
-    }
-  });
+  Db_supprimerSi(T, function (l) { return String(l.id_affaire) === String(idAffaire); });
   var propres = (lignes || [])
     .map(function (l) { return depuisClient_(T, l); })
     .filter(function (l) { return l.critere; })

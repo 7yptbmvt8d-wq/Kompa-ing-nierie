@@ -4,16 +4,65 @@
   'use strict';
 
   // ——— Appels serveur ———
+  /** Appels en lecture seule : tous les autres modifient les données et vident la mémoire d'affichage. */
+  var LECTURES = ['apiEtat', 'apiParametres', 'apiCompteurCA', 'apiAccueil', 'apiAffaires', 'apiAffaire', 'apiVeille',
+    'apiEcheancier', 'apiSuivi', 'apiCourrier', 'apiEmailApercu', 'apiTableau', 'apiEnseignements', 'apiFiscal'];
+
   function appel(nom) {
     var args = Array.prototype.slice.call(arguments, 1);
     return new Promise(function (resoudre, rejeter) {
       var runner = google.script.run
         .withSuccessHandler(function (r) {
-          if (r && r.ok) resoudre(r.data);
-          else rejeter(new Error((r && r.erreur) || 'Réponse vide du serveur.'));
+          if (r && r.ok) {
+            if (LECTURES.indexOf(nom) < 0) viderMemoire();
+            resoudre(r.data);
+          } else rejeter(new Error((r && r.erreur) || 'Réponse vide du serveur.'));
         })
         .withFailureHandler(function (e) { rejeter(e instanceof Error ? e : new Error(String(e))); });
       runner[nom].apply(runner, args);
+    });
+  }
+
+  // ——— Mémoire d'affichage : la dernière version connue s'affiche tout de suite ———
+  var memoire = {};
+  var jetonEcran = 0;
+  function lireMemoire(cle) {
+    if (memoire[cle]) return memoire[cle];
+    try { var v = localStorage.getItem('ka.m.' + cle); if (v) return (memoire[cle] = JSON.parse(v)); } catch (e) { /* indisponible */ }
+    return null;
+  }
+  function ecrireMemoire(cle, donnees) {
+    memoire[cle] = donnees;
+    try { localStorage.setItem('ka.m.' + cle, JSON.stringify(donnees)); } catch (e) { /* plein ou indisponible */ }
+  }
+  function viderMemoire() {
+    memoire = {};
+    try {
+      Object.keys(localStorage).forEach(function (k) { if (k.indexOf('ka.m.') === 0) localStorage.removeItem(k); });
+    } catch (e) { /* indisponible */ }
+  }
+  /** Saisie en cours sur l'écran : ne pas le redessiner sous les doigts de l'utilisateur. */
+  function saisieEnCours() {
+    var a = document.activeElement;
+    return !!(document.querySelector('dialog[open]') || document.querySelector('#ecran .est-modifie') ||
+      (a && a.closest && a.closest('#ecran') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)));
+  }
+  /**
+   * Affiche tout de suite la dernière version connue (si elle existe), puis la version fraîche
+   * dès qu'elle arrive, si elle diffère et si aucune saisie n'est en cours.
+   */
+  function charger(cle, nom, args, rendu, surErreur) {
+    var jeton = jetonEcran;
+    var ancien = lireMemoire(cle);
+    if (ancien) rendu(ancien, true);
+    return appel.apply(null, [nom].concat(args || [])).then(function (frais) {
+      ecrireMemoire(cle, frais);
+      if (jeton !== jetonEcran) return; // écran quitté entre-temps
+      if (!ancien || (JSON.stringify(frais) !== JSON.stringify(ancien) && !saisieEnCours())) rendu(frais, false);
+    }).catch(function (e) {
+      if (jeton !== jetonEcran) return;
+      if (ancien) toast('Données non actualisées : ' + e.message, true);
+      else if (surErreur) surErreur(e);
     });
   }
 
@@ -71,33 +120,32 @@
         '<section class="carte" id="carte-etat"><h2>État du socle</h2><div class="chargement">Lecture du classeur…</div></section>' +
       '</div>';
 
-    if (window.KA && window.KA.tableauAccueil) window.KA.tableauAccueil($('#tableau-de-bord'));
-    if (window.KA && window.KA.fiscalAccueil) window.KA.fiscalAccueil($('#carte-urssaf'));
-    if (window.KA && window.KA.suiviAccueil) window.KA.suiviAccueil($('#carte-echeances'), $('#carte-relances'));
-
-    appel('apiCompteurCA').then(function (ca) {
-      $('#carte-ca').innerHTML = rendreCompteur(ca);
-    }).catch(function (e) {
-      $('#carte-ca').innerHTML = '<h2>Chiffre d\'affaires</h2>' + bandeauErreur(e);
+    charger('accueil', 'apiAccueil', [], function (d) {
+      var K = window.KA;
+      if (K.tableauAccueil) K.tableauAccueil($('#tableau-de-bord'), d.tableau);
+      if (K.fiscalAccueil) K.fiscalAccueil($('#carte-urssaf'), d.fiscal);
+      if (K.suiviAccueil) K.suiviAccueil($('#carte-echeances'), $('#carte-relances'), d.suivi);
+      $('#carte-ca').innerHTML = rendreCompteur(d.ca);
+      rendreEtat(d.etat);
+    }, function (e) {
+      $('#tableau-de-bord').innerHTML = '<h2>Tableau de bord</h2>' + bandeauErreur(e);
     });
+  }
 
-    appel('apiEtat').then(function (etat) {
-      var present = etat.onglets.filter(function (o) { return o.present; }).length;
-      var ok = present === etat.onglets.length;
-      $('#carte-etat').innerHTML = '<h2>État du socle</h2>' +
-        '<dl class="liste-def">' +
-          '<dt>Classeur</dt><dd><span class="statut ' + (ok ? 'statut--ok">Connecté' : 'statut--ko">Incomplet') + '</span> ' +
-            '<a href="' + esc(etat.classeur.url) + '" target="_blank" rel="noopener">' + esc(etat.classeur.nom) + '</a></dd>' +
-          '<dt>Onglets</dt><dd class="mono">' + present + ' / ' + etat.onglets.length + '</dd>' +
-          '<dt>Compte</dt><dd class="mono">' + esc(etat.compte) + '</dd>' +
-          '<dt>E-mails restants</dt><dd class="mono">' + esc(etat.quotaEmailRestant) + ' aujourd\'hui</dd>' +
-          '<dt>Déclencheurs</dt><dd class="mono">' + (etat.declencheurs.length ? esc(etat.declencheurs.join(', ')) : '<span class="vide">aucun</span>') + '</dd>' +
-          '<dt>Lu à</dt><dd class="mono">' + esc(dateHeure(etat.maintenant)) + '</dd>' +
-        '</dl>';
-      $('#pied').textContent = etat.app + ' · v' + etat.version;
-    }).catch(function (e) {
-      $('#carte-etat').innerHTML = '<h2>État du socle</h2>' + bandeauErreur(e);
-    });
+  function rendreEtat(etat) {
+    var present = etat.onglets.filter(function (o) { return o.present; }).length;
+    var ok = present === etat.onglets.length;
+    $('#carte-etat').innerHTML = '<h2>État du socle</h2>' +
+      '<dl class="liste-def">' +
+        '<dt>Classeur</dt><dd><span class="statut ' + (ok ? 'statut--ok">Connecté' : 'statut--ko">Incomplet') + '</span> ' +
+          '<a href="' + esc(etat.classeur.url) + '" target="_blank" rel="noopener">' + esc(etat.classeur.nom) + '</a></dd>' +
+        '<dt>Onglets</dt><dd class="mono">' + present + ' / ' + etat.onglets.length + '</dd>' +
+        '<dt>Compte</dt><dd class="mono">' + esc(etat.compte) + '</dd>' +
+        '<dt>E-mails restants</dt><dd class="mono">' + esc(etat.quotaEmailRestant) + ' aujourd\'hui</dd>' +
+        '<dt>Déclencheurs</dt><dd class="mono">' + (etat.declencheurs.length ? esc(etat.declencheurs.join(', ')) : '<span class="vide">aucun</span>') + '</dd>' +
+        '<dt>Lu à</dt><dd class="mono">' + esc(dateHeure(etat.maintenant)) + '</dd>' +
+      '</dl>';
+    $('#pied').textContent = etat.app + ' · v' + etat.version;
   }
 
   var formatEuro = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
@@ -164,14 +212,14 @@
     el.innerHTML = titre('Paramètres', 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.') +
       '<div class="chargement">Lecture des paramètres…</div>';
 
-    appel('apiParametres').then(function (groupes) {
+    charger('parametres', 'apiParametres', [], function (groupes) {
       var html = titre('Paramètres', 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.');
       groupes.forEach(function (g) {
         html += '<section class="groupe-param"><h2>' + esc(g.titre) + '</h2>' + paramsPC(g.parametres) + '</section>';
       });
       el.innerHTML = html;
       brancherParams(el);
-    }).catch(function (e) {
+    }, function (e) {
       el.innerHTML = titre('Paramètres', '') + bandeauErreur(e);
     });
   }
@@ -250,6 +298,7 @@
       else a.removeAttribute('aria-current');
     });
     document.title = (param || ECRANS[nom].titre) + ' — Kompa Affaires';
+    jetonEcran++;
     var el = $('#ecran');
     ECRANS[nom].rendu(el, param);
     if (pousser && historique) historique.push({ ecran: chemin }, {}, chemin);
@@ -280,7 +329,8 @@
   // Utilitaires partagés avec les autres scripts de l'interface (AppAffaires…).
   window.KA = {
     appel: appel, $: $, $$: $$, esc: esc, toast: toast, titre: titre, bandeauErreur: bandeauErreur,
-    dateHeure: dateHeure, euros: euros, ecrans: ECRANS, afficher: afficher
+    dateHeure: dateHeure, euros: euros, ecrans: ECRANS, afficher: afficher,
+    charger: charger, viderMemoire: viderMemoire
   };
   // Démarrage une fois tous les scripts chargés : les écrans des autres lots s'enregistrent avant.
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer);

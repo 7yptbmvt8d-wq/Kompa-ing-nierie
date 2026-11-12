@@ -31,7 +31,7 @@ Le moteur et l'app passent tous deux par le classeur : c'est la seule source de 
 | Interface | Web app (HTML, CSS, JavaScript) servie par Apps Script, pour ordinateur (Windows, macOS, ChromeOS) ; pas de version mobile | Même compte, pas d'hébergement à gérer |
 | Authentification | Compte Google Kompa, accès limité à ce seul compte | Utilisateur unique |
 | Sauvegarde | Historique des versions de Google Sheets + copie hebdomadaire automatique du classeur dans Drive | Retour arrière en cas d'erreur |
-| Pièces des affaires | Un dossier Drive par affaire, lien dans la fiche | Les DCE restent hors du classeur |
+| Pièces des affaires | Un dossier Drive par affaire, créé automatiquement dans un dossier par année, sous-dossiers par étape ([dossiers-drive.md](dossiers-drive.md)) ; lien dans la fiche | Les DCE restent hors du classeur |
 
 Les quotas gratuits d'Apps Script (durée d'exécution, e-mails envoyés, appels externes) couvrent largement un utilisateur unique ; ils seront vérifiés au lot 1.
 

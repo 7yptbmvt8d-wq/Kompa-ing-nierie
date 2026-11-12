@@ -170,10 +170,18 @@ function creerEnvironnement(options = {}) {
       }
     },
     DriveApp: {
-      createFolder: (nom) => {
+      // Dossiers simulés : arborescence (parent), recherche par nom, URL
+      createFolder: (nom, parent) => {
         const d = {
-          id: 'DIR-' + crypto.randomUUID(), nom,
-          getId: () => d.id, isTrashed: () => false,
+          id: 'DIR' + crypto.randomUUID().replace(/-/g, ''), nom, parent: parent || null, corbeille: false,
+          getId: () => d.id, getName: () => d.nom, isTrashed: () => d.corbeille, setTrashed: (v) => { d.corbeille = v; },
+          getUrl: () => 'https://drive.google.com/drive/folders/' + d.id,
+          createFolder: (n) => gas.DriveApp.createFolder(n, d),
+          getFoldersByName: (n) => {
+            const liste = Object.values(gas.DriveApp._dossiers).filter((x) => x.parent === d && x.nom === n && !x.corbeille);
+            let i = 0;
+            return { hasNext: () => i < liste.length, next: () => liste[i++] };
+          },
           getFiles: () => {
             const liste = fichiersDrive.filter((f) => f.dossier === d && !f.corbeille);
             let i = 0;

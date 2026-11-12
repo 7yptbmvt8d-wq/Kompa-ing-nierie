@@ -29,8 +29,8 @@
   }
 
   // ——— Tableau de bord (accueil) ———
-  K.tableauAccueil = function (el) {
-    K.appel('apiTableau').then(function (t) {
+  K.tableauAccueil = function (el, donnees) {
+    (donnees ? Promise.resolve(donnees) : K.appel('apiTableau')).then(function (t) {
       var a = t.attribution;
       var tuiles = '<div class="tuiles">' +
         tuile('Affaires en cours', nb(t.enCours), t.parStatut.filter(function (s) { return s.actif && s.nombre; }).map(function (s) { return esc(s.statut) + ' ' + s.nombre; }).join(' · ') || 'aucune', 'En étude, Go, Déposée, Gagnée') +
@@ -61,8 +61,8 @@
     'en cours': 'statut--encours', 'à venir': 'statut--neutre', 'non suivie': 'statut--neutre'
   };
 
-  K.fiscalAccueil = function (el) {
-    K.appel('apiFiscal').then(function (d) { rendreFiscal(el, d); })
+  K.fiscalAccueil = function (el, donnees) {
+    (donnees ? Promise.resolve(donnees) : K.appel('apiFiscal')).then(function (d) { rendreFiscal(el, d); })
       .catch(function (e) { el.innerHTML = '<h2>Déclarations URSSAF</h2>' + K.bandeauErreur(e); });
   };
 
@@ -131,7 +131,7 @@
   // ——— Écran Enseignements ———
   function ecranEnseignements(el) {
     el.innerHTML = K.titre('Enseignements', '') + '<div class="chargement">Lecture des affaires perdues…</div>';
-    K.appel('apiEnseignements').then(function (r) {
+    K.charger('enseignements', 'apiEnseignements', [], function (r) {
       var l = r.lignes;
       var tuiles = '<div class="tuiles tuiles--3">' +
         tuile('Écart de prix moyen', pctSigne(r.moyennes.ecartPrix), '12 mois glissants · + = plus cher que l\'attributaire', '') +
@@ -163,7 +163,7 @@
         '<section class="carte"><h2>Motifs de No-go (12 mois)</h2>' +
         barres(r.motifsNogo.map(function (m) { return { libelle: m.motif, valeur: m.nombre }; }), 'Aucun No-go sur 12 mois.') + '</section></div>';
       el.innerHTML = K.titre('Enseignements', l.length + ' offre' + (l.length > 1 ? 's' : '') + ' perdue' + (l.length > 1 ? 's' : '')) + tuiles + table + '<h2 class="sous-titre">Répartition</h2>' + motifs;
-    }).catch(function (e) { el.innerHTML = K.titre('Enseignements', '') + K.bandeauErreur(e); });
+    }, function (e) { el.innerHTML = K.titre('Enseignements', '') + K.bandeauErreur(e); });
   }
 
   K.ecrans.enseignements = { titre: 'Enseignements', rendu: ecranEnseignements };

@@ -1,4 +1,4 @@
-/* Kompa Affaires 1.0.0-lot5 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
+/* Kompa Affaires 1.1.0 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
 
 // ════════ Setup.js ════════
 
@@ -12,6 +12,7 @@
 
 function installer(options) {
   var debut = Date.now();
+  Db_viderCache_();
   var classeur = Setup_classeur_();
   var rapport = { classeur: classeur.getUrl(), onglets: [], colonnesAjoutees: 0 };
 
@@ -27,6 +28,8 @@ function installer(options) {
   if (!(options && options.exercice === false)) {
     try { rapport.exerciceMouthe = creerAffaireExerciceMouthe(); } catch (e) { rapport.exerciceMouthe = 'erreur : ' + e.message; }
   }
+  // Dossiers Drive des affaires existantes
+  try { rapport.dossiersDrive = creerDossiersManquants(); } catch (e) { rapport.dossiersDrive = 'erreur : ' + e.message; }
   rapport.declencheurs = Setup_declencheurs_();
   rapport.duree_s = Math.round((Date.now() - debut) / 100) / 10;
 
@@ -267,7 +270,7 @@ var FICHE_BLOCS = [
     ['procedure', 'Procédure', 'liste:liste.procedures'],
     ['plateforme', 'Plateforme', 'texte'],
     ['lien_avis', 'Lien vers l\'avis', 'lien'],
-    ['lien_dce', 'Dossier DCE (Google Drive)', 'lien']
+    ['lien_dce', 'Dossier Drive de l\'affaire', 'lien']
   ] },
   { id: 'echeances', titre: 'Échéances', champs: [
     ['date_limite_remise', 'Date limite de remise', 'date'],
@@ -380,6 +383,7 @@ function Affaires_creer(donnees, options) {
   if (champs.groupement === undefined) champs.groupement = 'Seul';
   var a = Db_inserer(TABLES.AFFAIRES, champs);
   Historique_ajouter_(a.id, '', STATUTS.EN_ETUDE, quand, options.commentaire || 'Création de l\'affaire');
+  Drive_preparerAffaireSansErreur_(a.id); // dossier Drive de l'affaire (année / affaire / 01, 02)
   return Affaires_get_(a.id);
 }
 
@@ -469,6 +473,8 @@ function Affaires_changerStatut(id, nouveau, champsSaisis, options) {
       commentaire: 'Demander les motifs du rejet, les notes et le prix de l\'attributaire.'
     });
   }
+  // Sous-dossiers Drive de l'étape atteinte (Go, résultat, Gagnée)
+  if ([STATUTS.GO, STATUTS.GAGNEE, STATUTS.PERDUE, STATUTS.SANS_SUITE].indexOf(nouveau) >= 0) Drive_preparerAffaireSansErreur_(id);
   return Affaires_get_(id);
 }
 
@@ -485,18 +491,7 @@ function Historique_ajouter_(idAffaire, ancien, nouveau, quand, commentaire) {
 function Criteres_enregistrer(idAffaire, lignes) {
   Affaires_get_(idAffaire);
   var T = TABLES.CRITERES;
-  var onglet = Db_onglet_(T);
-  var entetes = Db_entetes_(onglet);
-  var iAff = entetes.indexOf('id_affaire');
-  // Suppression des lignes existantes de l'affaire (du bas vers le haut)
-  Db_verrou_(function () {
-    var n = onglet.getLastRow() - 1;
-    if (n < 1) return;
-    var ids = onglet.getRange(2, iAff + 1, n, 1).getValues();
-    for (var i = ids.length - 1; i >= 0; i--) {
-      if (String(ids[i][0]) === String(idAffaire)) onglet.deleteRow(i + 2);
-    }
-  });
+  Db_supprimerSi(T, function (l) { return String(l.id_affaire) === String(idAffaire); });
   var propres = (lignes || [])
     .map(function (l) { return depuisClient_(T, l); })
     .filter(function (l) { return l.critere; })
@@ -620,12 +615,13 @@ function apiAffaireCreer(donnees) {
 }
 
 function apiAffaireMaj(id, champs) {
-  return repondre_(function () { Affaires_maj(id, champs); return ficheClient_(id); });
+  return repondre_(function () { Affaires_maj(id, champs); Relances_synchroniser(); return ficheClient_(id); });
 }
 
 function apiAffaireStatut(id, statut, champs, commentaire) {
   return repondre_(function () {
     Affaires_changerStatut(id, statut, champs, { commentaire: commentaire });
+    Relances_synchroniser();
     return ficheClient_(id);
   });
 }
@@ -639,11 +635,11 @@ function apiCriteres(id, lignes) {
 }
 
 function apiFactureAjouter(id, facture) {
-  return repondre_(function () { Factures_ajouter(id, facture); return ficheClient_(id); });
+  return repondre_(function () { Factures_ajouter(id, facture); Relances_synchroniser(); return ficheClient_(id); });
 }
 
 function apiFactureMaj(idAffaire, idFacture, champs) {
-  return repondre_(function () { Factures_maj(idFacture, champs); return ficheClient_(idAffaire); });
+  return repondre_(function () { Factures_maj(idFacture, champs); Relances_synchroniser(); return ficheClient_(idAffaire); });
 }
 
 
@@ -666,7 +662,6 @@ function relanceClient_(r) {
 /** Échéancier : échéances du mois affiché (aaaa-mm) ± marge, échéances dépassées, relances. */
 function apiEcheancier(mois) {
   return repondre_(function () {
-    var sync = Relances_synchroniser();
     var auj = aujourdhui_();
     var m = String(mois || '').match(/^(\d{4})-(\d{2})$/);
     var debutMois = m ? new Date(Number(m[1]), Number(m[2]) - 1, 1) : new Date(auj.getFullYear(), auj.getMonth(), 1);
@@ -681,22 +676,22 @@ function apiEcheancier(mois) {
       calendrier: Echeances_calculer(debut, fin).map(echeanceClient_),
       prochaines: liste.map(echeanceClient_),
       relances: Relances_aFaire(null, true).map(relanceClient_),
-      synchronisation: sync,
       aujourdhui: jourIso_(auj)
     };
   });
 }
 
 /** Accueil : échéances à 7 jours et relances à faire. */
+function Suivi_accueil_() {
+  var auj = aujourdhui_();
+  return {
+    echeances: Echeances_calculer(auj, ajouterJours_(auj, 7)).map(echeanceClient_),
+    relances: Relances_aFaire().map(relanceClient_)
+  };
+}
+
 function apiSuivi() {
-  return repondre_(function () {
-    Relances_synchroniser();
-    var auj = aujourdhui_();
-    return {
-      echeances: Echeances_calculer(auj, ajouterJours_(auj, 7)).map(echeanceClient_),
-      relances: Relances_aFaire().map(relanceClient_)
-    };
-  });
+  return repondre_(Suivi_accueil_);
 }
 
 function apiRelanceStatut(idRelance, statut) {
@@ -710,7 +705,6 @@ function apiCourrier(idRelance) {
 /** Aperçu de l'e-mail du matin (sans envoi). */
 function apiEmailApercu() {
   return repondre_(function () {
-    Relances_synchroniser();
     var m = Email_construire(new Date());
     return { sujet: m.sujet, html: m.html, nombres: m.nombres };
   });
@@ -940,7 +934,7 @@ function arrondi_(n) {
 
 var APP = {
   NOM: 'Kompa Affaires',
-  VERSION: '1.0.0-lot5',
+  VERSION: '1.1.0',
   CLASSEUR: 'Kompa Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
@@ -1072,6 +1066,9 @@ var TABLES = {
     nombres: ['avis_lus', 'avis_retenus', 'exclus', 'doublons', 'duree_s']
   }
 };
+
+/** Avis archivés (échus depuis longtemps) : mêmes colonnes que les avis. */
+TABLES.AVIS_ARCHIVES = Object.assign({}, TABLES.AVIS, { onglet: 'Avis archivés' });
 
 /** Colonnes complètes d'une table (métier + dates système). */
 function colonnesTable_(table) {
@@ -1238,7 +1235,22 @@ function Courriers_euros_(n) {
  * Ligne 1 = noms de colonnes (identifiants techniques, ne pas renommer à la main).
  */
 
-var Db_cache_ = { classeur: null };
+/**
+ * Mémoire de l'exécution en cours : chaque onglet n'est lu qu'une fois par appel
+ * (google.script.run, déclencheur). Toute écriture dans un onglet vide sa mémoire.
+ */
+var Db_cache_ = { classeur: null, lignes: {}, entetes: {} };
+
+function Db_viderCache_(table) {
+  if (table) { delete Db_cache_.lignes[table.onglet]; delete Db_cache_.entetes[table.onglet]; }
+  else { Db_cache_.lignes = {}; Db_cache_.entetes = {}; }
+}
+
+/** En-têtes d'une table (mémorisés pour l'exécution). */
+function Db_entetesTable_(table, onglet) {
+  if (!Db_cache_.entetes[table.onglet]) Db_cache_.entetes[table.onglet] = Db_entetes_(onglet || Db_onglet_(table));
+  return Db_cache_.entetes[table.onglet];
+}
 
 /** Classeur de données. Lève une erreur claire si installer() n'a pas été lancé. */
 function Db_classeur() {
@@ -1266,20 +1278,25 @@ function Db_entetes_(onglet) {
   return onglet.getRange(1, 1, 1, nb).getValues()[0].map(function (v) { return String(v).trim(); });
 }
 
-/** Toutes les lignes d'une table, en objets. */
+/** Toutes les lignes d'une table, en objets (copies : modifiables sans effet sur la mémoire). */
 function Db_lire(table) {
-  var onglet = Db_onglet_(table);
-  var entetes = Db_entetes_(onglet);
-  var nbLignes = onglet.getLastRow() - 1;
-  if (nbLignes < 1 || entetes.length === 0) return [];
-  var valeurs = onglet.getRange(2, 1, nbLignes, entetes.length).getValues();
-  return valeurs
-    .filter(function (ligne) { return ligne.some(function (v) { return v !== '' && v !== null; }); })
-    .map(function (ligne) {
-      var obj = {};
-      entetes.forEach(function (nom, i) { if (nom) obj[nom] = ligne[i]; });
-      return obj;
-    });
+  if (!Db_cache_.lignes[table.onglet]) {
+    var onglet = Db_onglet_(table);
+    var entetes = Db_entetesTable_(table, onglet);
+    var nbLignes = onglet.getLastRow() - 1;
+    var lignes = [];
+    if (nbLignes >= 1 && entetes.length) {
+      lignes = onglet.getRange(2, 1, nbLignes, entetes.length).getValues()
+        .filter(function (ligne) { return ligne.some(function (v) { return v !== '' && v !== null; }); })
+        .map(function (ligne) {
+          var obj = {};
+          entetes.forEach(function (nom, i) { if (nom) obj[nom] = ligne[i]; });
+          return obj;
+        });
+    }
+    Db_cache_.lignes[table.onglet] = lignes;
+  }
+  return Db_cache_.lignes[table.onglet].map(function (o) { return Object.assign({}, o); });
 }
 
 /** Ligne dont la clé vaut `valeur`, ou null. */
@@ -1308,7 +1325,8 @@ function Db_insererPlusieurs(table, objets) {
   if (!objets.length) return [];
   return Db_verrou_(function () {
     var onglet = Db_onglet_(table);
-    var entetes = Db_entetes_(onglet);
+    var entetes = Db_entetesTable_(table, onglet);
+    Db_viderCache_lignes_(table);
     var maintenant = new Date();
     var lignes = objets.map(function (obj) {
       var ligne = Object.assign({}, obj);
@@ -1331,7 +1349,8 @@ function Db_insererPlusieurs(table, objets) {
 function Db_maj(table, valeurCle, champs) {
   return Db_verrou_(function () {
     var onglet = Db_onglet_(table);
-    var entetes = Db_entetes_(onglet);
+    var entetes = Db_entetesTable_(table, onglet);
+    Db_viderCache_lignes_(table);
     var iCle = entetes.indexOf(table.cle);
     var nbLignes = onglet.getLastRow() - 1;
     if (iCle < 0 || nbLignes < 1) throw new Error('Ligne introuvable : ' + valeurCle);
@@ -1375,7 +1394,8 @@ function Db_verrou_(fn) {
 function Db_supprimerSi(table, critere) {
   return Db_verrou_(function () {
     var onglet = Db_onglet_(table);
-    var entetes = Db_entetes_(onglet);
+    var entetes = Db_entetesTable_(table, onglet);
+    Db_viderCache_lignes_(table);
     var n = onglet.getLastRow() - 1;
     if (n < 1) return 0;
     var valeurs = onglet.getRange(2, 1, n, entetes.length).getValues();
@@ -1387,6 +1407,117 @@ function Db_supprimerSi(table, critere) {
     }
     return supprimees;
   });
+}
+
+function Db_viderCache_lignes_(table) {
+  delete Db_cache_.lignes[table.onglet];
+}
+
+
+// ════════ Drive.js ════════
+
+/**
+ * Dossiers Drive des affaires.
+ *
+ *   Kompa Affaires — Dossiers/            (racine, paramètre drive.dossier_racine)
+ *     2026/                               (un dossier par année, d'après le n° KA-AAAA-NNN)
+ *       KA-2026-012 — Acheteur — Objet/   (un dossier par affaire, lien dans la fiche)
+ *         01 DCE, 02 Questions et visite              → à la création (En étude)
+ *         03 Candidature, 04 Offre, 05 Dépôt          → au passage en Go
+ *         06 Résultat                                 → au résultat (gagnée, perdue, sans suite)
+ *         07 Exécution, 08 Facturation                → au passage en Gagnée
+ * Les noms des sous-dossiers sont des paramètres (drive.sous_dossiers_*).
+ * Une erreur Drive ne bloque jamais l'affaire : elle est notée dans le journal de l'affaire.
+ */
+
+var ETAPES_DRIVE = {
+  etude: 'drive.sous_dossiers_etude',
+  go: 'drive.sous_dossiers_go',
+  resultat: 'drive.sous_dossiers_resultat',
+  gagnee: 'drive.sous_dossiers_gagnee'
+};
+
+/** Identifiant Drive tiré d'une URL ou d'un identifiant collé tel quel. */
+function Drive_id_(v) {
+  var t = String(v || '').trim();
+  var m = t.match(/\/folders\/([\w-]{10,})/) || t.match(/[?&]id=([\w-]{10,})/);
+  return m ? m[1] : (/^[\w-]{10,}$/.test(t) ? t : '');
+}
+
+function Drive_racine_() {
+  var id = Drive_id_(Params_texte('drive.dossier_racine', ''));
+  if (id) {
+    try { var d = DriveApp.getFolderById(id); if (!d.isTrashed()) return d; } catch (e) { /* recréé ci-dessous */ }
+  }
+  var racine = DriveApp.createFolder(Params_texte('drive.nom_racine', 'Kompa Affaires — Dossiers'));
+  Params_enregistrer('drive.dossier_racine', racine.getUrl());
+  return racine;
+}
+
+/** Sous-dossier de nom donné (créé s'il n'existe pas). */
+function Drive_sousDossier_(parent, nom) {
+  var it = parent.getFoldersByName(nom);
+  return it.hasNext() ? it.next() : parent.createFolder(nom);
+}
+
+function Drive_nomAffaire_(a) {
+  var propre = function (s, n) {
+    s = String(s || '').replace(/[\\/:*?"<>|#%]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return s.length > n ? s.slice(0, n - 1).trim() + '…' : s;
+  };
+  return [a.id, propre(a.acheteur, 50), propre(a.objet, 70)].filter(String).join(' — ');
+}
+
+function Drive_dossierAffaire_(a) {
+  var id = Drive_id_(a.lien_dce);
+  if (!id) return null;
+  try { var d = DriveApp.getFolderById(id); return d.isTrashed() ? null : d; } catch (e) { return null; }
+}
+
+/** Crée (ou retrouve) le dossier de l'affaire et les sous-dossiers des étapes atteintes. Renvoie son URL. */
+function Drive_preparerAffaire(idAffaire) {
+  var a = Affaires_get_(idAffaire);
+  var dossier = Drive_dossierAffaire_(a);
+  if (!dossier) {
+    var annee = (String(a.id).match(/^KA-(\d{4})-/) || [])[1] || Utilities.formatDate(new Date(), APP.FUSEAU, 'yyyy');
+    dossier = Drive_sousDossier_(Drive_sousDossier_(Drive_racine_(), annee), Drive_nomAffaire_(a));
+    Db_maj(TABLES.AFFAIRES, a.id, { lien_dce: dossier.getUrl() });
+  }
+  Drive_etapes_(a.statut).forEach(function (etape) {
+    Params_liste(ETAPES_DRIVE[etape]).forEach(function (nom) { Drive_sousDossier_(dossier, nom); });
+  });
+  return dossier.getUrl();
+}
+
+/** Étapes atteintes pour un statut. */
+function Drive_etapes_(statut) {
+  var e = ['etude'];
+  if (['Go', 'Déposée', 'Abandonnée', 'Gagnée', 'Perdue', 'Sans suite', 'Soldée'].indexOf(statut) >= 0) e.push('go');
+  if (['Gagnée', 'Perdue', 'Sans suite', 'Soldée'].indexOf(statut) >= 0) e.push('resultat');
+  if (['Gagnée', 'Soldée'].indexOf(statut) >= 0) e.push('gagnee');
+  return e;
+}
+
+/** Version sûre : une erreur Drive est notée dans le journal de l'affaire, sans bloquer. */
+function Drive_preparerAffaireSansErreur_(idAffaire) {
+  if (Params_texte('drive.actif', 'oui').toLowerCase() !== 'oui') return '';
+  try {
+    return Drive_preparerAffaire(idAffaire);
+  } catch (e) {
+    console.error('Dossier Drive ' + idAffaire + ' : ' + e.message);
+    try { Affaires_ajouterNote(idAffaire, 'Dossier Drive non créé : ' + e.message); } catch (e2) { /* sans effet */ }
+    return '';
+  }
+}
+
+/** Crée les dossiers des affaires qui n'en ont pas (lancé par installer). */
+function creerDossiersManquants() {
+  var n = 0;
+  Affaires_lister().forEach(function (a) {
+    if (!Drive_dossierAffaire_(a) && Drive_preparerAffaireSansErreur_(a.id)) n++;
+  });
+  console.log(n + ' dossier(s) Drive créé(s).');
+  return n;
 }
 
 
@@ -2220,6 +2351,7 @@ var GROUPES_PARAMETRES = [
   ['email', 'E-mail du matin'],
   ['courrier', 'Courriers'],
   ['fiscal', 'Déclarations URSSAF'],
+  ['drive', 'Dossiers Drive'],
   ['liste', 'Listes de valeurs'],
   ['sauvegarde', 'Sauvegarde'],
   ['app', 'Application']
@@ -2242,6 +2374,7 @@ var PARAMETRES_DEFAUT = [
     '… sauf s\'il contient aussi celui-ci'],
   ['veille.libelle_gmail', 'Veille', 'Libellé Gmail des alertes des plateformes'],
   ['veille.heure_collecte', '6', 'Heure de la collecte quotidienne (0-23)'],
+  ['veille.archivage_jours', '60', 'Avis échus depuis plus de N jours déplacés dans l\'onglet « Avis archivés » (allège l\'écran Veille)'],
   ['veille.fenetre_jours', '3', 'Avis BOAMP et alertes des N derniers jours (le dédoublonnage évite les reprises)'],
   ['veille.plateformes_domaines', 'marches-publics.gouv.fr;marches-publics.info;achatpublic.com;marches-securises.fr;e-marchespublics.com;marchesonline.com;francemarches.com;klekoon.com;maximilien.fr;demat-ampa.fr;awsolutions.fr;boamp.fr',
     'Domaines des plateformes : sert à repérer le lien de la consultation dans les alertes e-mail'],
@@ -2313,6 +2446,15 @@ var PARAMETRES_DEFAUT = [
   ['liste.procedures', 'MAPA;AO;Consultation directe', 'Procédures'],
   ['liste.statuts_relance', 'à faire;faite;sans objet', 'Statuts d\'une relance'],
   ['liste.pieces_types', 'note méthodologique;CV;références;prix', 'Pièces-types à améliorer'],
+
+  // Dossiers Drive des affaires
+  ['drive.actif', 'oui', 'Créer un dossier Drive pour chaque affaire : oui ou non'],
+  ['drive.dossier_racine', '', 'Dossier racine (URL ou identifiant). Vide = créé automatiquement « Kompa Affaires — Dossiers »'],
+  ['drive.nom_racine', 'Kompa Affaires — Dossiers', 'Nom du dossier racine s\'il est créé automatiquement'],
+  ['drive.sous_dossiers_etude', '01 DCE;02 Questions et visite', 'Sous-dossiers créés avec l\'affaire (En étude)'],
+  ['drive.sous_dossiers_go', '03 Candidature;04 Offre;05 Dépôt', 'Sous-dossiers créés au passage en Go'],
+  ['drive.sous_dossiers_resultat', '06 Résultat', 'Sous-dossiers créés au résultat (gagnée, perdue, sans suite)'],
+  ['drive.sous_dossiers_gagnee', '07 Exécution;08 Facturation', 'Sous-dossiers créés au passage en Gagnée'],
 
   // Sauvegarde (§ 2)
   ['sauvegarde.nb_copies', '8', 'Nombre de copies hebdomadaires conservées dans Drive'],
@@ -2407,6 +2549,8 @@ function collecteQuotidienne() {
     var ctx = Veille_contexte_();
     var bilan = [Veille_executer_(SOURCE_BOAMP, function () { return Veille_lireBoamp_(ctx); }, ctx),
       Veille_executer_(SOURCE_GMAIL, function () { return Veille_lireGmail_(ctx); }, ctx)];
+    try { Relances_synchroniser(); } catch (e) { console.error('Relances : ' + e.message); }
+    try { Veille_archiver_(); } catch (e) { console.error('Archivage : ' + e.message); }
     console.log(JSON.stringify(bilan));
     return bilan;
   } finally {
@@ -2725,6 +2869,24 @@ function Veille_scorer_(a, ctx) {
   return a;
 }
 
+// ——— Archivage (allège l'onglet Avis) ———
+
+/** Déplace dans « Avis archivés » les avis échus depuis plus de N jours (sans date : parus il y a plus de 2N jours). */
+function Veille_archiver_(quand) {
+  var auj = aujourdhui_(quand);
+  var n = Params_nombre('veille.archivage_jours', 60);
+  var limite = ajouterJours_(auj, -n), limiteParution = ajouterJours_(auj, -2 * n);
+  var aArchiver = Db_lire(TABLES.AVIS).filter(function (a) {
+    var dl = date_(a.date_limite), dp = date_(a.date_parution);
+    return dl ? aujourdhui_(dl) < limite : (dp ? aujourdhui_(dp) < limiteParution : false);
+  });
+  if (!aArchiver.length) return 0;
+  var ids = aArchiver.map(function (a) { return String(a.id); });
+  Db_insererPlusieurs(TABLES.AVIS_ARCHIVES, aArchiver);
+  Db_supprimerSi(TABLES.AVIS, function (a) { return ids.indexOf(String(a.id)) >= 0; });
+  return aArchiver.length;
+}
+
 // ——— Actions sur les avis ———
 
 /** « Étudier » : crée l'affaire (statut En étude) liée à l'avis. */
@@ -2846,9 +3008,26 @@ function repondre_(fn) {
 
 // ——— API du lot 1 ———
 
+/** Accueil en un seul échange : tableau de bord, CA, déclarations, échéances, relances, état. */
+function apiAccueil() {
+  return repondre_(function () {
+    return {
+      tableau: Indicateurs_tableau(),
+      ca: Compteur_ca(),
+      fiscal: Fiscal_declarations(),
+      suivi: Suivi_accueil_(),
+      etat: Etat_socle_()
+    };
+  });
+}
+
 /** État du socle : compte, classeur, onglets, quotas. */
 function apiEtat() {
-  return repondre_(function () {
+  return repondre_(Etat_socle_);
+}
+
+function Etat_socle_() {
+  return (function () {
     var classeur = Db_classeur();
     var onglets = Object.keys(TABLES).map(function (k) {
       var f = classeur.getSheetByName(TABLES[k].onglet);
@@ -2864,7 +3043,7 @@ function apiEtat() {
       declencheurs: ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); }),
       maintenant: new Date()
     };
-  });
+  })();
 }
 
 /** Liste des paramètres, groupés pour l'écran Paramètres. */

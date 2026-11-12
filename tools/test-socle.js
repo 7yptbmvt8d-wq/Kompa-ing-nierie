@@ -12,13 +12,13 @@ const test = (nom, fn) => tests.push({ nom, fn });
 // Les objets créés dans le contexte vm n'ont pas les mêmes prototypes : on compare des copies JSON.
 const brut = (x) => JSON.parse(JSON.stringify(x));
 
-test('installer() crée le classeur, les 10 onglets et supprime la feuille par défaut', () => {
+test('installer() crée le classeur, les 11 onglets et supprime la feuille par défaut', () => {
   const env = creerEnvironnement();
   const rapport = env.ctx.installer({ exercice: false });
   const ss = Object.values(env.classeurs)[0];
   assert.strictEqual(ss.getName(), 'Kompa Affaires — données');
   const noms = ss.getSheets().map((f) => f.getName());
-  assert.deepStrictEqual(noms, ['Avis', 'Affaires', 'Historique', 'Critères', 'Factures', 'Relances', 'Acheteurs', 'Paramètres', 'Déclarations', 'Journal moteur']);
+  assert.deepStrictEqual(noms, ['Avis', 'Affaires', 'Historique', 'Critères', 'Factures', 'Relances', 'Acheteurs', 'Paramètres', 'Déclarations', 'Journal moteur', 'Avis archivés']);
   assert.ok(rapport.parametresAjoutes > 40);
   assert.deepStrictEqual(brut(rapport.declencheurs), ['sauvegardeHebdo', 'collecteQuotidienne', 'envoyerEmailMatin']);
 });
@@ -99,7 +99,7 @@ test('apiEtat renvoie l\'état du classeur, sérialisable', () => {
   env.ctx.installer({ exercice: false });
   const r = env.ctx.apiEtat();
   assert.ok(r.ok, r.erreur);
-  assert.strictEqual(r.data.onglets.length, 10);
+  assert.strictEqual(r.data.onglets.length, 11);
   assert.ok(r.data.onglets.every((o) => o.present));
   assert.strictEqual(r.data.onglets.find((o) => o.nom === 'Paramètres').lignes, env.ctx.PARAMETRES_DEFAUT.length);
 });
@@ -659,6 +659,7 @@ test('e-mail du matin : rien à signaler → pas d\'envoi, sauf le lundi', () =>
 
 test('API échéancier : grille du mois, prochaines échéances, relances', () => {
   const { A } = jeuEcheances();
+  A.Relances_synchroniser(); // fait par les déclencheurs et après chaque modification, plus à l'ouverture
   const r = brut(A.apiEcheancier('2026-11'));
   assert.ok(r.ok, r.erreur);
   assert.strictEqual(r.data.mois, '2026-11');
@@ -852,6 +853,118 @@ test('installer() : début du suivi URSSAF = date d\'installation', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });
   assert.match(env.ctx.Params_texte('fiscal.debut_suivi'), /^\d{4}-\d{2}-\d{2}$/);
+});
+
+// ——— Fluidité et dossiers Drive ———
+
+test('fluidité : un onglet n\'est lu qu\'une fois par appel, la mémoire suit les écritures', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  A.Db_viderCache_();
+  const onglet = Object.values(env.classeurs)[0].getSheetByName('Paramètres');
+  let lectures = 0;
+  const getRange = onglet.getRange;
+  onglet.getRange = function () { lectures++; return getRange.apply(onglet, arguments); };
+  A.Db_lire(A.TABLES.PARAMETRES); A.Db_lire(A.TABLES.PARAMETRES); A.Db_trouver(A.TABLES.PARAMETRES, 'email.heure');
+  const apres3 = lectures;
+  assert.ok(apres3 <= 2, 'lectures : ' + apres3); // en-têtes + données, une seule fois
+  const copie = A.Db_lire(A.TABLES.PARAMETRES)[0];
+  copie.valeur = 'modifiée localement';
+  assert.notStrictEqual(A.Db_lire(A.TABLES.PARAMETRES)[0].valeur, 'modifiée localement'); // copies
+  A.Params_enregistrer('email.heure', '8');
+  A.Params_cache_ = null;
+  assert.strictEqual(A.Params_texte('email.heure'), '8'); // écriture → mémoire vidée
+});
+
+test('fluidité : l\'accueil en un seul appel', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer();
+  const r = brut(env.ctx.apiAccueil());
+  assert.ok(r.ok, r.erreur);
+  assert.deepStrictEqual(Object.keys(r.data).sort(), ['ca', 'etat', 'fiscal', 'suivi', 'tableau']);
+  assert.strictEqual(r.data.etat.onglets.length, 11);
+});
+
+test('fluidité : relances recalculées après un changement de statut, pas à la lecture', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const a = A.Affaires_creer({ acheteur: 'Commune', objet: 'AMO' }).id;
+  A.Affaires_changerStatut(a, 'Go', {});
+  A.Affaires_changerStatut(a, 'Déposée', { montant_ht: 1000, jours_reponse: 1, date_depot: '2026-01-05', validite_offre_jours: 30 });
+  A.apiEcheancier(); A.apiSuivi();
+  assert.strictEqual(A.Db_lire(A.TABLES.RELANCES).length, 0); // lecture : aucune écriture
+  A.apiAffaireMaj(a, { notes_libres: 'x' });
+  assert.strictEqual(A.Db_lire(A.TABLES.RELANCES).filter((x) => x.type === 'Décision attendue').length, 1);
+});
+
+test('archivage : avis échus depuis plus de 60 jours déplacés dans « Avis archivés »', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  A.Db_insererPlusieurs(A.TABLES.AVIS, [
+    { source: 'BOAMP', id_source: 'v1', acheteur: 'A', objet: 'vieux', date_limite: J(-61), statut: 'ignoré' },
+    { source: 'BOAMP', id_source: 'v2', acheteur: 'B', objet: 'récent', date_limite: J(-10), statut: 'nouveau' },
+    { source: 'BOAMP', id_source: 'v3', acheteur: 'C', objet: 'sans date ancien', date_parution: J(-130), statut: 'nouveau' },
+    { source: 'BOAMP', id_source: 'v4', acheteur: 'D', objet: 'sans date récent', date_parution: J(-20), statut: 'nouveau' }
+  ]);
+  assert.strictEqual(A.Veille_archiver_(), 2);
+  assert.deepStrictEqual(brut(A.Db_lire(A.TABLES.AVIS).map((x) => x.id_source)).sort(), ['v2', 'v4']);
+  assert.deepStrictEqual(brut(A.Db_lire(A.TABLES.AVIS_ARCHIVES).map((x) => x.id_source)).sort(), ['v1', 'v3']);
+  assert.strictEqual(A.Veille_archiver_(), 0);
+});
+
+test('Drive : dossier racine / année / affaire, sous-dossiers selon l\'étape, lien dans la fiche', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const dossiers = () => Object.values(A.DriveApp._dossiers).filter((d) => !d.corbeille);
+  const enfants = (d) => dossiers().filter((x) => x.parent === d).map((x) => x.nom).sort();
+  const id = A.Affaires_creer({ acheteur: 'Commune de Digne-les-Bains', objet: 'Programmation d\'une cantine / école' }, { date: '2026-11-12' }).id;
+  const a = A.Affaires_get_(id);
+  assert.match(a.lien_dce, /^https:\/\/drive\.google\.com\/drive\/folders\//);
+  const racine = dossiers().find((d) => d.nom === 'Kompa Affaires — Dossiers');
+  assert.ok(racine);
+  assert.match(A.Params_texte('drive.dossier_racine'), /folders/);
+  assert.deepStrictEqual(enfants(racine), ['2026']);
+  const annee = dossiers().find((d) => d.nom === '2026');
+  const nomAffaire = 'KA-2026-001 — Commune de Digne-les-Bains — Programmation d\'une cantine école';
+  assert.deepStrictEqual(enfants(annee), [nomAffaire]);
+  const dossier = dossiers().find((d) => d.nom === nomAffaire);
+  assert.deepStrictEqual(enfants(dossier), ['01 DCE', '02 Questions et visite']);
+  A.Affaires_changerStatut(id, 'Go', {});
+  assert.deepStrictEqual(enfants(dossier), ['01 DCE', '02 Questions et visite', '03 Candidature', '04 Offre', '05 Dépôt']);
+  A.Affaires_changerStatut(id, 'Déposée', { montant_ht: 1000, jours_reponse: 1 });
+  A.Affaires_changerStatut(id, 'Gagnée', { date_notification: '2026-12-01', montant_notifie: 1000 });
+  assert.deepStrictEqual(enfants(dossier), ['01 DCE', '02 Questions et visite', '03 Candidature', '04 Offre', '05 Dépôt', '06 Résultat', '07 Exécution', '08 Facturation']);
+  // Deuxième affaire : même racine, même dossier d'année
+  A.Affaires_creer({ acheteur: 'EPCI', objet: 'AMO' }, { date: '2026-11-13' });
+  assert.strictEqual(dossiers().filter((d) => d.nom === 'Kompa Affaires — Dossiers').length, 1);
+  assert.strictEqual(enfants(annee).length, 2);
+});
+
+test('Drive : désactivable ; une erreur Drive ne bloque pas l\'affaire et est notée', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  A.Params_enregistrer('drive.actif', 'non'); A.Params_cache_ = null;
+  assert.strictEqual(A.Affaires_creer({ acheteur: 'X', objet: 'Y' }).lien_dce, '');
+  A.Params_enregistrer('drive.actif', 'oui'); A.Params_cache_ = null;
+  const createFolder = A.DriveApp.createFolder;
+  A.DriveApp.createFolder = () => { throw new Error('Quota Drive dépassé'); };
+  const b = A.Affaires_creer({ acheteur: 'Z', objet: 'W' });
+  assert.strictEqual(b.statut, 'En étude');
+  assert.match(b.notes, /Dossier Drive non créé : Quota Drive dépassé/);
+  A.DriveApp.createFolder = createFolder;
+  assert.strictEqual(A.creerDossiersManquants(), 2); // rattrapage des deux affaires sans dossier
+});
+
+test('Drive : installer() crée le dossier de l\'exercice Mouthe', () => {
+  const env = creerEnvironnement();
+  const L = console.log; console.log = () => {}; const r = env.ctx.installer(); console.log = L;
+  assert.strictEqual(r.dossiersDrive, 0); // créé dès la création de l'affaire
+  assert.match(env.ctx.Affaires_get_('KA-2026-001').lien_dce, /folders/);
 });
 
 let echecs = 0;

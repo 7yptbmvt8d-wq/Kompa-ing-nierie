@@ -15,7 +15,6 @@ function relanceClient_(r) {
 /** Échéancier : échéances du mois affiché (aaaa-mm) ± marge, échéances dépassées, relances. */
 function apiEcheancier(mois) {
   return repondre_(function () {
-    var sync = Relances_synchroniser();
     var auj = aujourdhui_();
     var m = String(mois || '').match(/^(\d{4})-(\d{2})$/);
     var debutMois = m ? new Date(Number(m[1]), Number(m[2]) - 1, 1) : new Date(auj.getFullYear(), auj.getMonth(), 1);
@@ -30,22 +29,22 @@ function apiEcheancier(mois) {
       calendrier: Echeances_calculer(debut, fin).map(echeanceClient_),
       prochaines: liste.map(echeanceClient_),
       relances: Relances_aFaire(null, true).map(relanceClient_),
-      synchronisation: sync,
       aujourdhui: jourIso_(auj)
     };
   });
 }
 
 /** Accueil : échéances à 7 jours et relances à faire. */
+function Suivi_accueil_() {
+  var auj = aujourdhui_();
+  return {
+    echeances: Echeances_calculer(auj, ajouterJours_(auj, 7)).map(echeanceClient_),
+    relances: Relances_aFaire().map(relanceClient_)
+  };
+}
+
 function apiSuivi() {
-  return repondre_(function () {
-    Relances_synchroniser();
-    var auj = aujourdhui_();
-    return {
-      echeances: Echeances_calculer(auj, ajouterJours_(auj, 7)).map(echeanceClient_),
-      relances: Relances_aFaire().map(relanceClient_)
-    };
-  });
+  return repondre_(Suivi_accueil_);
 }
 
 function apiRelanceStatut(idRelance, statut) {
@@ -59,7 +58,6 @@ function apiCourrier(idRelance) {
 /** Aperçu de l'e-mail du matin (sans envoi). */
 function apiEmailApercu() {
   return repondre_(function () {
-    Relances_synchroniser();
     var m = Email_construire(new Date());
     return { sujet: m.sujet, html: m.html, nombres: m.nombres };
   });

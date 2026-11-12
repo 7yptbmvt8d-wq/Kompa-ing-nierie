@@ -28,8 +28,10 @@
 
   function ecranEcheancier(el) {
     el.innerHTML = K.titre('Échéancier', '') + '<div class="chargement">Calcul des échéances…</div>';
-    K.appel('apiEcheancier', moisAffiche).then(function (r) { moisAffiche = r.mois; rendre(el, r); })
-      .catch(function (e) { el.innerHTML = K.titre('Échéancier', '') + K.bandeauErreur(e); });
+    K.charger('echeancier:' + (moisAffiche || 'courant'), 'apiEcheancier', [moisAffiche], function (r) {
+      if (!moisAffiche) moisAffiche = r.mois;
+      rendre(el, r);
+    }, function (e) { el.innerHTML = K.titre('Échéancier', '') + K.bandeauErreur(e); });
   }
 
   function rendre(el, r) {
@@ -156,11 +158,16 @@
     $$('[data-courrier]', el).forEach(function (b) { b.addEventListener('click', function () { ouvrirCourrier(b.getAttribute('data-courrier')); }); });
     $$('[data-relance]', el).forEach(function (b) {
       b.addEventListener('click', function () {
-        b.disabled = true;
-        K.appel('apiRelanceStatut', b.getAttribute('data-relance'), b.getAttribute('data-statut')).then(function () {
-          K.toast('Relance marquée « ' + b.getAttribute('data-statut') + ' ».');
-          ecranEcheancier(el);
-        }).catch(function (e) { b.disabled = false; K.toast(e.message, true); });
+        var id = b.getAttribute('data-relance'), statut = b.getAttribute('data-statut');
+        var avant = r.relances.slice();
+        r.relances = r.relances.filter(function (x) { return x.id !== id; });
+        rendre(el, r);
+        K.toast('Relance marquée « ' + statut + ' ».');
+        K.appel('apiRelanceStatut', id, statut).catch(function (e) {
+          r.relances = avant;
+          rendre(el, r);
+          K.toast('Non enregistré : ' + e.message, true);
+        });
       });
     });
     $('[data-action="apercu"]', el).addEventListener('click', apercuEmail);
@@ -174,8 +181,8 @@
   }
 
   // Cartes de l'accueil : échéances à 7 jours et relances à faire
-  K.suiviAccueil = function (elEch, elRel) {
-    K.appel('apiSuivi').then(function (s) {
+  K.suiviAccueil = function (elEch, elRel, donnees) {
+    (donnees ? Promise.resolve(donnees) : K.appel('apiSuivi')).then(function (s) {
       elEch.innerHTML = '<h2>Échéances à 7 jours</h2>' + (s.echeances.length ? '<ul class="liste-suivi">' + s.echeances.map(function (e) {
         return '<li><span class="mono">' + jour(e.date) + '</span> ' + (e.depassee ? '<span class="statut statut--ko">' + relatif(e.jours) + '</span>' : e.urgent ? '<span class="statut statut--alerte">' + relatif(e.jours) + '</span>' : '<span class="legende mono">' + relatif(e.jours) + '</span>') +
           '<br><a href="#affaire/' + esc(e.id_affaire) + '">' + esc(e.libelle) + '</a> — ' + esc(e.acheteur) + '</li>';

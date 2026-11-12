@@ -22,8 +22,8 @@
 
   function ecranVeille(el) {
     el.innerHTML = K.titre('Veille', '') + '<div class="chargement">Lecture des avis…</div>';
-    K.appel('apiVeille').then(function (r) { rendre(el, r); })
-      .catch(function (e) { el.innerHTML = K.titre('Veille', '') + K.bandeauErreur(e); });
+    K.charger('veille', 'apiVeille', [], function (r) { rendre(el, r); },
+      function (e) { el.innerHTML = K.titre('Veille', '') + K.bandeauErreur(e); });
   }
 
   function rendre(el, r) {
@@ -124,6 +124,8 @@
     $$('[data-etudier]', el).forEach(function (b) {
       b.addEventListener('click', function () {
         b.disabled = true;
+        b.textContent = 'Création…';
+        K.toast('Création de l\'affaire et de son dossier Drive…');
         K.appel('apiAvisEtudier', b.getAttribute('data-etudier')).then(function (affaire) {
           K.toast('Affaire ' + affaire.id + ' créée (En étude).');
           K.afficher('affaire/' + affaire.id, true);
@@ -134,12 +136,16 @@
       $$('[' + attr + ']', el).forEach(function (b) {
         b.addEventListener('click', function () {
           var id = b.getAttribute(attr);
-          K.appel('apiAvisStatut', id, statut).then(function () {
-            var a = r.avis.filter(function (x) { return x.id === id; })[0];
-            if (a) a.statut = statut;
-            K.toast(message);
+          var a = r.avis.filter(function (x) { return x.id === id; })[0];
+          var avant = a ? a.statut : null;
+          if (a) a.statut = statut;
+          rendre(el, r);
+          K.toast(message);
+          K.appel('apiAvisStatut', id, statut).catch(function (e) {
+            if (a) a.statut = avant;
             rendre(el, r);
-          }).catch(function (e) { K.toast(e.message, true); });
+            K.toast('Non enregistré : ' + e.message, true);
+          });
         });
       });
     };

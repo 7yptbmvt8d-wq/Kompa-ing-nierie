@@ -3,7 +3,22 @@
  * Ligne 1 = noms de colonnes (identifiants techniques, ne pas renommer à la main).
  */
 
-var Db_cache_ = { classeur: null };
+/**
+ * Mémoire de l'exécution en cours : chaque onglet n'est lu qu'une fois par appel
+ * (google.script.run, déclencheur). Toute écriture dans un onglet vide sa mémoire.
+ */
+var Db_cache_ = { classeur: null, lignes: {}, entetes: {} };
+
+function Db_viderCache_(table) {
+  if (table) { delete Db_cache_.lignes[table.onglet]; delete Db_cache_.entetes[table.onglet]; }
+  else { Db_cache_.lignes = {}; Db_cache_.entetes = {}; }
+}
+
+/** En-têtes d'une table (mémorisés pour l'exécution). */
+function Db_entetesTable_(table, onglet) {
+  if (!Db_cache_.entetes[table.onglet]) Db_cache_.entetes[table.onglet] = Db_entetes_(onglet || Db_onglet_(table));
+  return Db_cache_.entetes[table.onglet];
+}
 
 /** Classeur de données. Lève une erreur claire si installer() n'a pas été lancé. */
 function Db_classeur() {
@@ -31,20 +46,25 @@ function Db_entetes_(onglet) {
   return onglet.getRange(1, 1, 1, nb).getValues()[0].map(function (v) { return String(v).trim(); });
 }
 
-/** Toutes les lignes d'une table, en objets. */
+/** Toutes les lignes d'une table, en objets (copies : modifiables sans effet sur la mémoire). */
 function Db_lire(table) {
-  var onglet = Db_onglet_(table);
-  var entetes = Db_entetes_(onglet);
-  var nbLignes = onglet.getLastRow() - 1;
-  if (nbLignes < 1 || entetes.length === 0) return [];
-  var valeurs = onglet.getRange(2, 1, nbLignes, entetes.length).getValues();
-  return valeurs
-    .filter(function (ligne) { return ligne.some(function (v) { return v !== '' && v !== null; }); })
-    .map(function (ligne) {
-      var obj = {};
-      entetes.forEach(function (nom, i) { if (nom) obj[nom] = ligne[i]; });
-      return obj;
-    });
+  if (!Db_cache_.lignes[table.onglet]) {
+    var onglet = Db_onglet_(table);
+    var entetes = Db_entetesTable_(table, onglet);
+    var nbLignes = onglet.getLastRow() - 1;
+    var lignes = [];
+    if (nbLignes >= 1 && entetes.length) {
+      lignes = onglet.getRange(2, 1, nbLignes, entetes.length).getValues()
+        .filter(function (ligne) { return ligne.some(function (v) { return v !== '' && v !== null; }); })
+        .map(function (ligne) {
+          var obj = {};
+          entetes.forEach(function (nom, i) { if (nom) obj[nom] = ligne[i]; });
+          return obj;
+        });
+    }
+    Db_cache_.lignes[table.onglet] = lignes;
+  }
+  return Db_cache_.lignes[table.onglet].map(function (o) { return Object.assign({}, o); });
 }
 
 /** Ligne dont la clé vaut `valeur`, ou null. */
@@ -73,7 +93,8 @@ function Db_insererPlusieurs(table, objets) {
   if (!objets.length) return [];
   return Db_verrou_(function () {
     var onglet = Db_onglet_(table);
-    var entetes = Db_entetes_(onglet);
+    var entetes = Db_entetesTable_(table, onglet);
+    Db_viderCache_lignes_(table);
     var maintenant = new Date();
     var lignes = objets.map(function (obj) {
       var ligne = Object.assign({}, obj);
@@ -96,7 +117,8 @@ function Db_insererPlusieurs(table, objets) {
 function Db_maj(table, valeurCle, champs) {
   return Db_verrou_(function () {
     var onglet = Db_onglet_(table);
-    var entetes = Db_entetes_(onglet);
+    var entetes = Db_entetesTable_(table, onglet);
+    Db_viderCache_lignes_(table);
     var iCle = entetes.indexOf(table.cle);
     var nbLignes = onglet.getLastRow() - 1;
     if (iCle < 0 || nbLignes < 1) throw new Error('Ligne introuvable : ' + valeurCle);
@@ -140,7 +162,8 @@ function Db_verrou_(fn) {
 function Db_supprimerSi(table, critere) {
   return Db_verrou_(function () {
     var onglet = Db_onglet_(table);
-    var entetes = Db_entetes_(onglet);
+    var entetes = Db_entetesTable_(table, onglet);
+    Db_viderCache_lignes_(table);
     var n = onglet.getLastRow() - 1;
     if (n < 1) return 0;
     var valeurs = onglet.getRange(2, 1, n, entetes.length).getValues();
@@ -152,4 +175,8 @@ function Db_supprimerSi(table, critere) {
     }
     return supprimees;
   });
+}
+
+function Db_viderCache_lignes_(table) {
+  delete Db_cache_.lignes[table.onglet];
 }

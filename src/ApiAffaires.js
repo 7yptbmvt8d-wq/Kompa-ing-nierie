@@ -71,12 +71,13 @@ function apiAffaireCreer(donnees) {
 }
 
 function apiAffaireMaj(id, champs) {
-  return repondre_(function () { Affaires_maj(id, champs); return ficheClient_(id); });
+  return repondre_(function () { Affaires_maj(id, champs); Relances_synchroniser(); return ficheClient_(id); });
 }
 
 function apiAffaireStatut(id, statut, champs, commentaire) {
   return repondre_(function () {
     Affaires_changerStatut(id, statut, champs, { commentaire: commentaire });
+    Relances_synchroniser();
     return ficheClient_(id);
   });
 }
@@ -90,9 +91,9 @@ function apiCriteres(id, lignes) {
 }
 
 function apiFactureAjouter(id, facture) {
-  return repondre_(function () { Factures_ajouter(id, facture); return ficheClient_(id); });
+  return repondre_(function () { Factures_ajouter(id, facture); Relances_synchroniser(); return ficheClient_(id); });
 }
 
 function apiFactureMaj(idAffaire, idFacture, champs) {
-  return repondre_(function () { Factures_maj(idFacture, champs); return ficheClient_(idAffaire); });
+  return repondre_(function () { Factures_maj(idFacture, champs); Relances_synchroniser(); return ficheClient_(idAffaire); });
 }

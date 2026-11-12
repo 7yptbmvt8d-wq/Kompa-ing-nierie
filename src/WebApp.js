@@ -49,9 +49,26 @@ function repondre_(fn) {
 
 // ——— API du lot 1 ———
 
+/** Accueil en un seul échange : tableau de bord, CA, déclarations, échéances, relances, état. */
+function apiAccueil() {
+  return repondre_(function () {
+    return {
+      tableau: Indicateurs_tableau(),
+      ca: Compteur_ca(),
+      fiscal: Fiscal_declarations(),
+      suivi: Suivi_accueil_(),
+      etat: Etat_socle_()
+    };
+  });
+}
+
 /** État du socle : compte, classeur, onglets, quotas. */
 function apiEtat() {
-  return repondre_(function () {
+  return repondre_(Etat_socle_);
+}
+
+function Etat_socle_() {
+  return (function () {
     var classeur = Db_classeur();
     var onglets = Object.keys(TABLES).map(function (k) {
       var f = classeur.getSheetByName(TABLES[k].onglet);
@@ -67,7 +84,7 @@ function apiEtat() {
       declencheurs: ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); }),
       maintenant: new Date()
     };
-  });
+  })();
 }
 
 /** Liste des paramètres, groupés pour l'écran Paramètres. */
