@@ -40,20 +40,31 @@ function assembler() {
   const log = console.log; console.log = () => {};
   env.ctx.installer();
   console.log = log;
-  // Données FICTIVES pour visualiser le compteur de CA (aperçu uniquement).
-  const T = env.ctx.TABLES;
-  env.ctx.Db_insererPlusieurs(T.FACTURES, [
-    { id_affaire: 'KA-2026-001', numero: 'F-01', date: '15/01/2026', montant: 18000, date_encaissement: '12/02/2026', montant_encaisse: 18000 },
-    { id_affaire: 'KA-2026-001', numero: 'F-02', date: '02/05/2026', montant: 13000, date_encaissement: '01/06/2026', montant_encaisse: 13000 },
-    { id_affaire: 'KA-2026-002', numero: 'F-03', date: '01/10/2026', montant: 4000 }
-  ]);
-  env.ctx.Db_inserer(T.AFFAIRES, { id: 'KA-2026-002', statut: 'Gagnée', montant_notifie: 12000, date_notification: '01/09/2026' });
+  // Données FICTIVES (aperçu uniquement) : exercice Mouthe + affaires de démonstration.
+  console.log = () => {};
+  env.ctx.creerAffaireExerciceMouthe();
+  const A = env.ctx;
+  const cree = (d, quand) => A.Affaires_creer(d, { date: quand }).id;
+  const e1 = cree({ acheteur: 'Commune de Digne-les-Bains', type_acheteur: 'Commune', departement: '04', objet: 'Étude de faisabilité — réhabilitation du gymnase municipal', procedure: 'MAPA', date_limite_remise: '2026-11-14', pre_score: 85 }, '2026-11-02');
+  cree({ acheteur: 'Communauté de communes Serre-Ponçon', type_acheteur: 'EPCI', departement: '05', objet: 'Programmation d\'une maison de santé pluriprofessionnelle', procedure: 'MAPA', date_limite_remise: '2026-12-04', pre_score: 72 }, '2026-11-05');
+  const g1 = cree({ acheteur: 'Commune de Manosque', type_acheteur: 'Commune', departement: '04', objet: 'AMO conduite d\'opération — extension du groupe scolaire', procedure: 'MAPA', date_limite_remise: '2026-11-27', pre_score: 80 }, '2026-10-20');
+  A.Affaires_changerStatut(g1, 'Go', { score_final: 74 }, { date: '2026-10-25' });
+  const d1 = cree({ acheteur: 'Département des Hautes-Alpes', type_acheteur: 'Département', departement: '05', objet: 'Assistance technique — programme de rénovation des collèges', procedure: 'AO', date_limite_remise: '2026-10-30', pre_score: 66 }, '2026-10-01');
+  A.Affaires_changerStatut(d1, 'Go', {}, { date: '2026-10-05' });
+  A.Affaires_changerStatut(d1, 'Déposée', { montant_ht: 24500, jours_reponse: 4, date_depot: '2026-10-29' }, { date: '2026-10-29' });
+  const w1 = cree({ acheteur: 'Commune de Sisteron', type_acheteur: 'Commune', departement: '04', objet: 'Faisabilité — pôle culturel en centre ancien', procedure: 'MAPA', date_limite_remise: '2026-05-15' }, '2026-04-20');
+  A.Affaires_changerStatut(w1, 'Go', {}, { date: '2026-04-22' });
+  A.Affaires_changerStatut(w1, 'Déposée', { montant_ht: 16000, jours_reponse: 3, date_depot: '2026-05-14' }, { date: '2026-05-14' });
+  A.Affaires_changerStatut(w1, 'Gagnée', { date_notification: '2026-06-10', montant_notifie: 16000 }, { date: '2026-06-10' });
+  A.Factures_ajouter(w1, { numero: 'F-2026-01', date: '2026-07-31', montant: 8000, date_encaissement: '2026-08-28', montant_encaisse: 8000 });
+  A.Factures_ajouter(w1, { numero: 'F-2026-02', date: '2026-10-30', montant: 4000 });
+  console.log = log;
   const html = assembler();
   fs.writeFileSync(path.join(sortie, 'index.html'), html);
 
   const navigateur = await chromium.launch();
   const ouvrir = async (options) => {
-    const ctx = await navigateur.newContext(options);
+    const ctx = await navigateur.newContext({ locale: 'fr-FR', timezoneId: 'Europe/Paris', ...options });
     const page = await ctx.newPage();
     const erreurs = [];
     page.on('pageerror', (e) => erreurs.push(e.message));
@@ -80,6 +91,54 @@ function assembler() {
   await ligne.scrollIntoViewIfNeeded();
   await pc.page.screenshot({ path: path.join(sortie, 'pc-parametres.png') });
 
+  // ——— Lot 2 : Affaires (PC) ———
+  const p = pc.page;
+  await p.click('nav a[href="#affaires"]');
+  await p.waitForSelector('.colonne .carte-affaire');
+  await p.screenshot({ path: path.join(sortie, 'pc-affaires-colonnes.png') });
+  // Glisser-déposer : En étude → Go (colonne autorisée) ouvre la boîte de passage
+  await p.locator(`.carte-affaire[data-id="${e1}"]`).dragTo(p.locator('.colonne[data-statut="Go"]'));
+  await p.waitForSelector('dialog.dialogue[open]');
+  await p.screenshot({ path: path.join(sortie, 'pc-passage.png') });
+  await p.click('dialog.dialogue button[type=submit]');
+  await p.waitForSelector('dialog.dialogue', { state: 'detached' });
+  await p.waitForSelector(`.colonne[data-statut="Go"] .carte-affaire[data-id="${e1}"]`);
+  assert.strictEqual(A.Affaires_get_(e1).statut, 'Go', 'glisser-déposer sans effet');
+  // Vue liste avec affaires clôturées
+  await p.click('[data-vue="liste"]');
+  await p.check('[data-action="clotures"]');
+  await p.waitForSelector('.table-affaires');
+  await p.screenshot({ path: path.join(sortie, 'pc-affaires-liste.png') });
+  // Fiche Mouthe, onglet Résultat
+  await p.click('tr[data-ouvrir="KA-2026-001"]');
+  await p.waitForSelector('.fiche-tete');
+  await p.click('[data-onglet="resultat"]');
+  await p.screenshot({ path: path.join(sortie, 'pc-fiche-mouthe-resultat.png'), fullPage: true });
+  await p.click('[data-onglet="journal"]');
+  await p.screenshot({ path: path.join(sortie, 'pc-fiche-mouthe-journal.png'), fullPage: true });
+  // Nouvelle affaire → fiche → No-go avec motif obligatoire
+  await p.click('a[href="#affaires"]');
+  await p.click('[data-action="nouvelle"]');
+  await p.fill('#n-acheteur', 'Commune de Briançon');
+  await p.fill('#n-objet', 'Étude préalable — patinoire');
+  await p.fill('#n-departement', '05');
+  await p.click('dialog.dialogue button[type=submit]');
+  await p.waitForSelector('.fiche-tete h1:has-text("Commune de Briançon")');
+  await p.click('[data-passer="No-go"]');
+  await p.click('dialog.dialogue button[type=submit]');
+  await p.waitForSelector('.dialogue__erreur:not([hidden])'); // motif manquant
+  await p.selectOption('#p-motif_decision', 'charge');
+  await p.click('dialog.dialogue button[type=submit]');
+  await p.waitForSelector('.fiche-tete .statut:has-text("No-go")');
+  // Bloc Offre : enregistrement
+  await p.click('[data-onglet="offre"]');
+  await p.fill('#offre-prix_jour', '600');
+  await p.click('#p-offre button[type=submit]');
+  await p.waitForFunction(() => document.querySelector('#offre-prix_jour') && document.querySelector('#offre-prix_jour').value === '600' && document.querySelector('#p-offre button[type=submit]').disabled);
+  const nouvelle = A.Affaires_lister().filter((x) => x.acheteur === 'Commune de Briançon')[0];
+  assert.strictEqual(nouvelle.prix_jour, 600);
+  assert.strictEqual(nouvelle.departement, '05');
+
   // Téléphone
   const tel = await ouvrir({ ...devices['iPhone 13'] });
   await tel.page.waitForSelector('#carte-etat dl');
@@ -93,6 +152,25 @@ function assembler() {
   // Débordement horizontal sur téléphone
   const deborde = await tel.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   assert.ok(!deborde, 'débordement horizontal sur mobile');
+
+  // ——— Lot 2 : Affaires (téléphone) ———
+  await tel.page.click('nav a[href="#affaires"]');
+  await tel.page.waitForSelector('.groupe-statut .carte-affaire');
+  await tel.page.screenshot({ path: path.join(sortie, 'mobile-affaires.png'), fullPage: true });
+  await tel.page.click(`.carte-affaire[data-id="${g1}"]`);
+  await tel.page.waitForSelector('.bloc-lecture');
+  await tel.page.screenshot({ path: path.join(sortie, 'mobile-fiche.png'), fullPage: true });
+  await tel.page.click('[data-passer="Déposée"]');
+  await tel.page.fill('#p-montant_ht', '21000');
+  await tel.page.fill('#p-jours_reponse', '3');
+  await tel.page.screenshot({ path: path.join(sortie, 'mobile-passage.png') });
+  await tel.page.click('dialog.dialogue button[type=submit]');
+  await tel.page.waitForSelector('.fiche-tete .statut:has-text("Déposée")');
+  await tel.page.fill('#note-texte', 'Offre déposée sur la plateforme.');
+  await tel.page.click('form[data-note] button[type=submit]');
+  await tel.page.waitForSelector('.notes:has-text("Offre déposée sur la plateforme.")');
+  const debordeFiche = await tel.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  assert.ok(!debordeFiche, 'débordement horizontal sur la fiche mobile');
 
   await navigateur.close();
   const erreurs = pc.erreurs.concat(tel.erreurs);

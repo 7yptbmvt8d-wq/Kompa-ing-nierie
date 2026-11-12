@@ -102,6 +102,8 @@ function date_(v) {
   if (Object.prototype.toString.call(v) === '[object Date]') return isNaN(v.getTime()) ? null : v;
   var m = String(v).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  m = String(v).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/); // champ date du formulaire (jour seul)
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   var d = new Date(String(v));
   return isNaN(d.getTime()) ? null : d;
 }

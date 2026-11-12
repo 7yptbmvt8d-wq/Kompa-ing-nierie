@@ -4,14 +4,14 @@ Veille et suivi des marchés publics d'AMO de Kompa Ingénierie.
 Google Apps Script + Google Sheets + web app, dans le compte Google Kompa.
 
 Spécification : [docs/cahier-des-charges-v1.md](docs/cahier-des-charges-v1.md) ·
-Recette du lot en cours : [docs/recette-lot-1.md](docs/recette-lot-1.md)
+Recette : [lot 1](docs/recette-lot-1.md) · [lot 2](docs/recette-lot-2.md)
 
 ## Avancement
 
 | Lot | Contenu | État |
 |---|---|---|
-| 1. Socle | Classeur et onglets, web app aux couleurs Kompa, connexion Google, Paramètres | Livré — en recette |
-| 2. Affaires | Fiche affaire, statuts, historique, vues colonnes et liste | — |
+| 1. Socle | Classeur et onglets, web app aux couleurs Kompa, connexion Google, Paramètres, compteur de CA | Installé |
+| 2. Affaires | Fiche affaire, statuts et règles de passage, historique, vues colonnes et liste, affaire d'exercice Mouthe | Livré — en recette ([recette-lot-2.md](docs/recette-lot-2.md)) |
 | 3. Veille | Collecte BOAMP + boîte de veille, filtres, dédoublonnage, pré-score | — |
 | 4. Échéances et e-mail | Échéancier, relances, modèles de courriers, e-mail de 7 h | — |
 | 5. Tableau de bord | Indicateurs, seuils, Enseignements | — |
@@ -37,12 +37,16 @@ src/                    code source (Apps Script)
   Db.js                 lecture / écriture des onglets (une ligne = un objet)
   Params.js             paramètres par défaut et accès typé (texte, nombre, liste)
   Compteur.js           compteur de CA de l'année face aux seuils (TVA, plafond visé, micro)
+  Affaires.js           statuts, règles de passage (§ 4.1), historique, critères, factures
+  ApiAffaires.js        API de l'écran Affaires et de la fiche
+  Exercice.js           affaire d'exercice Mouthe (creerAffaireExerciceMouthe)
   Setup.js              installer(), déclencheurs, sauvegarde hebdomadaire
   WebApp.js             doGet() et API appelée par l'interface
   Index.html            gabarit de la page (symbole Kompa du kit)
   Tokens.html           copie de charte/kompa-kit/tokens.css + couleurs de statut de l'app
   Styles.html           styles (n'utilisent que les variables de Tokens.html)
-  App.html              script de l'interface
+  App.html              script de l'interface (navigation, accueil, paramètres)
+  AppAffaires.html      écrans Affaires (colonnes, liste) et fiche affaire
 dist/                   version assemblée à coller dans Apps Script (npm run build)
 charte/kompa-kit/       kit de charte Kompa (DESIGN.md, tokens.css, logos)
 tools/                  outils locaux, non déployés

@@ -1,4 +1,4 @@
-/* Kompa Affaires 1.0.0-lot1 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
+/* Kompa Affaires 1.0.0-lot2 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
 
 // ════════ Setup.js ════════
 
@@ -157,6 +157,476 @@ function Setup_dossierSauvegardes_() {
 }
 
 
+// ════════ Affaires.js ════════
+
+/**
+ * Module Affaires (§ 4) : création, fiche, cycle des statuts et règles de passage.
+ *
+ * Cycle validé le 12/11/2026 :
+ *   En étude → Go → Déposée → Gagnée → Soldée
+ *       ↘ No-go  ↘ Abandonnée   ↘ Perdue
+ *                               ↘ Sans suite
+ * Chaque changement de statut est horodaté dans l'onglet Historique.
+ */
+
+var STATUTS = {
+  EN_ETUDE: 'En étude',
+  GO: 'Go',
+  NOGO: 'No-go',
+  ABANDONNEE: 'Abandonnée',
+  DEPOSEE: 'Déposée',
+  GAGNEE: 'Gagnée',
+  PERDUE: 'Perdue',
+  SANS_SUITE: 'Sans suite',
+  SOLDEE: 'Soldée'
+};
+
+/** Ordre d'affichage (colonnes, listes). */
+var ORDRE_STATUTS = ['En étude', 'Go', 'Déposée', 'Gagnée', 'Soldée', 'Perdue', 'No-go', 'Abandonnée', 'Sans suite'];
+
+/** Statuts « en cours » (affaire vivante) ; les autres sont clôturés. */
+var STATUTS_ACTIFS = ['En étude', 'Go', 'Déposée', 'Gagnée'];
+
+/** Famille de couleur de chaque statut (§ 10). */
+var FAMILLES_STATUT = {
+  'En étude': 'encours', 'Go': 'encours', 'Déposée': 'encours',
+  'Gagnée': 'gagnee', 'Soldée': 'gagnee',
+  'Perdue': 'perdue',
+  'No-go': 'abandonnee', 'Abandonnée': 'abandonnee', 'Sans suite': 'abandonnee'
+};
+
+/** Passages autorisés. */
+var TRANSITIONS = {
+  'En étude': ['Go', 'No-go'],
+  'Go': ['Déposée', 'Abandonnée'],
+  'No-go': ['En étude'],
+  'Déposée': ['Gagnée', 'Perdue', 'Sans suite'],
+  'Gagnée': ['Soldée'],
+  'Abandonnée': [], 'Perdue': [], 'Sans suite': [], 'Soldée': []
+};
+
+/**
+ * Champs demandés au passage dans chaque statut (§ 4.1).
+ * [nom, libellé, type, obligatoire, valeur par défaut]
+ * Défauts : 'aujourdhui' = date du jour ; '=champ' = valeur actuelle d'un autre champ.
+ */
+var CHAMPS_PASSAGE = {
+  'Go': [['score_final', 'Score final après lecture du DCE', 'nombre', false]],
+  'No-go': [['motif_decision', 'Motif', 'liste:liste.motifs_nogo', true]],
+  'Déposée': [
+    ['montant_ht', 'Montant HT de l\'offre (€)', 'euros', true],
+    ['montant_pondere', 'Montant pondéré (€), s\'il existe', 'euros', false],
+    ['jours_reponse', 'Jours passés à répondre', 'nombre', true],
+    ['date_depot', 'Date de dépôt', 'date', true, 'aujourdhui']
+  ],
+  'Gagnée': [
+    ['date_notification', 'Date de notification', 'date', true, 'aujourdhui'],
+    ['montant_notifie', 'Montant notifié HT (€)', 'euros', true, '=montant_ht']
+  ],
+  'Perdue': [
+    ['date_resultat', 'Date de la décision', 'date', true, 'aujourdhui'],
+    ['attributaire', 'Attributaire', 'texte', false],
+    ['prix_attributaire', 'Prix de l\'attributaire HT (€)', 'euros', false],
+    ['rang', 'Rang', 'nombre', false]
+  ],
+  'Sans suite': [['date_resultat', 'Date de la décision', 'date', true, 'aujourdhui']],
+  'Abandonnée': [], 'Soldée': [], 'En étude': []
+};
+
+/**
+ * Blocs de la fiche affaire (§ 4.2) : [nom, libellé, type, obligatoire].
+ * Types : texte, long, date, nombre, euros, lien, lecture, liste:<clé de paramètre>, choix:a|b.
+ */
+var FICHE_BLOCS = [
+  { id: 'identification', titre: 'Identification', champs: [
+    ['id', 'N° interne', 'lecture'],
+    ['acheteur', 'Acheteur', 'texte', true],
+    ['type_acheteur', 'Type d\'acheteur', 'liste:liste.types_acheteur'],
+    ['departement', 'Département', 'texte'],
+    ['objet', 'Objet', 'long', true],
+    ['reference_acheteur', 'Référence acheteur', 'texte'],
+    ['procedure', 'Procédure', 'liste:liste.procedures'],
+    ['plateforme', 'Plateforme', 'texte'],
+    ['lien_avis', 'Lien vers l\'avis', 'lien'],
+    ['lien_dce', 'Dossier DCE (Google Drive)', 'lien']
+  ] },
+  { id: 'echeances', titre: 'Échéances', champs: [
+    ['date_limite_remise', 'Date limite de remise', 'date'],
+    ['date_limite_questions', 'Date limite des questions', 'date'],
+    ['date_visite', 'Visite de site', 'date'],
+    ['validite_offre_jours', 'Validité de l\'offre (jours)', 'nombre']
+  ] },
+  { id: 'decision', titre: 'Décision', champs: [
+    ['pre_score', 'Pré-score', 'nombre'],
+    ['score_final', 'Score final', 'nombre'],
+    ['decision', 'Décision', 'lecture'],
+    ['motif_decision', 'Motif', 'liste:liste.motifs_nogo'],
+    ['date_decision', 'Date de décision', 'date']
+  ] },
+  { id: 'offre', titre: 'Offre', champs: [
+    ['groupement', 'Candidature', 'choix:Seul|Groupement'],
+    ['cotraitant', 'Cotraitant', 'texte'],
+    ['tranches', 'Tranches', 'long'],
+    ['jours_par_tranche', 'Jours par tranche', 'long'],
+    ['prix_jour', 'Prix par jour HT (€)', 'euros'],
+    ['montant_ht', 'Montant HT (€)', 'euros'],
+    ['montant_pondere', 'Montant pondéré (€)', 'euros'],
+    ['jours_reponse', 'Jours passés à répondre', 'nombre'],
+    ['date_depot', 'Date de dépôt', 'date']
+  ] },
+  { id: 'resultat', titre: 'Résultat', champs: [
+    ['statut_final', 'Statut final', 'lecture'],
+    ['date_resultat', 'Date de la décision', 'date'],
+    ['attributaire', 'Attributaire', 'texte'],
+    ['prix_attributaire', 'Prix de l\'attributaire HT (€)', 'euros'],
+    ['rang', 'Rang', 'nombre'],
+    ['motifs_rejet', 'Motifs du rejet', 'long']
+  ] },
+  { id: 'enseignements', titre: 'Enseignements', champs: [
+    ['points_faibles', 'Points faibles constatés', 'long'],
+    ['action_corrective', 'Action corrective', 'long'],
+    ['piece_type', 'Pièce-type à améliorer', 'liste:liste.pieces_types']
+  ] },
+  { id: 'execution', titre: 'Exécution', champs: [
+    ['date_notification', 'Date de notification', 'date'],
+    ['montant_notifie', 'Montant notifié HT (€)', 'euros']
+  ] },
+  { id: 'journal', titre: 'Journal', champs: [] }
+];
+
+/** Champs du formulaire court « Nouvelle affaire ». */
+var CHAMPS_CREATION = ['acheteur', 'type_acheteur', 'departement', 'objet', 'procedure',
+  'date_limite_remise', 'lien_avis', 'reference_acheteur'];
+
+// ——— Lecture ———
+
+function Affaires_lister() {
+  return Db_lire(TABLES.AFFAIRES);
+}
+
+function Affaires_get_(id) {
+  var a = Db_trouver(TABLES.AFFAIRES, id);
+  if (!a) throw new Error('Affaire introuvable : ' + id);
+  return a;
+}
+
+function Affaires_fiche(id) {
+  var a = Affaires_get_(id);
+  var filtre = function (l) { return String(l.id_affaire) === String(id); };
+  var factures = Db_lire(TABLES.FACTURES).filter(filtre);
+  var facture = factures.reduce(function (s, f) { return s + montant_(f.montant); }, 0);
+  var encaisse = factures.reduce(function (s, f) { return s + montant_(f.montant_encaisse); }, 0);
+  return {
+    affaire: a,
+    historique: Db_lire(TABLES.HISTORIQUE).filter(filtre)
+      .sort(function (x, y) { return new Date(x.date) - new Date(y.date); }),
+    criteres: Db_lire(TABLES.CRITERES).filter(filtre),
+    factures: factures,
+    relances: Db_lire(TABLES.RELANCES).filter(filtre),
+    totaux: {
+      facture: arrondi_(facture),
+      encaisse: arrondi_(encaisse),
+      resteAFacturer: arrondi_(Math.max(montant_(a.montant_notifie) - facture, 0))
+    },
+    transitions: TRANSITIONS[a.statut] || []
+  };
+}
+
+// ——— Création et modification ———
+
+/** N° interne suivant pour l'année : KA-AAAA-NNN. */
+function Affaires_prochainNumero_(annee) {
+  var max = 0;
+  var re = new RegExp('^KA-' + annee + '-(\\d{3,})$');
+  Affaires_lister().forEach(function (a) {
+    var m = String(a.id).match(re);
+    if (m) max = Math.max(max, Number(m[1]));
+  });
+  return 'KA-' + annee + '-' + ('00' + (max + 1)).slice(-3);
+}
+
+/**
+ * Crée une affaire au statut « En étude ».
+ * options.date : date de création simulée (affaire saisie a posteriori).
+ */
+function Affaires_creer(donnees, options) {
+  options = options || {};
+  var champs = depuisClient_(TABLES.AFFAIRES, donnees);
+  if (!champs.acheteur) throw new Error('L\'acheteur est obligatoire.');
+  if (!champs.objet) throw new Error('L\'objet est obligatoire.');
+  var quand = options.date ? date_(options.date) : new Date();
+  champs.id = Affaires_prochainNumero_(Utilities.formatDate(quand, APP.FUSEAU, 'yyyy'));
+  champs.statut = STATUTS.EN_ETUDE;
+  champs.date_statut = quand;
+  if (champs.groupement === undefined) champs.groupement = 'Seul';
+  var a = Db_inserer(TABLES.AFFAIRES, champs);
+  Historique_ajouter_(a.id, '', STATUTS.EN_ETUDE, quand, options.commentaire || 'Création de l\'affaire');
+  return Affaires_get_(a.id);
+}
+
+/** Modifie les champs d'une affaire. Le statut ne change que par Affaires_changerStatut. */
+function Affaires_maj(id, donnees) {
+  Affaires_get_(id);
+  var champs = depuisClient_(TABLES.AFFAIRES, donnees);
+  ['id', 'statut', 'date_statut', 'decision', 'statut_final', 'notes', 'cree_le', 'modifie_le']
+    .forEach(function (k) { delete champs[k]; });
+  if ('acheteur' in champs && !champs.acheteur) throw new Error('L\'acheteur est obligatoire.');
+  if ('objet' in champs && !champs.objet) throw new Error('L\'objet est obligatoire.');
+  return Db_maj(TABLES.AFFAIRES, id, champs);
+}
+
+/** Ajoute une note datée au journal de l'affaire. */
+function Affaires_ajouterNote(id, texte, quand) {
+  texte = String(texte || '').trim();
+  if (!texte) throw new Error('Note vide.');
+  var a = Affaires_get_(id);
+  var horo = Utilities.formatDate(quand ? date_(quand) || new Date() : new Date(), APP.FUSEAU, 'dd/MM/yyyy HH:mm');
+  var notes = String(a.notes || '');
+  return Db_maj(TABLES.AFFAIRES, id, { notes: (notes ? notes + '\n' : '') + '[' + horo + '] ' + texte });
+}
+
+// ——— Statuts ———
+
+/**
+ * Passe l'affaire dans un nouveau statut en appliquant les règles du § 4.1.
+ * champs : valeurs demandées par CHAMPS_PASSAGE ; options.date : date simulée ;
+ * options.commentaire : texte de l'historique.
+ */
+function Affaires_changerStatut(id, nouveau, champsSaisis, options) {
+  options = options || {};
+  var a = Affaires_get_(id);
+  var ancien = String(a.statut);
+  if ((TRANSITIONS[ancien] || []).indexOf(nouveau) < 0) {
+    throw new Error('Passage impossible : « ' + ancien + ' » → « ' + nouveau + ' ».');
+  }
+  var quand = options.date ? date_(options.date) : new Date();
+  var champs = depuisClient_(TABLES.AFFAIRES, champsSaisis || {});
+
+  // Valeurs par défaut des champs du passage non transmis (un champ vidé exprès reste vide)
+  (CHAMPS_PASSAGE[nouveau] || []).forEach(function (c) {
+    var nom = c[0], defaut = c[4];
+    var vide = function (v) { return v === '' || v === null || v === undefined; };
+    if (!defaut || nom in champs || !vide(a[nom])) return;
+    if (defaut === 'aujourdhui') champs[nom] = quand;
+    else if (defaut.charAt(0) === '=') champs[nom] = vide(champs[defaut.slice(1)]) ? a[defaut.slice(1)] : champs[defaut.slice(1)];
+  });
+
+  // Champs obligatoires du passage
+  var manquants = (CHAMPS_PASSAGE[nouveau] || []).filter(function (c) {
+    var v = c[0] in champs ? champs[c[0]] : a[c[0]];
+    return c[3] && (v === '' || v === null || v === undefined);
+  }).map(function (c) { return c[1]; });
+  if (manquants.length) throw new Error('À renseigner pour passer en « ' + nouveau + ' » : ' + manquants.join(', ') + '.');
+
+  if (nouveau === STATUTS.NOGO) {
+    var motifs = Params_liste('liste.motifs_nogo');
+    if (motifs.length && motifs.indexOf(champs.motif_decision) < 0) throw new Error('Motif de No-go inconnu : ' + champs.motif_decision);
+  }
+
+  // Effets du passage
+  if (nouveau === STATUTS.GO || nouveau === STATUTS.NOGO) {
+    champs.decision = nouveau;
+    if (!champs.date_decision) champs.date_decision = quand;
+  }
+  if (nouveau === STATUTS.EN_ETUDE) { // reprise après un No-go
+    champs.decision = '';
+  }
+  if ([STATUTS.GAGNEE, STATUTS.PERDUE, STATUTS.SANS_SUITE].indexOf(nouveau) >= 0) {
+    champs.statut_final = nouveau;
+    if (!champs.date_resultat && !a.date_resultat) champs.date_resultat = champs.date_notification || quand;
+  }
+  champs.statut = nouveau;
+  champs.date_statut = quand;
+  Db_maj(TABLES.AFFAIRES, id, champs);
+  Historique_ajouter_(id, ancien, nouveau, quand, options.commentaire || '');
+
+  if (nouveau === STATUTS.PERDUE) {
+    Db_inserer(TABLES.RELANCES, {
+      id_affaire: id,
+      type: 'Motifs du rejet',
+      date_prevue: champs.date_resultat || quand,
+      statut: 'à faire',
+      commentaire: 'Demander les motifs du rejet, les notes et le prix de l\'attributaire.'
+    });
+  }
+  return Affaires_get_(id);
+}
+
+function Historique_ajouter_(idAffaire, ancien, nouveau, quand, commentaire) {
+  return Db_inserer(TABLES.HISTORIQUE, {
+    id_affaire: idAffaire, ancien_statut: ancien, nouveau_statut: nouveau,
+    date: quand || new Date(), commentaire: commentaire || ''
+  });
+}
+
+// ——— Critères, factures ———
+
+/** Remplace les critères de notation d'une affaire. lignes : [{critere, ponderation, note_kompa, note_attributaire}] */
+function Criteres_enregistrer(idAffaire, lignes) {
+  Affaires_get_(idAffaire);
+  var T = TABLES.CRITERES;
+  var onglet = Db_onglet_(T);
+  var entetes = Db_entetes_(onglet);
+  var iAff = entetes.indexOf('id_affaire');
+  // Suppression des lignes existantes de l'affaire (du bas vers le haut)
+  Db_verrou_(function () {
+    var n = onglet.getLastRow() - 1;
+    if (n < 1) return;
+    var ids = onglet.getRange(2, iAff + 1, n, 1).getValues();
+    for (var i = ids.length - 1; i >= 0; i--) {
+      if (String(ids[i][0]) === String(idAffaire)) onglet.deleteRow(i + 2);
+    }
+  });
+  var propres = (lignes || [])
+    .map(function (l) { return depuisClient_(T, l); })
+    .filter(function (l) { return l.critere; })
+    .map(function (l) { l.id_affaire = idAffaire; return l; });
+  return Db_insererPlusieurs(T, propres);
+}
+
+function Factures_ajouter(idAffaire, donnees) {
+  Affaires_get_(idAffaire);
+  var f = depuisClient_(TABLES.FACTURES, donnees);
+  if (f.montant === '' || f.montant === undefined) throw new Error('Montant de la facture obligatoire.');
+  if (!f.date) f.date = new Date();
+  if (!f.date_echeance) {
+    var e = new Date(f.date.getTime());
+    e.setDate(e.getDate() + Params_nombre('echeance.paiement_public_j', 30));
+    f.date_echeance = e;
+  }
+  f.id_affaire = idAffaire;
+  var ligne = Db_inserer(TABLES.FACTURES, f);
+  Affaires_verifierSolde_(idAffaire);
+  return ligne;
+}
+
+function Factures_maj(idFacture, donnees) {
+  var avant = Db_trouver(TABLES.FACTURES, idFacture);
+  if (!avant) throw new Error('Facture introuvable : ' + idFacture);
+  var f = depuisClient_(TABLES.FACTURES, donnees);
+  delete f.id_affaire;
+  var ligne = Db_maj(TABLES.FACTURES, idFacture, f);
+  Affaires_verifierSolde_(avant.id_affaire);
+  return ligne;
+}
+
+/** Soldée automatiquement quand l'encaissé atteint le montant notifié (§ 4.1). */
+function Affaires_verifierSolde_(idAffaire) {
+  var a = Affaires_get_(idAffaire);
+  if (a.statut !== STATUTS.GAGNEE) return false;
+  var notifie = montant_(a.montant_notifie);
+  if (!notifie) return false;
+  var encaisse = Db_lire(TABLES.FACTURES)
+    .filter(function (f) { return String(f.id_affaire) === String(idAffaire); })
+    .reduce(function (s, f) { return s + montant_(f.montant_encaisse); }, 0);
+  if (encaisse + 0.005 < notifie) return false;
+  Affaires_changerStatut(idAffaire, STATUTS.SOLDEE, {}, { commentaire: 'Automatique : montant notifié entièrement encaissé' });
+  return true;
+}
+
+
+// ════════ ApiAffaires.js ════════
+
+/**
+ * API du lot 2 (Affaires), appelée par l'interface via google.script.run.
+ */
+
+/** Schéma et listes utiles à l'interface (statuts, transitions, champs, listes de valeurs). */
+function Affaires_meta_() {
+  var listes = {};
+  ['liste.types_acheteur', 'liste.procedures', 'liste.motifs_nogo', 'liste.pieces_types']
+    .forEach(function (k) { listes[k] = Params_liste(k); });
+  var champ = function (c) {
+    return { nom: c[0], libelle: c[1], type: c[2], obligatoire: !!c[3], defaut: c[4] || '' };
+  };
+  var passage = {};
+  Object.keys(CHAMPS_PASSAGE).forEach(function (s) { passage[s] = CHAMPS_PASSAGE[s].map(champ); });
+  return {
+    statuts: ORDRE_STATUTS,
+    actifs: STATUTS_ACTIFS,
+    familles: FAMILLES_STATUT,
+    transitions: TRANSITIONS,
+    passage: passage,
+    blocs: FICHE_BLOCS.map(function (b) { return { id: b.id, titre: b.titre, champs: b.champs.map(champ) }; }),
+    creation: CHAMPS_CREATION,
+    listes: listes
+  };
+}
+
+function affaireClient_(a) {
+  return versClient_(TABLES.AFFAIRES, a);
+}
+
+function ficheClient_(id) {
+  var f = Affaires_fiche(id);
+  return {
+    affaire: affaireClient_(f.affaire),
+    historique: f.historique.map(function (l) { return versClient_(TABLES.HISTORIQUE, l); }),
+    criteres: f.criteres.map(function (l) { return versClient_(TABLES.CRITERES, l); }),
+    factures: f.factures.map(function (l) { return versClient_(TABLES.FACTURES, l); }),
+    relances: f.relances.map(function (l) { return versClient_(TABLES.RELANCES, l); }),
+    totaux: f.totaux,
+    transitions: f.transitions
+  };
+}
+
+/** Liste des affaires (résumé) + méta. */
+function apiAffaires() {
+  return repondre_(function () {
+    var resume = ['id', 'acheteur', 'departement', 'objet', 'statut', 'date_statut', 'date_limite_remise',
+      'pre_score', 'score_final', 'montant_ht', 'montant_notifie', 'type_acheteur', 'procedure'];
+    return {
+      meta: Affaires_meta_(),
+      affaires: Affaires_lister().map(function (a) {
+        var c = affaireClient_(a);
+        var r = {};
+        resume.forEach(function (k) { r[k] = c[k] === undefined ? '' : c[k]; });
+        return r;
+      })
+    };
+  });
+}
+
+function apiAffaire(id) {
+  return repondre_(function () {
+    var f = ficheClient_(id);
+    f.meta = Affaires_meta_();
+    return f;
+  });
+}
+
+function apiAffaireCreer(donnees) {
+  return repondre_(function () { return affaireClient_(Affaires_creer(donnees)); });
+}
+
+function apiAffaireMaj(id, champs) {
+  return repondre_(function () { Affaires_maj(id, champs); return ficheClient_(id); });
+}
+
+function apiAffaireStatut(id, statut, champs, commentaire) {
+  return repondre_(function () {
+    Affaires_changerStatut(id, statut, champs, { commentaire: commentaire });
+    return ficheClient_(id);
+  });
+}
+
+function apiAffaireNote(id, texte) {
+  return repondre_(function () { Affaires_ajouterNote(id, texte); return ficheClient_(id); });
+}
+
+function apiCriteres(id, lignes) {
+  return repondre_(function () { Criteres_enregistrer(id, lignes); return ficheClient_(id); });
+}
+
+function apiFactureAjouter(id, facture) {
+  return repondre_(function () { Factures_ajouter(id, facture); return ficheClient_(id); });
+}
+
+function apiFactureMaj(idAffaire, idFacture, champs) {
+  return repondre_(function () { Factures_maj(idFacture, champs); return ficheClient_(idAffaire); });
+}
+
+
 // ════════ Compteur.js ════════
 
 /**
@@ -263,6 +733,8 @@ function date_(v) {
   if (Object.prototype.toString.call(v) === '[object Date]') return isNaN(v.getTime()) ? null : v;
   var m = String(v).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  m = String(v).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/); // champ date du formulaire (jour seul)
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   var d = new Date(String(v));
   return isNaN(d.getTime()) ? null : d;
 }
@@ -287,7 +759,7 @@ function arrondi_(n) {
 
 var APP = {
   NOM: 'Kompa Affaires',
-  VERSION: '1.0.0-lot1',
+  VERSION: '1.0.0-lot2',
   CLASSEUR: 'Kompa Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
@@ -318,7 +790,9 @@ var TABLES = {
       'objet', 'cpv', 'reference_acheteur', 'montant_estime', 'date_limite',
       'lien', 'liens_autres', 'pre_score', 'zone', 'classement', 'alerte_delai',
       'statut', 'id_affaire'
-    ]
+    ],
+    nombres: ['montant_estime', 'pre_score'],
+    texteBrut: ['departement', 'cpv', 'reference_acheteur']
   },
   AFFAIRES: {
     onglet: 'Affaires',
@@ -346,19 +820,27 @@ var TABLES = {
       'date_notification', 'montant_notifie',
       // Journal
       'notes'
-    ]
+    ],
+    nombres: [
+      'pre_score', 'score_final', 'validite_offre_jours', 'prix_jour', 'montant_ht',
+      'montant_pondere', 'jours_reponse', 'prix_attributaire', 'rang', 'montant_notifie'
+    ],
+    horodatages: ['date_statut'],
+    texteBrut: ['departement', 'reference_acheteur']
   },
   HISTORIQUE: {
     onglet: 'Historique',
     cle: 'id',
     prefixe: 'HI',
-    colonnes: ['id', 'id_affaire', 'ancien_statut', 'nouveau_statut', 'date', 'commentaire']
+    colonnes: ['id', 'id_affaire', 'ancien_statut', 'nouveau_statut', 'date', 'commentaire'],
+    horodatages: ['date']
   },
   CRITERES: {
     onglet: 'Critères',
     cle: 'id',
     prefixe: 'CR',
-    colonnes: ['id', 'id_affaire', 'critere', 'ponderation', 'note_kompa', 'note_attributaire']
+    colonnes: ['id', 'id_affaire', 'critere', 'ponderation', 'note_kompa', 'note_attributaire'],
+    nombres: ['ponderation', 'note_kompa', 'note_attributaire']
   },
   FACTURES: {
     onglet: 'Factures',
@@ -367,7 +849,8 @@ var TABLES = {
     colonnes: [
       'id', 'id_affaire', 'numero', 'date', 'montant', 'date_echeance',
       'date_encaissement', 'montant_encaisse'
-    ]
+    ],
+    nombres: ['montant', 'montant_encaisse']
   },
   RELANCES: {
     onglet: 'Relances',
@@ -382,7 +865,8 @@ var TABLES = {
     colonnes: [
       'id', 'nom', 'type', 'departement', 'plateforme', 'contact',
       'nb_affaires', 'resultats'
-    ]
+    ],
+    texteBrut: ['departement']
   },
   PARAMETRES: {
     onglet: 'Paramètres',
@@ -394,13 +878,55 @@ var TABLES = {
     onglet: 'Journal moteur',
     cle: 'id',
     prefixe: 'JM',
-    colonnes: ['id', 'date', 'source', 'avis_lus', 'avis_retenus', 'erreurs', 'duree_s']
+    colonnes: ['id', 'date', 'source', 'avis_lus', 'avis_retenus', 'erreurs', 'duree_s'],
+    horodatages: ['date']
   }
 };
 
 /** Colonnes complètes d'une table (métier + dates système). */
 function colonnesTable_(table) {
   return table.colonnes.concat(COLONNES_DATES);
+}
+
+/**
+ * Conversion des valeurs d'une ligne pour l'interface : dates « jour » en
+ * aaaa-mm-jj, horodatages en ISO (google.script.run ne transmet pas les Date).
+ */
+function versClient_(table, ligne) {
+  var horo = ['cree_le', 'modifie_le'].concat(table.horodatages || []);
+  var out = {};
+  Object.keys(ligne).forEach(function (k) {
+    var v = ligne[k];
+    if (Object.prototype.toString.call(v) === '[object Date]') {
+      out[k] = isNaN(v.getTime()) ? '' : (horo.indexOf(k) >= 0 ? v.toISOString() : jourIso_(v));
+    } else {
+      out[k] = v;
+    }
+  });
+  return out;
+}
+
+/** Conversion des valeurs saisies : nombres et dates « jour » selon le schéma de la table. */
+function depuisClient_(table, champs) {
+  var horo = ['cree_le', 'modifie_le'].concat(table.horodatages || []);
+  var out = {};
+  Object.keys(champs || {}).forEach(function (k) {
+    if (table.colonnes.indexOf(k) < 0) return; // champ inconnu ignoré
+    var v = champs[k];
+    if (v === null || v === undefined) v = '';
+    if ((table.nombres || []).indexOf(k) >= 0) {
+      out[k] = String(v).trim() === '' ? '' : montant_(v);
+    } else if (/^date/.test(k) && horo.indexOf(k) < 0) {
+      out[k] = String(v).trim() === '' ? '' : (date_(v) || '');
+    } else {
+      out[k] = typeof v === 'string' ? v.trim() : v;
+    }
+  });
+  return out;
+}
+
+function jourIso_(d) {
+  return Utilities.formatDate(d, APP.FUSEAU, 'yyyy-MM-dd');
 }
 
 
@@ -542,6 +1068,96 @@ function Db_verrou_(fn) {
     SpreadsheetApp.flush();
     verrou.releaseLock();
   }
+}
+
+
+// ════════ Exercice.js ════════
+
+/**
+ * Affaire d'exercice : Mouthe (§ 11 et recette du lot 2).
+ *
+ * Données du DCE réel (SIVOM des Hauts du Doubs) ; offre, dates et résultat FICTIFS.
+ * À lancer une fois depuis l'éditeur : creerAffaireExerciceMouthe.
+ * Sans effet si l'affaire d'exercice existe déjà.
+ */
+
+var REF_EXERCICE_MOUTHE = 'EXERCICE-MOUTHE';
+
+function creerAffaireExerciceMouthe() {
+  var existante = Affaires_lister().filter(function (a) { return a.reference_acheteur === REF_EXERCICE_MOUTHE; })[0];
+  if (existante) {
+    console.log('Affaire d\'exercice déjà présente : ' + existante.id);
+    return existante.id;
+  }
+
+  // 1. Création (veille) — 03/09/2026
+  var a = Affaires_creer({
+    acheteur: 'SIVOM des Hauts du Doubs',
+    type_acheteur: 'EPCI',
+    departement: '25',
+    objet: '[EXERCICE] AMO — construction d\'un accueil périscolaire avec restauration à Mouthe : ' +
+      'étude de faisabilité sur deux sites, programme, recrutement de la maîtrise d\'œuvre et vérification des études jusqu\'à l\'APD',
+    reference_acheteur: REF_EXERCICE_MOUTHE,
+    procedure: 'MAPA',
+    plateforme: '[plateforme — exercice]',
+    date_limite_remise: '2026-10-02',
+    date_limite_questions: '2026-09-22',
+    validite_offre_jours: 90,
+    pre_score: 78, // France 10 + mission cœur 30 + délai ≥ 15 j 15 + EPCI 15 + montant inconnu 8
+    tranches: 'TF : étude de faisabilité (4 mois)\n' +
+      'Hypothèse a (site de l\'école du Bois Joli) : TO1a programme (2 mois) ; TO2a recrutement MOE, CT, CSPS et vérification jusqu\'à l\'APD (6 mois)\n' +
+      'Hypothèse b (site « Colombo ») : TO1b montage avec un bailleur social (4 mois) ; TO2b vérification jusqu\'à l\'APD (4 mois)'
+  }, { date: '2026-09-03', commentaire: 'Affaire d\'exercice : DCE réel, offre et résultat fictifs' });
+  var id = a.id;
+
+  Affaires_ajouterNote(id, 'Département 25 : au moins 3 réunions en tranche ferme, 1 en TO1a, 6 en TO2a. Présentiel à chiffrer (déplacements).', '2026-09-04');
+
+  // 2. Go — 08/09/2026
+  Affaires_changerStatut(id, STATUTS.GO, { score_final: 62 },
+    { date: '2026-09-08', commentaire: 'Mission cœur (faisabilité, programmation) ; déplacements à intégrer au prix' });
+
+  Affaires_maj(id, {
+    groupement: 'Seul',
+    jours_par_tranche: 'TF 14 j ; TO1a 6 j ; TO2a 16 j (hypothèse a, chiffrée dans le total)\nTO1b 10 j ; TO2b 8 j',
+    prix_jour: 550
+  });
+
+  // 3. Déposée — 01/10/2026 : TF + TO1a + TO2a = 36 j × 550 € = 19 800 € HT
+  Affaires_changerStatut(id, STATUTS.DEPOSEE, {
+    montant_ht: 19800, montant_pondere: '', jours_reponse: 3, date_depot: '2026-10-01'
+  }, { date: '2026-10-01', commentaire: 'Offre déposée (hypothèse a : TF + TO1a + TO2a)' });
+
+  // 4. Perdue — 06/11/2026 (résultat fictif)
+  Affaires_changerStatut(id, STATUTS.PERDUE, {
+    date_resultat: '2026-11-06',
+    attributaire: '[attributaire — fictif]',
+    prix_attributaire: 17600,
+    rang: 2
+  }, { date: '2026-11-06', commentaire: 'Lettre de rejet reçue (fictive)' });
+
+  // Motifs reçus : la relance créée au passage en Perdue est faite
+  Db_lire(TABLES.RELANCES)
+    .filter(function (r) { return r.id_affaire === id && r.type === 'Motifs du rejet'; })
+    .forEach(function (r) { Db_maj(TABLES.RELANCES, r.id, { statut: 'faite', date_faite: date_('2026-11-10') }); });
+
+  Affaires_maj(id, {
+    motifs_rejet: 'Valeur technique : note méthodologique jugée moins précise sur la TO2a (analyse des offres de maîtrise d\'œuvre, vérification des études). ' +
+      'Prix : offre supérieure de 12,5 % à celle de l\'attributaire.',
+    points_faibles: 'Planning de la TO2a peu détaillé ; aucune référence de vérification d\'APD sur un équipement scolaire ou périscolaire ; ' +
+      'frais de déplacement vers le Doubs intégrés au prix journalier.',
+    action_corrective: 'Ajouter à la note méthodologique un planning par phase et un exemple de grille de vérification APS / APD ; ' +
+      'chiffrer les déplacements à part ou proposer des réunions en visioconférence.',
+    piece_type: 'note méthodologique'
+  });
+
+  Criteres_enregistrer(id, [
+    { critere: 'Valeur technique', ponderation: 60, note_kompa: 44, note_attributaire: 50 },
+    { critere: 'Prix', ponderation: 40, note_kompa: 35.6, note_attributaire: 40 }
+  ]);
+
+  Affaires_ajouterNote(id, 'Exercice terminé : rang 2, 79,6 / 100 contre 90 / 100 pour l\'attributaire (fictif).', '2026-11-10');
+  console.log('Affaire d\'exercice créée : ' + id);
+  return id;
 }
 
 

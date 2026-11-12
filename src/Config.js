@@ -7,7 +7,7 @@
 
 var APP = {
   NOM: 'Kompa Affaires',
-  VERSION: '1.0.0-lot1',
+  VERSION: '1.0.0-lot2',
   CLASSEUR: 'Kompa Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
@@ -38,7 +38,9 @@ var TABLES = {
       'objet', 'cpv', 'reference_acheteur', 'montant_estime', 'date_limite',
       'lien', 'liens_autres', 'pre_score', 'zone', 'classement', 'alerte_delai',
       'statut', 'id_affaire'
-    ]
+    ],
+    nombres: ['montant_estime', 'pre_score'],
+    texteBrut: ['departement', 'cpv', 'reference_acheteur']
   },
   AFFAIRES: {
     onglet: 'Affaires',
@@ -66,19 +68,27 @@ var TABLES = {
       'date_notification', 'montant_notifie',
       // Journal
       'notes'
-    ]
+    ],
+    nombres: [
+      'pre_score', 'score_final', 'validite_offre_jours', 'prix_jour', 'montant_ht',
+      'montant_pondere', 'jours_reponse', 'prix_attributaire', 'rang', 'montant_notifie'
+    ],
+    horodatages: ['date_statut'],
+    texteBrut: ['departement', 'reference_acheteur']
   },
   HISTORIQUE: {
     onglet: 'Historique',
     cle: 'id',
     prefixe: 'HI',
-    colonnes: ['id', 'id_affaire', 'ancien_statut', 'nouveau_statut', 'date', 'commentaire']
+    colonnes: ['id', 'id_affaire', 'ancien_statut', 'nouveau_statut', 'date', 'commentaire'],
+    horodatages: ['date']
   },
   CRITERES: {
     onglet: 'Critères',
     cle: 'id',
     prefixe: 'CR',
-    colonnes: ['id', 'id_affaire', 'critere', 'ponderation', 'note_kompa', 'note_attributaire']
+    colonnes: ['id', 'id_affaire', 'critere', 'ponderation', 'note_kompa', 'note_attributaire'],
+    nombres: ['ponderation', 'note_kompa', 'note_attributaire']
   },
   FACTURES: {
     onglet: 'Factures',
@@ -87,7 +97,8 @@ var TABLES = {
     colonnes: [
       'id', 'id_affaire', 'numero', 'date', 'montant', 'date_echeance',
       'date_encaissement', 'montant_encaisse'
-    ]
+    ],
+    nombres: ['montant', 'montant_encaisse']
   },
   RELANCES: {
     onglet: 'Relances',
@@ -102,7 +113,8 @@ var TABLES = {
     colonnes: [
       'id', 'nom', 'type', 'departement', 'plateforme', 'contact',
       'nb_affaires', 'resultats'
-    ]
+    ],
+    texteBrut: ['departement']
   },
   PARAMETRES: {
     onglet: 'Paramètres',
@@ -114,11 +126,53 @@ var TABLES = {
     onglet: 'Journal moteur',
     cle: 'id',
     prefixe: 'JM',
-    colonnes: ['id', 'date', 'source', 'avis_lus', 'avis_retenus', 'erreurs', 'duree_s']
+    colonnes: ['id', 'date', 'source', 'avis_lus', 'avis_retenus', 'erreurs', 'duree_s'],
+    horodatages: ['date']
   }
 };
 
 /** Colonnes complètes d'une table (métier + dates système). */
 function colonnesTable_(table) {
   return table.colonnes.concat(COLONNES_DATES);
+}
+
+/**
+ * Conversion des valeurs d'une ligne pour l'interface : dates « jour » en
+ * aaaa-mm-jj, horodatages en ISO (google.script.run ne transmet pas les Date).
+ */
+function versClient_(table, ligne) {
+  var horo = ['cree_le', 'modifie_le'].concat(table.horodatages || []);
+  var out = {};
+  Object.keys(ligne).forEach(function (k) {
+    var v = ligne[k];
+    if (Object.prototype.toString.call(v) === '[object Date]') {
+      out[k] = isNaN(v.getTime()) ? '' : (horo.indexOf(k) >= 0 ? v.toISOString() : jourIso_(v));
+    } else {
+      out[k] = v;
+    }
+  });
+  return out;
+}
+
+/** Conversion des valeurs saisies : nombres et dates « jour » selon le schéma de la table. */
+function depuisClient_(table, champs) {
+  var horo = ['cree_le', 'modifie_le'].concat(table.horodatages || []);
+  var out = {};
+  Object.keys(champs || {}).forEach(function (k) {
+    if (table.colonnes.indexOf(k) < 0) return; // champ inconnu ignoré
+    var v = champs[k];
+    if (v === null || v === undefined) v = '';
+    if ((table.nombres || []).indexOf(k) >= 0) {
+      out[k] = String(v).trim() === '' ? '' : montant_(v);
+    } else if (/^date/.test(k) && horo.indexOf(k) < 0) {
+      out[k] = String(v).trim() === '' ? '' : (date_(v) || '');
+    } else {
+      out[k] = typeof v === 'string' ? v.trim() : v;
+    }
+  });
+  return out;
+}
+
+function jourIso_(d) {
+  return Utilities.formatDate(d, APP.FUSEAU, 'yyyy-MM-dd');
 }

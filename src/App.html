@@ -67,10 +67,6 @@
       ['Avis collectés', 'BOAMP et alertes des plateformes, filtrés, dédoublonnés et pré-scorés chaque matin à 6 h.'],
       ['Étudier / Ignorer', 'Un clic pour transformer un avis en affaire.']
     ]) },
-    affaires: { titre: 'Affaires', rendu: ecranAttente('Affaires', 'Lot 2', [
-      ['Vue en colonnes', 'Une colonne par statut, glisser-déposer pour changer de statut.'],
-      ['Fiche affaire', 'Identification, échéances, décision, offre, résultat, enseignements, exécution, journal.']
-    ]) },
     echeancier: { titre: 'Échéancier', rendu: ecranAttente('Échéancier', 'Lot 4', [
       ['Calendrier', 'Remises, questions, visites, décisions attendues.'],
       ['Relances', 'Motifs de rejet, décisions en attente, encaissements, avec modèles de courriers.']
@@ -281,16 +277,22 @@
   // l'ancre dans l'URL de la page parente via google.script.history (liens directs).
   var historique = window.google && google.script && google.script.history;
 
-  function afficher(nom, pousser) {
-    if (!ECRANS[nom]) nom = 'accueil';
+  // Chemin : « ecran » ou « ecran/paramètre » (ex. affaire/KA-2026-001).
+  function afficher(chemin, pousser) {
+    chemin = decodeURIComponent(String(chemin || '')).replace(/^#/, '');
+    var i = chemin.indexOf('/');
+    var nom = i < 0 ? chemin : chemin.slice(0, i);
+    var param = i < 0 ? '' : chemin.slice(i + 1);
+    if (!ECRANS[nom]) { nom = 'accueil'; param = ''; chemin = 'accueil'; }
+    var onglet = ECRANS[nom].nav || nom;
     $$('.nav a').forEach(function (a) {
-      if (a.getAttribute('href') === '#' + nom) a.setAttribute('aria-current', 'page');
+      if (a.getAttribute('href') === '#' + onglet) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
     });
-    document.title = ECRANS[nom].titre + ' — Kompa Affaires';
+    document.title = (param || ECRANS[nom].titre) + ' — Kompa Affaires';
     var el = $('#ecran');
-    ECRANS[nom].rendu(el);
-    if (pousser && historique) historique.push({ ecran: nom }, {}, nom);
+    ECRANS[nom].rendu(el, param);
+    if (pousser && historique) historique.push({ ecran: chemin }, {}, chemin);
     window.scrollTo(0, 0);
   }
 
@@ -314,6 +316,14 @@
   }
 
   $('#pied').textContent = 'Kompa Affaires';
-  demarrer();
+
+  // Utilitaires partagés avec les autres scripts de l'interface (AppAffaires…).
+  window.KA = {
+    appel: appel, $: $, $$: $$, esc: esc, toast: toast, titre: titre, bandeauErreur: bandeauErreur,
+    dateHeure: dateHeure, euros: euros, estMobile: estMobile, ecrans: ECRANS, afficher: afficher
+  };
+  // Démarrage une fois tous les scripts chargés : les écrans des autres lots s'enregistrent avant.
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer);
+  else setTimeout(demarrer, 0);
 })();
 </script>

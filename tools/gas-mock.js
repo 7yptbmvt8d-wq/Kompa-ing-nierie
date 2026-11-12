@@ -35,6 +35,7 @@ function creerFeuille(nom) {
     getMaxRows: () => f.maxLignes,
     getMaxColumns: () => f.maxColonnes,
     insertColumnsAfter: (_apres, n) => { f.maxColonnes += n; },
+    deleteRow: (r) => { f.lignes.splice(r - 1, 1); },
     setFrozenRows: () => f,
     getRange: (r, c, nr = 1, nc = 1) => creerPlage(f, r, c, nr, nc)
   };
@@ -111,10 +112,8 @@ function creerEnvironnement(options = {}) {
 
   const formatDate = (d, _tz, motif) => {
     const p = (n) => String(n).padStart(2, '0');
-    return motif
-      .replace('yyyy', d.getFullYear())
-      .replace('MM', p(d.getMonth() + 1))
-      .replace('dd', p(d.getDate()));
+    const jetons = { yyyy: d.getFullYear(), MM: p(d.getMonth() + 1), dd: p(d.getDate()), HH: p(d.getHours()), mm: p(d.getMinutes()) };
+    return motif.replace(/yyyy|MM|dd|HH|mm/g, (j) => jetons[j]);
   };
 
   const gas = {
