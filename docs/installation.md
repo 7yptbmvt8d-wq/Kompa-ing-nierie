@@ -69,7 +69,7 @@ Sur ChromeOS, le raccourci apparaît dans le lanceur et peut être épinglé à 
 
 L'icône du raccourci est celle de Google Apps Script, pas le logo Kompa : Google ne permet pas de la changer pour ce type d'app.
 
-Si plusieurs comptes Google sont ouverts dans le navigateur, Google peut afficher une erreur d'accès : ouvrir l'app dans un **profil de navigateur** réservé au compte Kompa (Chrome : icône de profil en haut à droite → Ajouter).
+**Important — un seul compte Google par navigateur.** Si le navigateur est connecté à plusieurs comptes Google (l'adresse contient `/u/1/`), l'app affiche « Impossible d'ouvrir le fichier pour le moment ». Créer un **profil Chrome réservé au compte Kompa** : icône de profil en haut à droite → **Ajouter** → se connecter avec le compte Kompa → nommer le profil « Kompa ». Utiliser ce profil pour l'app, l'éditeur Apps Script, le classeur et la boîte Gmail de veille. Dépannage rapide : fenêtre de navigation privée (Ctrl+Maj+N, ⌘+Maj+N sur Mac).
 
 ## Mettre à jour après une nouvelle livraison
 
@@ -82,6 +82,7 @@ Si plusieurs comptes Google sont ouverts dans le navigateur, Google peut affiche
 | Message | Cause | Solution |
 |---|---|---|
 | « Classeur introuvable : lancez la fonction installer() » | Étape 8 non faite | Exécuter `installer` |
+| « Impossible d'ouvrir le fichier pour le moment » (Google Drive) | Plusieurs comptes Google connectés dans le navigateur | Profil Chrome réservé au compte Kompa, ou fenêtre privée |
 | « Accès réservé au compte Kompa » / page de connexion Google | Navigateur connecté avec un autre compte | Se connecter avec le compte Kompa |
 | « Script function not found: doGet » | Fichier Code.gs incomplet | Recoller `dist/Code.gs` en entier |
 | Page blanche | Fichier HTML mal nommé | Le fichier doit s'appeler exactement `Index` |
