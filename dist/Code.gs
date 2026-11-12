@@ -720,10 +720,12 @@ function doGet() {
   var sortie = HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle(APP.NOM)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
-    .addMetaTag('mobile-web-app-capable', 'yes')
-    .addMetaTag('apple-mobile-web-app-capable', 'yes')
-    .addMetaTag('apple-mobile-web-app-title', APP.NOM);
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
+  // Balises facultatives : Google n'en accepte qu'une liste restreinte ;
+  // un refus ne doit jamais empêcher l'affichage de la page.
+  ['mobile-web-app-capable', 'apple-mobile-web-app-capable'].forEach(function (nom) {
+    try { sortie.addMetaTag(nom, 'yes'); } catch (e) { console.warn('Balise meta refusée : ' + nom); }
+  });
   try {
     var favicon = Params_texte('app.favicon_url', '');
     if (favicon) sortie.setFaviconUrl(favicon);
