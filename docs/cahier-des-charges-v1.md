@@ -47,7 +47,7 @@ Chaque matin à 6 h, le moteur collecte les nouveaux avis, les filtre, les dédo
 | Alertes e-mail des plateformes (PLACE, profils acheteurs de PACA) | Lecture de la boîte Gmail de veille, libellé « Veille » : extraction acheteur, objet, lien, date limite | Quotidienne, 6 h |
 | Saisie manuelle | Formulaire « Nouvelle affaire » : consultation directe, contact, bouche-à-oreille | À la demande |
 
-Les noms des champs de l'API BOAMP sont à confirmer au lot 2, sur le modèle de données publié par la DILA.
+Champs de l'API BOAMP confirmés au lot 3 (12/11/2026) : `idweb`, `objet`, `nomacheteur`, `code_departement`, `dateparution`, `datelimitereponse`, `nature`, `type_marche`, `procedure_libelle`, `descripteur_libelle`, `url_avis`, `donnees` (CPV, montant estimé, référence de l'acheteur).
 
 ### 3.2 Filtres (modifiables dans l'onglet Paramètres)
 

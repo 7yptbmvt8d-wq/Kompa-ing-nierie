@@ -37,6 +37,9 @@ var PARAMETRES_DEFAUT = [
     '… sauf s\'il contient aussi celui-ci'],
   ['veille.libelle_gmail', 'Veille', 'Libellé Gmail des alertes des plateformes'],
   ['veille.heure_collecte', '6', 'Heure de la collecte quotidienne (0-23)'],
+  ['veille.fenetre_jours', '3', 'Avis BOAMP et alertes des N derniers jours (le dédoublonnage évite les reprises)'],
+  ['veille.plateformes_domaines', 'marches-publics.gouv.fr;marches-publics.info;achatpublic.com;marches-securises.fr;e-marchespublics.com;marchesonline.com;francemarches.com;klekoon.com;maximilien.fr;demat-ampa.fr;awsolutions.fr;boamp.fr',
+    'Domaines des plateformes : sert à repérer le lien de la consultation dans les alertes e-mail'],
 
   // Zones (§ 3.2)
   ['zone.departements_paca', '04;05;06;13;83;84', 'Départements classés « PACA »'],

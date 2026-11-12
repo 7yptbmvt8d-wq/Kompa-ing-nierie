@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Kompa Affaires 1.0.0-lot2 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
+<!-- Kompa Affaires 1.0.0-lot3 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
 <html lang="fr">
 <head>
   <base target="_top">
@@ -279,6 +279,19 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
 .note-form label { display: block; color: var(--kompa-gris); font-size: var(--kompa-fs-small); font-weight: 500; margin-bottom: var(--kompa-s1); }
 .liste-simple { padding-left: var(--kompa-s5); font-size: var(--kompa-fs-small); }
 
+/* Veille */
+.barre-outils select.champ { width: auto; }
+.table-veille td { font-size: var(--kompa-fs-small); }
+.objet-veille { min-width: 340px; }
+.table-veille td:nth-child(2), .table-veille td:nth-child(5), .table-veille td:nth-child(6) { white-space: nowrap; }
+.table-veille td:nth-child(3) { max-width: 220px; }
+.actions-veille { white-space: nowrap; text-align: right; }
+.actions-veille .bouton { margin-left: var(--kompa-s1); }
+.score { display: inline-block; min-width: 38px; text-align: center; padding: 2px var(--kompa-s2); border-radius: var(--kompa-radius-sm); font-weight: 600; cursor: help; }
+.score--haut { background: var(--kompa-ardoise); color: var(--kompa-texte-inverse); }
+.score--moyen { background: var(--kompa-brume); color: var(--kompa-ardoise); }
+.score--bas { background: var(--kompa-blanc); color: var(--kompa-gris); box-shadow: inset 0 0 0 1px var(--kompa-filet); }
+
 /* Boîte de dialogue */
 .dialogue { border: 0; border-radius: var(--kompa-radius); padding: var(--kompa-s5); width: min(640px, calc(100vw - 32px)); color: var(--kompa-encre); }
 .dialogue::backdrop { background: rgba(11, 18, 32, 0.45); }
@@ -376,10 +389,6 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
   // ——— Écrans ———
   var ECRANS = {
     accueil: { titre: 'Accueil', rendu: ecranAccueil },
-    veille: { titre: 'Veille', rendu: ecranAttente('Veille', 'Lot 3', [
-      ['Avis collectés', 'BOAMP et alertes des plateformes, filtrés, dédoublonnés et pré-scorés chaque matin à 6 h.'],
-      ['Étudier / Ignorer', 'Un clic pour transformer un avis en affaire.']
-    ]) },
     echeancier: { titre: 'Échéancier', rendu: ecranAttente('Échéancier', 'Lot 4', [
       ['Calendrier', 'Remises, questions, visites, décisions attendues.'],
       ['Relances', 'Motifs de rejet, décisions en attente, encaissements, avec modèles de courriers.']
@@ -1088,6 +1097,158 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
 
   K.ecrans.affaires = { titre: 'Affaires', rendu: ecranAffaires };
   K.ecrans.affaire = { titre: 'Affaire', nav: 'affaires', rendu: ecranFiche };
+})();
+</script>
+  <script>
+/* Kompa Affaires — lot 3 : écran Veille (avis collectés, Étudier / Ignorer, journal du moteur). */
+(function () {
+  'use strict';
+  var K = window.KA;
+  var esc = K.esc, $ = K.$, $$ = K.$$;
+
+  var filtres = { zone: 'toutes', classement: 'utiles', statut: 'nouveau', echus: false };
+  try { Object.assign(filtres, JSON.parse(localStorage.getItem('ka.veille') || '{}')); } catch (e) { /* défaut */ }
+  function memoriser() { try { localStorage.setItem('ka.veille', JSON.stringify(filtres)); } catch (e) { /* sans effet */ } }
+
+  function jour(iso) {
+    var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+  }
+  function joursAvant(iso) {
+    if (!iso) return null;
+    var d = new Date(iso); d.setHours(0, 0, 0, 0);
+    var auj = new Date(); auj.setHours(0, 0, 0, 0);
+    return Math.round((d - auj) / 86400000);
+  }
+
+  function ecranVeille(el) {
+    el.innerHTML = K.titre('Veille', '') + '<div class="chargement">Lecture des avis…</div>';
+    K.appel('apiVeille').then(function (r) { rendre(el, r); })
+      .catch(function (e) { el.innerHTML = K.titre('Veille', '') + K.bandeauErreur(e); });
+  }
+
+  function rendre(el, r) {
+    var tous = r.avis;
+    var visibles = tous.filter(function (a) {
+      if (filtres.zone === 'paca' && a.zone !== r.paca) return false;
+      if (filtres.zone === 'france' && a.zone === r.paca) return false;
+      if (filtres.classement === 'etudier' && a.classement !== 'à étudier') return false;
+      if (filtres.classement === 'utiles' && a.classement === 'archivé') return false;
+      if (filtres.classement === 'archives' && a.classement !== 'archivé') return false;
+      if (filtres.statut !== 'tous' && a.statut !== filtres.statut && !(filtres.statut === 'nouveau' && a.statut === 'archivé' && filtres.classement === 'archives')) return false;
+      var n = joursAvant(a.date_limite);
+      if (!filtres.echus && n !== null && n < 0) return false;
+      return true;
+    }).sort(function (x, y) { return (Number(y.pre_score) || 0) - (Number(x.pre_score) || 0); });
+
+    var dernier = r.journal[0];
+    var sousTitre = tous.length + ' avis · ' + (dernier ? 'dernière collecte le ' + K.dateHeure(dernier.date) : 'aucune collecte') + ' · collecte automatique à ' + r.heure + ' h';
+    var select = function (nom, options) {
+      return '<select class="champ" data-filtre="' + nom + '" aria-label="' + nom + '">' + options.map(function (o) {
+        return '<option value="' + o[0] + '"' + (filtres[nom] === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
+      }).join('') + '</select>';
+    };
+    var barre = '<div class="barre-outils">' +
+      '<button type="button" class="bouton" data-action="collecter">Collecter maintenant</button>' +
+      select('zone', [['toutes', 'Toutes zones'], ['paca', r.paca], ['france', 'Hors PACA']]) +
+      select('classement', [['utiles', 'À étudier + possibles'], ['etudier', 'À étudier (≥ ' + r.seuils.etudier + ')'], ['archives', 'Archivés (< ' + r.seuils.possible + ')'], ['tous', 'Tous les scores']]) +
+      select('statut', [['nouveau', 'Nouveaux'], ['étudié', 'Étudiés'], ['ignoré', 'Ignorés'], ['tous', 'Tous statuts']]) +
+      '<label class="case"><input type="checkbox" data-filtre="echus"' + (filtres.echus ? ' checked' : '') + '> Afficher les avis échus</label>' +
+      '</div>';
+
+    var table = visibles.length ? '<div class="tableau-conteneur"><table class="table-veille"><thead><tr>' +
+      '<th scope="col" class="num">Score</th><th scope="col">Parution</th><th scope="col">Acheteur</th><th scope="col">Objet</th>' +
+      '<th scope="col">Date limite</th><th scope="col">Zone</th><th scope="col"><span class="seul-lecteur">Actions</span></th></tr></thead><tbody>' +
+      visibles.map(function (a) { return ligne(a, r); }).join('') + '</tbody></table></div>'
+      : '<div class="bandeau">Aucun avis pour ces filtres.' + (tous.length ? '' : ' Lancez une première collecte avec « Collecter maintenant ».') + '</div>';
+
+    var journal = '<h3>Journal du moteur</h3>' + (r.journal.length ? '<div class="tableau-conteneur"><table><thead><tr>' +
+      '<th scope="col">Date</th><th scope="col">Source</th><th scope="col" class="num">Lus</th><th scope="col" class="num">Retenus</th>' +
+      '<th scope="col" class="num">Exclus</th><th scope="col" class="num">Doublons</th><th scope="col">Erreurs</th></tr></thead><tbody>' +
+      r.journal.map(function (j) {
+        return '<tr><td class="mono">' + esc(K.dateHeure(j.date)) + '</td><td>' + esc(j.source) + '</td>' +
+          '<td class="num mono">' + esc(j.avis_lus) + '</td><td class="num mono">' + esc(j.avis_retenus) + '</td>' +
+          '<td class="num mono">' + esc(j.exclus) + '</td><td class="num mono">' + esc(j.doublons) + '</td>' +
+          '<td>' + (j.erreurs ? '<span class="statut statut--ko">' + esc(j.erreurs) + '</span>' : '<span class="legende">—</span>') + '</td></tr>';
+      }).join('') + '</tbody></table></div>' : '<p class="vide">Aucune collecte pour l\'instant.</p>');
+
+    el.innerHTML = K.titre('Veille', sousTitre) + barre + table + journal;
+    brancher(el, r);
+  }
+
+  function ligne(a, r) {
+    var n = joursAvant(a.date_limite);
+    var delai = n === null ? '<span class="vide">inconnue</span>'
+      : '<span class="mono">' + jour(a.date_limite) + '</span> ' +
+        (n < 0 ? '<span class="statut statut--neutre">échu</span>' : a.alerte_delai ? '<span class="statut statut--alerte">J-' + n + '</span>' : '<span class="mono legende">J-' + n + '</span>');
+    var actions;
+    if (a.statut === 'étudié') {
+      actions = '<a class="bouton bouton--discret" href="#affaire/' + esc(a.id_affaire) + '">' + esc(a.id_affaire) + '</a>';
+    } else if (a.statut === 'ignoré') {
+      actions = '<button type="button" class="bouton bouton--discret" data-restaurer="' + esc(a.id) + '">Restaurer</button>';
+    } else {
+      actions = '<button type="button" class="bouton" data-etudier="' + esc(a.id) + '">Étudier</button>' +
+        '<button type="button" class="bouton bouton--discret" data-ignorer="' + esc(a.id) + '">Ignorer</button>';
+    }
+    var liens = [a.lien].concat(String(a.liens_autres || '').split('\n')).filter(Boolean);
+    return '<tr data-avis="' + esc(a.id) + '">' +
+      '<td class="num"><span class="score score--' + (a.classement === 'à étudier' ? 'haut' : a.classement === 'possible' ? 'moyen' : 'bas') + ' mono" title="' + esc(a.score_detail) + '">' + esc(a.pre_score) + '</span></td>' +
+      '<td class="mono">' + jour(a.date_parution) + '</td>' +
+      '<td>' + esc(a.acheteur) + (a.departement ? ' <span class="mono legende">(' + esc(a.departement) + ')</span>' : '') +
+        '<div class="legende">' + esc(a.type_acheteur) + '</div></td>' +
+      '<td class="objet-veille">' + esc(a.objet) + '<div class="legende">' + esc(a.source) + (a.procedure ? ' · ' + esc(a.procedure) : '') +
+        (a.montant_estime ? ' · <span class="mono">' + K.euros(Number(a.montant_estime)) + '</span>' : '') + ' · ' +
+        liens.map(function (u, i) { return '<a href="' + esc(u) + '" target="_blank" rel="noopener" data-externe>' + (i ? 'lien ' + (i + 1) : 'Voir l\'avis') + '</a>'; }).join(' · ') +
+      '</div></td>' +
+      '<td>' + delai + '</td>' +
+      '<td>' + (a.zone === r.paca ? '<strong>' + esc(r.paca) + '</strong>' : '<span class="legende" title="' + esc(a.zone) + '">Hors PACA</span>') + '</td>' +
+      '<td class="actions-veille">' + actions + '</td></tr>';
+  }
+
+  function brancher(el, r) {
+    $$('[data-filtre]', el).forEach(function (f) {
+      f.addEventListener('change', function () {
+        var nom = f.getAttribute('data-filtre');
+        filtres[nom] = f.type === 'checkbox' ? f.checked : f.value;
+        memoriser();
+        rendre(el, r);
+      });
+    });
+    $('[data-action="collecter"]', el).addEventListener('click', function (ev) {
+      var b = ev.currentTarget;
+      b.disabled = true; b.textContent = 'Collecte en cours…';
+      K.appel('apiCollecter').then(function (bilan) {
+        K.toast(bilan.map(function (x) { return x.source + ' : ' + x.retenus + ' nouveau(x)' + (x.erreurs ? ' — erreur' : ''); }).join(' · '));
+        ecranVeille(el);
+      }).catch(function (e) { K.toast(e.message, true); b.disabled = false; b.textContent = 'Collecter maintenant'; });
+    });
+    $$('[data-etudier]', el).forEach(function (b) {
+      b.addEventListener('click', function () {
+        b.disabled = true;
+        K.appel('apiAvisEtudier', b.getAttribute('data-etudier')).then(function (affaire) {
+          K.toast('Affaire ' + affaire.id + ' créée (En étude).');
+          K.afficher('affaire/' + affaire.id, true);
+        }).catch(function (e) { b.disabled = false; K.toast(e.message, true); });
+      });
+    });
+    var changer = function (attr, statut, message) {
+      $$('[' + attr + ']', el).forEach(function (b) {
+        b.addEventListener('click', function () {
+          var id = b.getAttribute(attr);
+          K.appel('apiAvisStatut', id, statut).then(function () {
+            var a = r.avis.filter(function (x) { return x.id === id; })[0];
+            if (a) a.statut = statut;
+            K.toast(message);
+            rendre(el, r);
+          }).catch(function (e) { K.toast(e.message, true); });
+        });
+      });
+    };
+    changer('data-ignorer', 'ignoré', 'Avis ignoré.');
+    changer('data-restaurer', 'nouveau', 'Avis restauré.');
+  }
+
+  K.ecrans.veille = { titre: 'Veille', rendu: ecranVeille };
 })();
 </script>
 </body>

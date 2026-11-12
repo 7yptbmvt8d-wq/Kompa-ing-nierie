@@ -7,7 +7,7 @@
 
 var APP = {
   NOM: 'Kompa Affaires',
-  VERSION: '1.0.0-lot2',
+  VERSION: '1.0.0-lot3',
   CLASSEUR: 'Kompa Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
@@ -37,10 +37,11 @@ var TABLES = {
       'id', 'source', 'date_parution', 'acheteur', 'type_acheteur', 'departement',
       'objet', 'cpv', 'reference_acheteur', 'montant_estime', 'date_limite',
       'lien', 'liens_autres', 'pre_score', 'zone', 'classement', 'alerte_delai',
-      'statut', 'id_affaire'
+      'statut', 'id_affaire', 'id_source', 'procedure', 'score_detail'
     ],
     nombres: ['montant_estime', 'pre_score'],
-    texteBrut: ['departement', 'cpv', 'reference_acheteur']
+    texteBrut: ['departement', 'cpv', 'reference_acheteur', 'id_source'],
+    horodatages: ['date_limite']
   },
   AFFAIRES: {
     onglet: 'Affaires',
@@ -126,8 +127,9 @@ var TABLES = {
     onglet: 'Journal moteur',
     cle: 'id',
     prefixe: 'JM',
-    colonnes: ['id', 'date', 'source', 'avis_lus', 'avis_retenus', 'erreurs', 'duree_s'],
-    horodatages: ['date']
+    colonnes: ['id', 'date', 'source', 'avis_lus', 'avis_retenus', 'erreurs', 'duree_s', 'exclus', 'doublons'],
+    horodatages: ['date'],
+    nombres: ['avis_lus', 'avis_retenus', 'exclus', 'doublons', 'duree_s']
   }
 };
 

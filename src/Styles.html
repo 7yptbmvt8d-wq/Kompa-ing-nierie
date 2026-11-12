@@ -211,6 +211,19 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
 .note-form label { display: block; color: var(--kompa-gris); font-size: var(--kompa-fs-small); font-weight: 500; margin-bottom: var(--kompa-s1); }
 .liste-simple { padding-left: var(--kompa-s5); font-size: var(--kompa-fs-small); }
 
+/* Veille */
+.barre-outils select.champ { width: auto; }
+.table-veille td { font-size: var(--kompa-fs-small); }
+.objet-veille { min-width: 340px; }
+.table-veille td:nth-child(2), .table-veille td:nth-child(5), .table-veille td:nth-child(6) { white-space: nowrap; }
+.table-veille td:nth-child(3) { max-width: 220px; }
+.actions-veille { white-space: nowrap; text-align: right; }
+.actions-veille .bouton { margin-left: var(--kompa-s1); }
+.score { display: inline-block; min-width: 38px; text-align: center; padding: 2px var(--kompa-s2); border-radius: var(--kompa-radius-sm); font-weight: 600; cursor: help; }
+.score--haut { background: var(--kompa-ardoise); color: var(--kompa-texte-inverse); }
+.score--moyen { background: var(--kompa-brume); color: var(--kompa-ardoise); }
+.score--bas { background: var(--kompa-blanc); color: var(--kompa-gris); box-shadow: inset 0 0 0 1px var(--kompa-filet); }
+
 /* Boîte de dialogue */
 .dialogue { border: 0; border-radius: var(--kompa-radius); padding: var(--kompa-s5); width: min(640px, calc(100vw - 32px)); color: var(--kompa-encre); }
 .dialogue::backdrop { background: rgba(11, 18, 32, 0.45); }

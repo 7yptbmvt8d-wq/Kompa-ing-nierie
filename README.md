@@ -4,15 +4,15 @@ Veille et suivi des marchés publics d'AMO de Kompa Ingénierie.
 Google Apps Script + Google Sheets + web app, dans le compte Google Kompa.
 
 Spécification : [docs/cahier-des-charges-v1.md](docs/cahier-des-charges-v1.md) ·
-Recette : [lot 1](docs/recette-lot-1.md) · [lot 2](docs/recette-lot-2.md)
+Recette : [lot 1](docs/recette-lot-1.md) · [lot 2](docs/recette-lot-2.md) · [lot 3](docs/recette-lot-3.md)
 
 ## Avancement
 
 | Lot | Contenu | État |
 |---|---|---|
 | 1. Socle | Classeur et onglets, web app aux couleurs Kompa, connexion Google, Paramètres, compteur de CA | Installé |
-| 2. Affaires | Fiche affaire, statuts et règles de passage, historique, vues colonnes et liste, affaire d'exercice Mouthe | Livré — en recette ([recette-lot-2.md](docs/recette-lot-2.md)) |
-| 3. Veille | Collecte BOAMP + boîte de veille, filtres, dédoublonnage, pré-score | — |
+| 2. Affaires | Fiche affaire, statuts et règles de passage, historique, vues colonnes et liste, affaire d'exercice Mouthe | Livré |
+| 3. Veille | Collecte BOAMP + boîte de veille, filtres, dédoublonnage, pré-score, écran Veille | Livré — en recette ([recette-lot-3.md](docs/recette-lot-3.md)) |
 | 4. Échéances et e-mail | Échéancier, relances, modèles de courriers, e-mail de 7 h du lundi au vendredi vers kompa.ingenierie@gmail.com | — |
 | 5. Tableau de bord | Indicateurs, seuils, Enseignements | — |
 
@@ -39,7 +39,9 @@ src/                    code source (Apps Script)
   Compteur.js           compteur de CA de l'année face aux seuils (TVA, plafond visé, micro)
   Affaires.js           statuts, règles de passage (§ 4.1), historique, critères, factures
   ApiAffaires.js        API de l'écran Affaires et de la fiche
-  Exercice.js           affaire d'exercice Mouthe (creerAffaireExerciceMouthe)
+  Exercice.js           affaire d'exercice Mouthe (créée par installer)
+  Veille.js             collecte BOAMP + alertes Gmail, filtres, doublons, pré-score (§ 3)
+  ApiVeille.js          API de l'écran Veille
   Setup.js              installer(), déclencheurs, sauvegarde hebdomadaire
   WebApp.js             doGet() et API appelée par l'interface
   Index.html            gabarit de la page (symbole Kompa du kit)
@@ -47,6 +49,7 @@ src/                    code source (Apps Script)
   Styles.html           styles (n'utilisent que les variables de Tokens.html)
   App.html              script de l'interface (navigation, accueil, paramètres)
   AppAffaires.html      écrans Affaires (colonnes, liste) et fiche affaire
+  AppVeille.html        écran Veille (avis, Étudier / Ignorer, journal du moteur)
 dist/                   version assemblée à coller dans Apps Script (npm run build)
 charte/kompa-kit/       kit de charte Kompa (DESIGN.md, tokens.css, logos)
 tools/                  outils locaux, non déployés
@@ -54,6 +57,7 @@ tools/                  outils locaux, non déployés
   test-socle.js         tests
   apercu.js             aperçu dans Chromium, parcours complets sur ordinateur
   build.js              assemblage de dist/
+  fixtures/             échantillon réel de l'API BOAMP (tests du lot 3)
 ```
 
 ## Tests locaux

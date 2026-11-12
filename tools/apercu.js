@@ -34,7 +34,9 @@ function assembler() {
 
 (async () => {
   fs.mkdirSync(sortie, { recursive: true });
-  const env = creerEnvironnement();
+  const echantillon = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'boamp-echantillon.json'), 'utf8'));
+  const env = creerEnvironnement({ boamp: echantillon, gmail: [{ id: 'g1', sujet: 'Alerte : étude de faisabilité — salle des fêtes', de: 'Plateforme <a@b.fr>',
+    corps: 'Organisme : Commune de Lurs\nCode postal 04700\nDate limite : 20/12/2026\nhttps://www.achatpublic.com/sdm/ent/gen/ent_detail.do?PCSLID=1' }] });
   const log = console.log; console.log = () => {};
   env.ctx.installer();
   console.log = log;
@@ -163,9 +165,29 @@ function assembler() {
   await p.click('form[data-note] button[type=submit]');
   await p.waitForSelector('.notes:has-text("Offre déposée sur la plateforme.")');
 
+  // ——— Lot 3 : Veille ———
+  await p.click('nav a[href="#veille"]');
+  await p.waitForSelector('[data-action="collecter"]');
+  await p.click('[data-action="collecter"]');
+  await p.waitForSelector('.table-veille tbody tr');
+  await p.screenshot({ path: path.join(sortie, 'pc-veille.png'), fullPage: true });
+  const digne = A.Db_lire(A.TABLES.AVIS).find((x) => /DIGNE/i.test(x.acheteur));
+  await p.click(`[data-etudier="${digne.id}"]`);
+  await p.waitForSelector('.fiche-tete h1:has-text("DIGNE")');
+  assert.strictEqual(A.Db_trouver(A.TABLES.AVIS, digne.id).statut, 'étudié');
+  await p.click('nav a[href="#veille"]');
+  await p.waitForSelector('[data-ignorer]');
+  const premier = await p.getAttribute('[data-ignorer]', 'data-ignorer');
+  await p.click(`[data-ignorer="${premier}"]`);
+  await p.waitForSelector(`[data-ignorer="${premier}"]`, { state: 'detached' });
+  assert.strictEqual(A.Db_trouver(A.TABLES.AVIS, premier).statut, 'ignoré');
+  await p.selectOption('[data-filtre="zone"]', 'paca');
+  await p.selectOption('[data-filtre="statut"]', 'tous');
+  await p.screenshot({ path: path.join(sortie, 'pc-veille-paca.png'), fullPage: true });
+
   // Petit portable (1280 px) : pas de débordement de la page
   await p.setViewportSize({ width: 1280, height: 800 });
-  for (const ecran of ['#accueil', '#affaires', '#parametres']) {
+  for (const ecran of ['#accueil', '#veille', '#affaires', '#parametres']) {
     await p.click(`nav a[href="${ecran}"]`);
     await p.waitForTimeout(300);
     const deborde = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);

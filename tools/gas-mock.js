@@ -128,13 +128,34 @@ function creerEnvironnement(options = {}) {
         setProperty: (k, v) => { proprietes[k] = String(v); }
       })
     },
-    LockService: { getScriptLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) },
+    LockService: { getScriptLock: () => ({ waitLock: () => {}, tryLock: () => true, releaseLock: () => {} }) },
     Session: {
       getEffectiveUser: () => ({ getEmail: () => email }),
       getActiveUser: () => ({ getEmail: () => options.visiteur || email })
     },
-    Utilities: { getUuid: () => crypto.randomUUID(), formatDate },
+    Utilities: { getUuid: () => crypto.randomUUID(), formatDate, sleep: () => {} },
     MailApp: { getRemainingDailyQuota: () => 100 },
+    // API BOAMP simulée : options.boamp = réponse JSON ; options.echecsHttp = nb de coupures avant succès
+    UrlFetchApp: {
+      appels: [],
+      fetch: (url) => {
+        gas.UrlFetchApp.appels.push(url);
+        if ((options.echecsHttp || 0) > 0) { options.echecsHttp--; throw new Error('Connection reset by peer'); }
+        const offset = Number((url.match(/offset=(\d+)/) || [])[1] || 0);
+        const source = options.boamp || { total_count: 0, results: [] };
+        const page = { total_count: source.results.length, results: source.results.slice(offset, offset + 100) };
+        return { getResponseCode: () => 200, getContentText: () => JSON.stringify(page) };
+      }
+    },
+    // Gmail simulé : options.gmail = [{ id, sujet, de, corps, date }]
+    GmailApp: {
+      search: () => [{
+        getMessages: () => (options.gmail || []).map((m) => ({
+          getId: () => m.id, getSubject: () => m.sujet, getFrom: () => m.de,
+          getPlainBody: () => m.corps, getDate: () => m.date || new Date()
+        }))
+      }]
+    },
     ScriptApp: {
       WeekDay: { MONDAY: 'MONDAY' },
       getProjectTriggers: () => declencheurs.slice(),

@@ -6,7 +6,7 @@
  * ajoute les paramètres manquants et (ré)installe les déclencheurs.
  */
 
-function installer() {
+function installer(options) {
   var debut = Date.now();
   var classeur = Setup_classeur_();
   var rapport = { classeur: classeur.getUrl(), onglets: [], colonnesAjoutees: 0 };
@@ -19,6 +19,10 @@ function installer() {
   Setup_supprimerFeuilleVide_(classeur);
 
   rapport.parametresAjoutes = Params_initialiser_();
+  // Affaire d'exercice Mouthe (§ 11) : créée si absente
+  if (!(options && options.exercice === false)) {
+    try { rapport.exerciceMouthe = creerAffaireExerciceMouthe(); } catch (e) { rapport.exerciceMouthe = 'erreur : ' + e.message; }
+  }
   rapport.declencheurs = Setup_declencheurs_();
   rapport.duree_s = Math.round((Date.now() - debut) / 100) / 10;
 
@@ -98,8 +102,8 @@ function Setup_supprimerFeuilleVide_(classeur) {
 }
 
 /**
- * Déclencheurs du lot 1 : sauvegarde hebdomadaire (lundi, 5 h).
- * La collecte (6 h) et l'e-mail (7 h) seront ajoutés aux lots 3 et 4.
+ * Déclencheurs : sauvegarde hebdomadaire (lundi, 5 h), collecte de la veille (6 h, paramètre).
+ * L'e-mail du matin (7 h) sera ajouté au lot 4.
  */
 function Setup_declencheurs_() {
   var voulus = [
@@ -108,6 +112,14 @@ function Setup_declencheurs_() {
       creer: function () {
         return ScriptApp.newTrigger('sauvegardeHebdo').timeBased()
           .onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(5).inTimezone(APP.FUSEAU).create();
+      }
+    }
+    ,
+    {
+      fonction: 'collecteQuotidienne',
+      creer: function () {
+        return ScriptApp.newTrigger('collecteQuotidienne').timeBased()
+          .everyDays(1).atHour(Params_nombre('veille.heure_collecte', 6)).inTimezone(APP.FUSEAU).create();
       }
     }
   ];
