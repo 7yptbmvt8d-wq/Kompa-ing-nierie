@@ -28,7 +28,7 @@ Le moteur et l'app passent tous deux par le classeur : c'est la seule source de 
 |---|---|---|
 | Moteur | Google Apps Script, déclencheurs horaires (6 h collecte, 7 h e-mail) | Exécution planifiée gratuite, accès natif à Gmail, Sheets et Drive |
 | Base de données | Google Sheets, un onglet par table (§ 9) | Consultable et corrigeable à la main, sauvegarde Google |
-| Interface | Web app (HTML, CSS, JavaScript) servie par Apps Script, installable sur l'écran d'accueil du téléphone | Même compte, pas d'hébergement à gérer |
+| Interface | Web app (HTML, CSS, JavaScript) servie par Apps Script, pour ordinateur (Windows, macOS, ChromeOS) ; pas de version mobile | Même compte, pas d'hébergement à gérer |
 | Authentification | Compte Google Kompa, accès limité à ce seul compte | Utilisateur unique |
 | Sauvegarde | Historique des versions de Google Sheets + copie hebdomadaire automatique du classeur dans Drive | Retour arrière en cas d'erreur |
 | Pièces des affaires | Un dossier Drive par affaire, lien dans la fiche | Les DCE restent hors du classeur |
@@ -140,7 +140,7 @@ Chaque relance a un statut : à faire, faite (date), sans objet.
 
 ## 6. E-mail du matin
 
-Un e-mail de synthèse part chaque jour à 7 h, après la collecte de 6 h, vers l'adresse de Sébastien. Objet : `Kompa Affaires — [date] — [n] nouveaux avis · [n] échéances`.
+Un e-mail de synthèse part **du lundi au vendredi** à 7 h, après la collecte de 6 h, vers **kompa.ingenierie@gmail.com** (paramètre `email.destinataire`). Il remplace l'usage de l'app sur téléphone. Pas d'envoi le samedi ni le dimanche (décision du 12/11/2026). Objet : `Kompa Affaires — [date] — [n] nouveaux avis · [n] échéances`.
 
 1. Nouveaux avis PACA, triés par pré-score : acheteur, objet, date limite, score, lien vers l'avis, bouton « Étudier ».
 2. Nouveaux avis France : mêmes informations, étiquette « présentiel à vérifier ».
@@ -148,7 +148,7 @@ Un e-mail de synthèse part chaque jour à 7 h, après la collecte de 6 h, vers 
 4. Relances à faire : motifs de rejet, décisions en attente, factures à encaisser.
 5. Indicateurs : affaires en cours par statut, taux d'attribution sur 12 mois, CA encaissé de l'année face aux seuils.
 
-Format HTML simple aux couleurs Kompa, lisible sur téléphone. Les rubriques vides sont masquées. Aucun envoi si les cinq rubriques sont vides, sauf le lundi (récap de la semaine).
+Format HTML simple aux couleurs Kompa, lisible sur téléphone (dans Gmail). Les rubriques vides sont masquées. Aucun envoi si les cinq rubriques sont vides, sauf le lundi (récap de la semaine).
 
 ## 7. Tableau de bord
 
@@ -176,17 +176,17 @@ Les seuils sont des paramètres, à mettre à jour quand la loi change. En V1, f
 
 ## 8. Écrans
 
-L'app est pensée pour le bureau (PC, écran large) ; sur téléphone, elle reste lisible et permet les actions rapides.
+L'app est conçue pour ordinateur (Windows, macOS, ChromeOS), dans le navigateur. **Pas de version mobile** (décision du 12/11/2026) : le suivi à distance passe par l'e-mail quotidien (§ 6).
 
-| Écran | Contenu | PC | Mobile |
-|---|---|---|---|
-| Accueil | Tableau de bord, échéances 7 j, relances à faire | Complet | Cartes empilées |
-| Veille | Liste des avis filtrable (zone, score, date limite), boutons Étudier / Ignorer | Tableau | Liste, Étudier / Ignorer |
-| Affaires | Vue en colonnes par statut (glisser-déposer) et vue liste | Colonnes | Liste par statut |
-| Fiche affaire | Les blocs du § 4.2, un onglet par bloc, historique | Édition complète | Lecture + changement de statut + note |
-| Échéancier | Calendrier mensuel et liste des relances | Calendrier | Liste |
-| Enseignements | Toutes les affaires perdues : écarts, motifs, actions correctives | Tableau | Lecture |
-| Paramètres | Codes CPV, mots-clés, exclusions, zones, barème du score, seuils, heure de l'e-mail | Complet | Non |
+| Écran | Contenu | Présentation |
+|---|---|---|
+| Accueil | Tableau de bord, échéances 7 j, relances à faire | Cartes |
+| Veille | Liste des avis filtrable (zone, score, date limite), boutons Étudier / Ignorer | Tableau |
+| Affaires | Vue en colonnes par statut (glisser-déposer) et vue liste | Colonnes des statuts en cours + colonne « Clôturées » |
+| Fiche affaire | Les blocs du § 4.2, un onglet par bloc, historique | Édition complète |
+| Échéancier | Calendrier mensuel et liste des relances | Calendrier |
+| Enseignements | Toutes les affaires perdues : écarts, motifs, actions correctives | Tableau |
+| Paramètres | Codes CPV, mots-clés, exclusions, zones, barème du score, seuils, heure de l'e-mail | Tableau éditable |
 
 Actions principales : créer une affaire en un formulaire court, passer d'un statut à l'autre en un clic, ouvrir l'avis et le dossier Drive d'un clic, copier un modèle de relance.
 
@@ -217,7 +217,7 @@ L'app applique la charte Kompa (fichier DESIGN.md et tokens.css du kit) : même 
 - **Tableaux** : en-tête brume, filets horizontaux, montants alignés à droite.
 - **Icône et titre** : symbole Kompa, nom « Kompa Affaires ».
 - **Statuts** : une couleur sémantique par famille (en cours, gagnée, perdue, abandonnée), avec un libellé texte en plus de la couleur.
-- **Accessibilité** : contraste ≥ 4,5:1, cibles tactiles ≥ 44 px sur mobile.
+- **Accessibilité** : contraste ≥ 4,5:1, navigation au clavier.
 - **Langue** : français, vocabulaire de l'acheteur public.
 
 ## 11. Prérequis à fournir avant le développement
@@ -236,10 +236,10 @@ La V1 se construit en 5 lots ; chaque lot est testé et validé par Sébastien a
 
 | Lot | Contenu | Critère de recette |
 |---|---|---|
-| 1. Socle | Classeur et onglets, app web vide aux couleurs Kompa, connexion Google, onglet Paramètres | L'app s'ouvre sur PC et téléphone, lit et écrit un paramètre dans le classeur |
+| 1. Socle | Classeur et onglets, app web vide aux couleurs Kompa, connexion Google, onglet Paramètres | L'app s'ouvre sur ordinateur, lit et écrit un paramètre dans le classeur |
 | 2. Affaires | Fiche affaire, statuts et règles de passage, historique, vues colonnes et liste | L'affaire Mouthe est saisie de bout en bout ; chaque changement de statut est daté |
 | 3. Veille | Collecte BOAMP + boîte de veille, filtres, dédoublonnage, pré-score, écran Veille, bouton Étudier | Sur 5 jours, les avis d'AMO de PACA du BOAMP apparaissent sans doublon ; un avis devient une affaire en un clic |
-| 4. Échéances et e-mail | Échéancier, relances, modèles de courriers, e-mail de 7 h | L'e-mail arrive chaque matin pendant une semaine, avec les bonnes rubriques |
+| 4. Échéances et e-mail | Échéancier, relances, modèles de courriers, e-mail de 7 h | L'e-mail arrive chaque matin du lundi au vendredi pendant une semaine, avec les bonnes rubriques, et pas le week-end |
 | 5. Tableau de bord | Indicateurs, alertes de seuils, écran Enseignements | Les indicateurs recalculés à la main sur 3 affaires fictives donnent les mêmes résultats |
 
 Le journal du moteur (onglet Journal moteur) sert à la recette du lot 3 : nombre d'avis lus, retenus, erreurs.

@@ -45,7 +45,6 @@
     toastMinuteur = setTimeout(function () { t.hidden = true; }, erreur ? 6000 : 2500);
   }
 
-  function estMobile() { return window.matchMedia('(max-width: 760px)').matches; }
 
   function bandeauErreur(e) {
     return '<div class="bandeau bandeau--erreur" role="alert"><strong>Erreur.</strong> ' + esc(e.message || e) + '</div>';
@@ -166,13 +165,7 @@
         }).join('') +
       '</div>' +
       '<div class="cle-jauge"><span class="cle--encaisse">Encaissé</span><span class="cle--engage">Engagé</span><span class="cle--repere">Seuils</span></div>' +
-      '<div class="ca-jalons-mobile seul-mobile">' + jalons.map(function (j) {
-        return '<div class="ca-jalon">' +
-          '<div class="ca-jalon__tete"><span>' + (j.vise ? '<strong>' + esc(j.libelle) + '</strong>' : esc(j.libelle)) + '</span>' + pastilleEtat(j.etat, ca.alertePct) + '</div>' +
-          '<div class="mono">' + euros(j.seuil) + ' · reste ' + (j.reste >= 0 ? euros(j.reste) : '− ' + euros(-j.reste)) + '</div>' +
-          '<div class="legende">' + esc(j.consequence) + '</div></div>';
-      }).join('') + '</div>' +
-      '<div class="tableau-conteneur seul-pc"><table>' +
+      '<div class="tableau-conteneur"><table>' +
         '<thead><tr><th scope="col">Jalon</th><th scope="col" class="num">Seuil</th><th scope="col" class="num">Reste</th><th scope="col">État</th></tr></thead><tbody>' +
         jalons.map(function (j) {
           return '<tr><td>' + (j.vise ? '<strong>' + esc(j.libelle) + '</strong>' : esc(j.libelle)) + '<div class="legende">' + esc(j.consequence) + '</div></td>' +
@@ -190,17 +183,12 @@
       '<div class="chargement">Lecture des paramètres…</div>';
 
     appel('apiParametres').then(function (groupes) {
-      var mobile = estMobile();
-      var html = titre('Paramètres', mobile
-        ? 'Lecture seule sur téléphone — modification sur PC.'
-        : 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.');
+      var html = titre('Paramètres', 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.');
       groupes.forEach(function (g) {
-        html += '<section class="groupe-param"><h2>' + esc(g.titre) + '</h2>';
-        html += mobile ? paramsMobile(g.parametres) : paramsPC(g.parametres);
-        html += '</section>';
+        html += '<section class="groupe-param"><h2>' + esc(g.titre) + '</h2>' + paramsPC(g.parametres) + '</section>';
       });
       el.innerHTML = html;
-      if (!mobile) brancherParams(el);
+      brancherParams(el);
     }).catch(function (e) {
       el.innerHTML = titre('Paramètres', '') + bandeauErreur(e);
     });
@@ -225,16 +213,6 @@
         '</tr>';
       }).join('') +
       '</tbody></table></div>';
-  }
-
-  function paramsMobile(params) {
-    return params.map(function (p) {
-      return '<div class="param-carte">' +
-        '<div class="param-cle">' + esc(p.cle) + '</div>' +
-        '<div class="param-com">' + esc(p.commentaire) + '</div>' +
-        '<div class="param-val">' + (p.valeur ? esc(p.valeur.split(';').join(' · ')) : '<span class="vide">non renseigné</span>') + '</div>' +
-      '</div>';
-    }).join('');
   }
 
   function brancherParams(racine) {
@@ -320,7 +298,7 @@
   // Utilitaires partagés avec les autres scripts de l'interface (AppAffaires…).
   window.KA = {
     appel: appel, $: $, $$: $$, esc: esc, toast: toast, titre: titre, bandeauErreur: bandeauErreur,
-    dateHeure: dateHeure, euros: euros, estMobile: estMobile, ecrans: ECRANS, afficher: afficher
+    dateHeure: dateHeure, euros: euros, ecrans: ECRANS, afficher: afficher
   };
   // Démarrage une fois tous les scripts chargés : les écrans des autres lots s'enregistrent avant.
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer);

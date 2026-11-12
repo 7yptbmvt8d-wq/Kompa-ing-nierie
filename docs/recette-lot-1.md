@@ -1,6 +1,6 @@
 # Recette — Lot 1 · Socle
 
-**Critère (§ 12)** : l'app s'ouvre sur PC et téléphone, lit et écrit un paramètre dans le classeur.
+**Critère (§ 12)** : l'app s'ouvre sur ordinateur, lit et écrit un paramètre dans le classeur.
 
 ## Contrôles
 
@@ -15,9 +15,7 @@
 | 5 | PC → Paramètres → `capacite.montant_max_mission` : saisir le montant, Enregistrer | Message « Paramètre … enregistré », date « Modifié le » mise à jour | [ ] |
 | 6 | Classeur → onglet Paramètres | La valeur saisie et `modifie_le` apparaissent sur la ligne | [ ] |
 | 7 | Modifier une valeur directement dans le classeur, recharger l'app | L'app affiche la nouvelle valeur | [ ] |
-| 8 | Ouvrir l'URL sur le téléphone | Accueil en cartes empilées, menu défilant, aucun défilement horizontal de la page | [ ] |
-| 9 | Téléphone → Paramètres | Lecture seule ; la valeur saisie au point 5 est affichée | [ ] |
-| 10 | Téléphone → ajouter à l'écran d'accueil | Le raccourci « Kompa Affaires » ouvre l'app (icône Google, non modifiable) | [ ] |
+| 8 | Ouvrir l'URL sur un deuxième ordinateur ou un autre navigateur (profil Kompa) | Même affichage ; la valeur saisie au point 5 est affichée | [ ] |
 | 11 | Ouvrir l'URL `/exec` depuis un autre compte Google | Accès refusé par Google | [ ] |
 | 12 | Éditeur : exécuter `sauvegardeHebdo()` | Copie datée dans Drive › « Kompa Affaires — sauvegardes » | [ ] |
 | 13 | Relancer `installer()` | 0 paramètre ajouté, 0 colonne ajoutée, données intactes | [ ] |

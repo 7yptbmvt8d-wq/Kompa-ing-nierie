@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
-const { chromium, devices } = require('playwright');
+const { chromium } = require('playwright');
 const { creerEnvironnement } = require('./gas-mock');
 
 const SRC = path.join(__dirname, '..', 'src');
@@ -29,8 +29,6 @@ function assembler() {
     return r[m];
   } }) } };
   </script>`;
-  // En production, la balise viewport est ajoutée par doGet() (addMetaTag).
-  html = html.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">');
   return html.replace('<script>', pont + '\n<script>');
 }
 
@@ -104,6 +102,18 @@ function assembler() {
   await p.waitForSelector('dialog.dialogue', { state: 'detached' });
   await p.waitForSelector(`.colonne[data-statut="Go"] .carte-affaire[data-id="${e1}"]`);
   assert.strictEqual(A.Affaires_get_(e1).statut, 'Go', 'glisser-déposer sans effet');
+  // Colonne « Clôturées » : l'exercice Mouthe y est visible ; Déposée → Clôturées propose Perdue / Sans suite
+  await p.waitForSelector('.colonne[data-statut="Clôturées"] .carte-affaire[data-id="KA-2026-001"]');
+  await p.locator(`.carte-affaire[data-id="${d1}"]`).dragTo(p.locator('.colonne[data-statut="Clôturées"]'));
+  await p.waitForSelector('dialog.dialogue[open] input[name=cloture]');
+  await p.screenshot({ path: path.join(sortie, 'pc-choix-cloture.png') });
+  await p.check('input[name=cloture][value="Sans suite"]');
+  await p.click('dialog.dialogue button[type=submit]');
+  await p.waitForSelector('dialog.dialogue[open] #p-date_resultat');
+  await p.click('dialog.dialogue button[type=submit]');
+  await p.waitForSelector(`.colonne[data-statut="Clôturées"] .carte-affaire[data-id="${d1}"]`);
+  assert.strictEqual(A.Affaires_get_(d1).statut, 'Sans suite', 'clôture par glisser-déposer sans effet');
+  await p.screenshot({ path: path.join(sortie, 'pc-affaires-colonnes-clotures.png') });
   // Vue liste avec affaires clôturées
   await p.click('[data-vue="liste"]');
   await p.check('[data-action="clotures"]');
@@ -139,41 +149,31 @@ function assembler() {
   assert.strictEqual(nouvelle.prix_jour, 600);
   assert.strictEqual(nouvelle.departement, '05');
 
-  // Téléphone
-  const tel = await ouvrir({ ...devices['iPhone 13'] });
-  await tel.page.waitForSelector('#carte-etat dl');
-  await tel.page.screenshot({ path: path.join(sortie, 'mobile-accueil.png'), fullPage: true });
-  await tel.page.click('nav a[href="#parametres"]');
-  await tel.page.waitForSelector('.param-carte');
-  const lu = await tel.page.locator('.param-carte', { hasText: 'capacite.montant_max_mission' }).locator('.param-val').textContent();
-  assert.strictEqual(lu.trim(), '40000', 'lecture mobile incorrecte');
-  await tel.page.screenshot({ path: path.join(sortie, 'mobile-parametres.png') });
+  // Go → Déposée depuis la fiche, puis note au journal
+  await p.click('a[href="#affaires"]');
+  await p.click(`[data-ouvrir="${g1}"]`);
+  await p.waitForSelector('.fiche-tete');
+  await p.click('[data-passer="Déposée"]');
+  await p.fill('#p-montant_ht', '21000');
+  await p.fill('#p-jours_reponse', '3');
+  await p.click('dialog.dialogue button[type=submit]');
+  await p.waitForSelector('.fiche-tete .statut:has-text("Déposée")');
+  await p.click('[data-onglet="journal"]');
+  await p.fill('#note-texte', 'Offre déposée sur la plateforme.');
+  await p.click('form[data-note] button[type=submit]');
+  await p.waitForSelector('.notes:has-text("Offre déposée sur la plateforme.")');
 
-  // Débordement horizontal sur téléphone
-  const deborde = await tel.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-  assert.ok(!deborde, 'débordement horizontal sur mobile');
-
-  // ——— Lot 2 : Affaires (téléphone) ———
-  await tel.page.click('nav a[href="#affaires"]');
-  await tel.page.waitForSelector('.groupe-statut .carte-affaire');
-  await tel.page.screenshot({ path: path.join(sortie, 'mobile-affaires.png'), fullPage: true });
-  await tel.page.click(`.carte-affaire[data-id="${g1}"]`);
-  await tel.page.waitForSelector('.bloc-lecture');
-  await tel.page.screenshot({ path: path.join(sortie, 'mobile-fiche.png'), fullPage: true });
-  await tel.page.click('[data-passer="Déposée"]');
-  await tel.page.fill('#p-montant_ht', '21000');
-  await tel.page.fill('#p-jours_reponse', '3');
-  await tel.page.screenshot({ path: path.join(sortie, 'mobile-passage.png') });
-  await tel.page.click('dialog.dialogue button[type=submit]');
-  await tel.page.waitForSelector('.fiche-tete .statut:has-text("Déposée")');
-  await tel.page.fill('#note-texte', 'Offre déposée sur la plateforme.');
-  await tel.page.click('form[data-note] button[type=submit]');
-  await tel.page.waitForSelector('.notes:has-text("Offre déposée sur la plateforme.")');
-  const debordeFiche = await tel.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-  assert.ok(!debordeFiche, 'débordement horizontal sur la fiche mobile');
+  // Petit portable (1280 px) : pas de débordement de la page
+  await p.setViewportSize({ width: 1280, height: 800 });
+  for (const ecran of ['#accueil', '#affaires', '#parametres']) {
+    await p.click(`nav a[href="${ecran}"]`);
+    await p.waitForTimeout(300);
+    const deborde = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    assert.ok(!deborde, 'débordement horizontal à 1280 px : ' + ecran);
+  }
 
   await navigateur.close();
-  const erreurs = pc.erreurs.concat(tel.erreurs);
+  const erreurs = pc.erreurs;
   assert.deepStrictEqual(erreurs, [], 'erreurs JavaScript : ' + erreurs.join(' | '));
   console.log('Aperçu OK — captures dans ' + sortie);
 })().catch((e) => { console.error(e); process.exit(1); });

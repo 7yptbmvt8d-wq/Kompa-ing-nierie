@@ -13,7 +13,7 @@ Recette : [lot 1](docs/recette-lot-1.md) · [lot 2](docs/recette-lot-2.md)
 | 1. Socle | Classeur et onglets, web app aux couleurs Kompa, connexion Google, Paramètres, compteur de CA | Installé |
 | 2. Affaires | Fiche affaire, statuts et règles de passage, historique, vues colonnes et liste, affaire d'exercice Mouthe | Livré — en recette ([recette-lot-2.md](docs/recette-lot-2.md)) |
 | 3. Veille | Collecte BOAMP + boîte de veille, filtres, dédoublonnage, pré-score | — |
-| 4. Échéances et e-mail | Échéancier, relances, modèles de courriers, e-mail de 7 h | — |
+| 4. Échéances et e-mail | Échéancier, relances, modèles de courriers, e-mail de 7 h du lundi au vendredi vers kompa.ingenierie@gmail.com | — |
 | 5. Tableau de bord | Indicateurs, seuils, Enseignements | — |
 
 ## Installation
@@ -52,7 +52,7 @@ charte/kompa-kit/       kit de charte Kompa (DESIGN.md, tokens.css, logos)
 tools/                  outils locaux, non déployés
   gas-mock.js           simulation des services Google pour Node
   test-socle.js         tests
-  apercu.js             aperçu dans Chromium, contrôles PC + téléphone
+  apercu.js             aperçu dans Chromium, parcours complets sur ordinateur
   build.js              assemblage de dist/
 ```
 
@@ -66,7 +66,7 @@ npm test
 npm run apercu
 ```
 
-`apercu` génère `apercu/index.html` et des captures PC et téléphone (Playwright requis).
+`apercu` génère `apercu/index.html` et des captures d'écran (Playwright requis).
 
 ## Règles de développement
 

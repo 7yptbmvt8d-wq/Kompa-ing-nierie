@@ -1244,7 +1244,8 @@ var PARAMETRES_DEFAUT = [
 
   // E-mail (§ 6)
   ['email.heure', '7', 'Heure d\'envoi de l\'e-mail du matin (0-23)'],
-  ['email.destinataire', '', 'Adresse de réception (vide = compte Kompa)'],
+  ['email.destinataire', '', 'Adresse de réception (vide = compte Kompa : kompa.ingenierie@gmail.com)'],
+  ['email.jours', 'lun;mar;mer;jeu;ven', 'Jours d\'envoi (pas le week-end)'],
   ['email.recap_lundi', 'oui', 'Envoi le lundi même si toutes les rubriques sont vides'],
 
   // Listes de valeurs (§ 4, 9)
@@ -1333,15 +1334,10 @@ function Params_initialiser_() {
 
 function doGet() {
   verifierAcces_();
+  // Application pour ordinateur (Windows, macOS, ChromeOS) : pas de version mobile (décision du 12/11/2026).
   var sortie = HtmlService.createTemplateFromFile('Index')
     .evaluate()
-    .setTitle(APP.NOM)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
-  // Balises facultatives : Google n'en accepte qu'une liste restreinte ;
-  // un refus ne doit jamais empêcher l'affichage de la page.
-  ['mobile-web-app-capable', 'apple-mobile-web-app-capable'].forEach(function (nom) {
-    try { sortie.addMetaTag(nom, 'yes'); } catch (e) { console.warn('Balise meta refusée : ' + nom); }
-  });
+    .setTitle(APP.NOM);
   try {
     var favicon = Params_texte('app.favicon_url', '');
     if (favicon) sortie.setFaviconUrl(favicon);

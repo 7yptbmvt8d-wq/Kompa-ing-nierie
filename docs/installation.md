@@ -55,15 +55,13 @@ Revenir à l'**Éditeur** (icône `< >` à gauche).
 
 ## E. Ouvrir l'app
 
-L'app s'ouvre dans n'importe quel navigateur récent, connecté au compte Kompa. Pour l'avoir comme une application (icône, fenêtre à part) :
+L'app est conçue pour ordinateur (pas de version mobile) ; elle s'ouvre dans n'importe quel navigateur récent, connecté au compte Kompa. Pour l'avoir comme une application (icône, fenêtre à part) :
 
 | Appareil | Navigateur | Raccourci |
 |---|---|---|
 | Windows, macOS, ChromeOS | Chrome | Menu ⋮ → **Caster, enregistrer et partager** → **Créer un raccourci…** → cocher **Ouvrir dans une fenêtre** → Créer |
 | Windows, macOS | Edge | Menu ··· → **Applications** → **Installer ce site en tant qu'application** |
 | macOS | Safari | Menu **Fichier** → **Ajouter au Dock** |
-| iPhone | Safari | Bouton Partager → **Sur l'écran d'accueil** |
-| Android | Chrome | Menu ⋮ → **Ajouter à l'écran d'accueil** |
 
 Sur ChromeOS, le raccourci apparaît dans le lanceur et peut être épinglé à l'étagère. Sur Windows, il apparaît dans le menu Démarrer ; sur Mac, dans le Dock ou le Launchpad.
 

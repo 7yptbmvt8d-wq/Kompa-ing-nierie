@@ -79,7 +79,8 @@ var PARAMETRES_DEFAUT = [
 
   // E-mail (§ 6)
   ['email.heure', '7', 'Heure d\'envoi de l\'e-mail du matin (0-23)'],
-  ['email.destinataire', '', 'Adresse de réception (vide = compte Kompa)'],
+  ['email.destinataire', '', 'Adresse de réception (vide = compte Kompa : kompa.ingenierie@gmail.com)'],
+  ['email.jours', 'lun;mar;mer;jeu;ven', 'Jours d\'envoi (pas le week-end)'],
   ['email.recap_lundi', 'oui', 'Envoi le lundi même si toutes les rubriques sont vides'],
 
   // Listes de valeurs (§ 4, 9)

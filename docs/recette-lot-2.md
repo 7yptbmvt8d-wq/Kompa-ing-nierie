@@ -27,18 +27,18 @@ Enseignements : note méthodologique (planning TO2a, grille de vérification APS
 
 | # | Action | Résultat attendu | OK |
 |---|---|---|---|
-| 1 | Affaires → cocher « Afficher les affaires clôturées » | KA-2026-001 dans la colonne **Perdue** | [ ] |
+| 1 | Affaires (vue Colonnes) | KA-2026-001 dans la colonne **Clôturées**, étiquette « Perdue » | [ ] |
 | 2 | Ouvrir KA-2026-001 → onglets Identification, Échéances, Décision, Offre, Résultat, Enseignements | Données du tableau ci-dessus ; total des critères 100 / 79,6 / 90 | [ ] |
 | 3 | Onglet Journal | 4 passages datés (03/09, 08/09, 01/10, 06/11), 2 notes, relance « Motifs du rejet » faite | [ ] |
 | 4 | Classeur → onglet Historique | 4 lignes pour KA-2026-001 avec leur date | [ ] |
 | 5 | **Nouvelle affaire** : acheteur + objet → Créer | Fiche KA-2026-002 au statut En étude, 1 ligne d'historique datée du jour | [ ] |
 | 6 | Vue Colonnes : glisser KA-2026-002 vers **Déposée** | Colonne grisée, dépôt impossible (il faut passer par Go) | [ ] |
+| 6 bis | Glisser une affaire Déposée vers **Clôturées** | Choix Perdue / Sans suite, puis champs du passage | [ ] |
 | 7 | Glisser KA-2026-002 vers **Go** → Valider | Carte en colonne Go ; historique daté | [ ] |
 | 8 | Fiche → **Déposée** sans montant | Refus : « Champ obligatoire : Montant HT » | [ ] |
 | 9 | Déposée avec montant et jours → **Gagnée** | Date de notification et montant notifié proposés (montant HT) ; obligatoires | [ ] |
 | 10 | Onglet Exécution → ajouter une facture du montant notifié → « Encaissée » | Statut **Soldée** automatiquement ; compteur de CA de l'accueil mis à jour | [ ] |
 | 11 | Créer une affaire → **No-go** sans motif | Refus ; avec motif « charge » : statut No-go, décision et date renseignées | [ ] |
-| 12 | Téléphone : Affaires | Liste par statut ; fiche en lecture ; boutons de changement de statut et ajout de note | [ ] |
 
 Supprimer ensuite les affaires de test des points 5 à 11 directement dans le classeur (onglets Affaires, Historique, Factures), ou les garder clôturées.
 

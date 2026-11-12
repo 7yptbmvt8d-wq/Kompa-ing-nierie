@@ -64,7 +64,6 @@
   --app-statut-perdue-fond: #F9E6E6;
 
   --app-focus: var(--kompa-ardoise);
-  --app-cible-tactile: 44px;
 }
 </style>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -74,6 +73,7 @@
 /* Styles Kompa Affaires — couleurs : variables de Tokens.html uniquement. */
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+body { min-width: 1024px; }
 body {
   background: var(--kompa-blanc);
   color: var(--kompa-encre);
@@ -93,8 +93,7 @@ a { color: var(--kompa-ardoise); text-underline-offset: 2px; }
   background: var(--kompa-ardoise);
   color: var(--kompa-texte-inverse);
   position: sticky; top: 0; z-index: 10;
-  padding-top: env(safe-area-inset-top);
-}
+  }
 .entete__barre {
   display: flex; align-items: center; gap: var(--kompa-s6);
   max-width: 1280px; margin: 0 auto; padding: 0 var(--kompa-s5);
@@ -125,7 +124,7 @@ h2 { font-size: var(--kompa-fs-h3); font-weight: 600; color: var(--kompa-encre);
 
 .grille { display: grid; gap: var(--kompa-s4); grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 .carte { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius); background: var(--kompa-blanc); padding: var(--kompa-s5); }
-@media (min-width: 761px) { .carte--large { grid-column: span 2; } }
+.carte--large { grid-column: span 2; }
 .carte--attente { background: var(--kompa-brume); border-color: var(--kompa-brume); }
 .carte--attente p { color: var(--kompa-gris); margin: 0; font-size: var(--kompa-fs-small); }
 .carte__lot { font-family: var(--kompa-font-mono); font-weight: 500; font-size: 13px; color: var(--kompa-gris); margin-bottom: var(--kompa-s1); }
@@ -143,10 +142,6 @@ thead th {
 }
 tbody td { padding: var(--kompa-s2) var(--kompa-s3); border-bottom: var(--kompa-filet-fin); vertical-align: top; }
 td.num, th.num { text-align: right; white-space: nowrap; }
-.seul-mobile { display: none; }
-.ca-jalon { padding: var(--kompa-s3) 0; border-bottom: var(--kompa-filet-fin); font-size: var(--kompa-fs-small); }
-.ca-jalon:first-child { border-top: var(--kompa-filet-fin); }
-.ca-jalon__tete { display: flex; justify-content: space-between; align-items: center; gap: var(--kompa-s2); margin-bottom: var(--kompa-s1); }
 
 /* ——— Statuts (couleur + libellé) ——— */
 .statut {
@@ -202,8 +197,6 @@ textarea.champ { resize: vertical; }
 .param-com { color: var(--kompa-gris); }
 .param-date { font-family: var(--kompa-font-mono); font-size: 13px; color: var(--kompa-gris); white-space: nowrap; }
 .col-cle { width: 22%; } .col-val { width: 40%; } .col-com { width: 24%; } .col-act { width: 1%; }
-.param-carte { padding: var(--kompa-s3) 0; border-bottom: var(--kompa-filet-fin); font-size: var(--kompa-fs-small); }
-.param-carte .param-val { font-family: var(--kompa-font-mono); font-weight: 500; overflow-wrap: anywhere; margin-top: var(--kompa-s1); }
 .vide { color: var(--kompa-gris); font-style: italic; font-family: var(--kompa-font-sans); font-weight: 400; }
 
 /* ——— Messages ——— */
@@ -211,7 +204,7 @@ textarea.champ { resize: vertical; }
 .bandeau--erreur { background: var(--app-statut-perdue-fond); color: var(--app-statut-perdue); }
 .chargement { color: var(--kompa-gris); padding: var(--kompa-s4) 0; font-size: var(--kompa-fs-small); }
 .toast {
-  position: fixed; left: 50%; bottom: calc(var(--kompa-s5) + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: var(--kompa-s5); transform: translateX(-50%);
   background: var(--kompa-ardoise); color: var(--kompa-texte-inverse); padding: var(--kompa-s3) var(--kompa-s4);
   border-radius: var(--kompa-radius-sm); z-index: 20; max-width: calc(100% - 32px); font-size: var(--kompa-fs-small);
 }
@@ -219,25 +212,6 @@ textarea.champ { resize: vertical; }
 
 .pied { max-width: 1280px; margin: 0 auto; padding: var(--kompa-s4) var(--kompa-s5) var(--kompa-s6); color: var(--kompa-gris); font-size: 13px; }
 
-/* ——— Mobile ——— */
-@media (max-width: 760px) {
-  .seul-pc { display: none !important; }
-  .seul-mobile { display: block; }
-  .ca-jalons-mobile { margin-bottom: var(--kompa-s3); }
-  .entete__barre { flex-direction: column; align-items: stretch; gap: 0; padding: 0; }
-  .marque { padding: var(--kompa-s3) var(--kompa-s4) 0; }
-  .marque svg { height: 28px; }
-  .nav { padding: 0 var(--kompa-s2); }
-  .nav a { min-height: var(--app-cible-tactile); }
-  main { padding: var(--kompa-s5) var(--kompa-s4); }
-  .pied { padding: var(--kompa-s4); }
-  .titre-ecran h1 { font-size: var(--kompa-fs-h3); }
-  .carte { padding: var(--kompa-s4); }
-  .bouton, .champ { min-height: var(--app-cible-tactile); }
-  .liste-def { grid-template-columns: 1fr; gap: 0; }
-  .liste-def dd { margin-bottom: var(--kompa-s2); }
-  .ca-chiffre__valeur { font-size: var(--kompa-fs-h3); }
-}
 
 /* ——— Lot 2 : Affaires ——— */
 h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardoise); text-transform: uppercase; letter-spacing: 0.06em; margin: var(--kompa-s5) 0 var(--kompa-s2); }
@@ -250,7 +224,7 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
 .bouton--discret { background: var(--kompa-blanc); color: var(--kompa-ardoise); border-color: var(--kompa-filet); text-decoration: none; display: inline-flex; align-items: center; }
 .bouton--discret:hover:not(:disabled) { background: var(--kompa-brume); }
 .bouton--discret[aria-pressed="true"] { background: var(--kompa-ardoise); color: var(--kompa-texte-inverse); border-color: var(--kompa-ardoise); }
-.case { display: inline-flex; align-items: center; gap: var(--kompa-s2); font-size: var(--kompa-fs-small); color: var(--kompa-gris); min-height: var(--app-cible-tactile); cursor: pointer; }
+.case { display: inline-flex; align-items: center; gap: var(--kompa-s2); font-size: var(--kompa-fs-small); color: var(--kompa-gris); min-height: 36px; cursor: pointer; }
 .case input { width: 18px; height: 18px; accent-color: var(--kompa-ardoise); }
 
 /* Vue en colonnes */
@@ -258,19 +232,19 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
 .colonne { background: var(--kompa-brume); border-radius: var(--kompa-radius); padding: var(--kompa-s3); min-height: 240px; border: 2px solid transparent; transition: opacity .15s; }
 .colonne__titre { display: flex; justify-content: space-between; align-items: center; font-size: var(--kompa-fs-small); margin: 0 0 var(--kompa-s3); }
 .colonne__cartes { display: flex; flex-direction: column; gap: var(--kompa-s2); }
+.colonne__nom { font-weight: 600; color: var(--kompa-ardoise); }
+.choix-statut { display: flex; flex-direction: column; gap: var(--kompa-s1); }
 .colonne.est-cible { border-color: var(--kompa-ardoise); border-style: dashed; }
 .colonne.est-survolee { background: var(--kompa-blanc); }
 .colonne.est-interdite { opacity: .45; }
 .carte-affaire { background: var(--kompa-blanc); border: var(--kompa-filet-fin); border-radius: var(--kompa-radius-sm); padding: var(--kompa-s3); cursor: pointer; font-size: var(--kompa-fs-small); }
 .carte-affaire:hover { border-color: var(--kompa-ardoise); }
 .carte-affaire[draggable="true"] { cursor: grab; }
+.carte-affaire__tete .mono { white-space: nowrap; }
 .carte-affaire__tete { display: flex; justify-content: space-between; align-items: center; gap: var(--kompa-s2); font-size: 13px; color: var(--kompa-gris); }
 .carte-affaire__acheteur { font-weight: 600; margin-top: var(--kompa-s1); }
 .carte-affaire__objet { color: var(--kompa-gris); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .carte-affaire__pied { display: flex; justify-content: space-between; gap: var(--kompa-s2); margin-top: var(--kompa-s2); font-size: 13px; color: var(--kompa-ardoise); }
-.groupe-statut { margin-bottom: var(--kompa-s5); }
-.groupe-statut h2 { display: flex; align-items: center; gap: var(--kompa-s2); }
-.groupe-statut .carte-affaire { margin-bottom: var(--kompa-s2); }
 .table-affaires tbody tr { cursor: pointer; }
 .table-affaires tbody tr:hover td { background: var(--kompa-brume); }
 .objet-court { max-width: 420px; }
@@ -304,22 +278,12 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
 .notes { background: var(--kompa-brume); border-radius: var(--kompa-radius-sm); padding: var(--kompa-s3) var(--kompa-s4); font-size: var(--kompa-fs-small); }
 .note-form label { display: block; color: var(--kompa-gris); font-size: var(--kompa-fs-small); font-weight: 500; margin-bottom: var(--kompa-s1); }
 .liste-simple { padding-left: var(--kompa-s5); font-size: var(--kompa-fs-small); }
-.bloc-lecture { border-top: var(--kompa-filet-section); padding-top: var(--kompa-s3); margin-bottom: var(--kompa-s5); }
 
 /* Boîte de dialogue */
 .dialogue { border: 0; border-radius: var(--kompa-radius); padding: var(--kompa-s5); width: min(640px, calc(100vw - 32px)); color: var(--kompa-encre); }
 .dialogue::backdrop { background: rgba(11, 18, 32, 0.45); }
 .dialogue h2 { margin-top: 0; }
 .dialogue__actions { display: flex; justify-content: flex-end; gap: var(--kompa-s2); margin-top: var(--kompa-s5); }
-@media (max-width: 760px) {
-  .fiche-tete { flex-direction: column; gap: var(--kompa-s3); }
-  .fiche-tete h1 { font-size: var(--kompa-fs-h3); }
-  .fiche-tete__actions { align-items: flex-start; }
-  .fiche-tete__actions > a { margin-left: 0; }
-  .form-grille, .form-grille--4 { grid-template-columns: 1fr; }
-  .dialogue { padding: var(--kompa-s4); width: calc(100vw - 24px); }
-  .barre-outils .bouton { min-height: var(--app-cible-tactile); }
-}
 .dialogue__erreur { margin-top: var(--kompa-s3); color: var(--app-statut-perdue); background: var(--app-statut-perdue-fond); padding: var(--kompa-s2) var(--kompa-s3); border-radius: var(--kompa-radius-sm); font-size: var(--kompa-fs-small); }
 </style>
 </head>
@@ -395,7 +359,6 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
     toastMinuteur = setTimeout(function () { t.hidden = true; }, erreur ? 6000 : 2500);
   }
 
-  function estMobile() { return window.matchMedia('(max-width: 760px)').matches; }
 
   function bandeauErreur(e) {
     return '<div class="bandeau bandeau--erreur" role="alert"><strong>Erreur.</strong> ' + esc(e.message || e) + '</div>';
@@ -516,13 +479,7 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
         }).join('') +
       '</div>' +
       '<div class="cle-jauge"><span class="cle--encaisse">Encaissé</span><span class="cle--engage">Engagé</span><span class="cle--repere">Seuils</span></div>' +
-      '<div class="ca-jalons-mobile seul-mobile">' + jalons.map(function (j) {
-        return '<div class="ca-jalon">' +
-          '<div class="ca-jalon__tete"><span>' + (j.vise ? '<strong>' + esc(j.libelle) + '</strong>' : esc(j.libelle)) + '</span>' + pastilleEtat(j.etat, ca.alertePct) + '</div>' +
-          '<div class="mono">' + euros(j.seuil) + ' · reste ' + (j.reste >= 0 ? euros(j.reste) : '− ' + euros(-j.reste)) + '</div>' +
-          '<div class="legende">' + esc(j.consequence) + '</div></div>';
-      }).join('') + '</div>' +
-      '<div class="tableau-conteneur seul-pc"><table>' +
+      '<div class="tableau-conteneur"><table>' +
         '<thead><tr><th scope="col">Jalon</th><th scope="col" class="num">Seuil</th><th scope="col" class="num">Reste</th><th scope="col">État</th></tr></thead><tbody>' +
         jalons.map(function (j) {
           return '<tr><td>' + (j.vise ? '<strong>' + esc(j.libelle) + '</strong>' : esc(j.libelle)) + '<div class="legende">' + esc(j.consequence) + '</div></td>' +
@@ -540,17 +497,12 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
       '<div class="chargement">Lecture des paramètres…</div>';
 
     appel('apiParametres').then(function (groupes) {
-      var mobile = estMobile();
-      var html = titre('Paramètres', mobile
-        ? 'Lecture seule sur téléphone — modification sur PC.'
-        : 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.');
+      var html = titre('Paramètres', 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.');
       groupes.forEach(function (g) {
-        html += '<section class="groupe-param"><h2>' + esc(g.titre) + '</h2>';
-        html += mobile ? paramsMobile(g.parametres) : paramsPC(g.parametres);
-        html += '</section>';
+        html += '<section class="groupe-param"><h2>' + esc(g.titre) + '</h2>' + paramsPC(g.parametres) + '</section>';
       });
       el.innerHTML = html;
-      if (!mobile) brancherParams(el);
+      brancherParams(el);
     }).catch(function (e) {
       el.innerHTML = titre('Paramètres', '') + bandeauErreur(e);
     });
@@ -575,16 +527,6 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
         '</tr>';
       }).join('') +
       '</tbody></table></div>';
-  }
-
-  function paramsMobile(params) {
-    return params.map(function (p) {
-      return '<div class="param-carte">' +
-        '<div class="param-cle">' + esc(p.cle) + '</div>' +
-        '<div class="param-com">' + esc(p.commentaire) + '</div>' +
-        '<div class="param-val">' + (p.valeur ? esc(p.valeur.split(';').join(' · ')) : '<span class="vide">non renseigné</span>') + '</div>' +
-      '</div>';
-    }).join('');
   }
 
   function brancherParams(racine) {
@@ -670,7 +612,7 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
   // Utilitaires partagés avec les autres scripts de l'interface (AppAffaires…).
   window.KA = {
     appel: appel, $: $, $$: $$, esc: esc, toast: toast, titre: titre, bandeauErreur: bandeauErreur,
-    dateHeure: dateHeure, euros: euros, estMobile: estMobile, ecrans: ECRANS, afficher: afficher
+    dateHeure: dateHeure, euros: euros, ecrans: ECRANS, afficher: afficher
   };
   // Démarrage une fois tous les scripts chargés : les écrans des autres lots s'enregistrent avant.
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer);
@@ -684,10 +626,10 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
   var K = window.KA;
   var esc = K.esc, $ = K.$, $$ = K.$$;
 
-  var etat = { vue: 'colonnes', clotures: false, meta: null };
+  var etat = { vue: 'colonnes', clotures: true, meta: null };
   try {
     etat.vue = localStorage.getItem('ka.vue') || 'colonnes';
-    etat.clotures = localStorage.getItem('ka.clotures') === '1';
+    etat.clotures = localStorage.getItem('ka.clotures') !== '0'; // affichées par défaut
   } catch (e) { /* stockage indisponible : valeurs par défaut */ }
   function memoriser(cle, v) { try { localStorage.setItem(cle, v); } catch (e) { /* sans effet */ } }
 
@@ -758,15 +700,6 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
     $$('[data-champ]', racine).forEach(function (el) { out[el.getAttribute('data-champ')] = el.value; });
     return out;
   }
-  function valeurLisible(c, v) {
-    if (v === '' || v === null || v === undefined) return '<span class="vide">—</span>';
-    if (c.type === 'date') return '<span class="mono">' + jour(v) + '</span>';
-    if (c.type === 'euros') return '<span class="mono">' + montant(v) + '</span>';
-    if (c.type === 'nombre') return '<span class="mono">' + esc(v) + '</span>';
-    if (c.type === 'lien') return '<a href="' + esc(v) + '" target="_blank" rel="noopener" data-externe>Ouvrir</a>';
-    return '<span class="pre">' + esc(v) + '</span>';
-  }
-
   // ——— Boîte de dialogue ———
   function dialogue(titreTxt, corps, libelleOk, surValider) {
     var d = document.createElement('dialog');
@@ -839,7 +772,7 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
   }
 
   function rendreAffaires(el, affaires) {
-    var meta = etat.meta, mobile = K.estMobile();
+    var meta = etat.meta;
     var statuts = meta.statuts.filter(function (s) { return etat.clotures || meta.actifs.indexOf(s) >= 0; });
     var parStatut = {};
     statuts.forEach(function (s) { parStatut[s] = []; });
@@ -851,21 +784,15 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
 
     var barre = '<div class="barre-outils">' +
       '<button type="button" class="bouton" data-action="nouvelle">Nouvelle affaire</button>' +
-      (mobile ? '' : '<div class="bascule" role="group" aria-label="Vue">' +
+      '<div class="bascule" role="group" aria-label="Vue">' +
         '<button type="button" class="bouton bouton--discret" data-vue="colonnes" aria-pressed="' + (etat.vue === 'colonnes') + '">Colonnes</button>' +
-        '<button type="button" class="bouton bouton--discret" data-vue="liste" aria-pressed="' + (etat.vue === 'liste') + '">Liste</button></div>') +
+        '<button type="button" class="bouton bouton--discret" data-vue="liste" aria-pressed="' + (etat.vue === 'liste') + '">Liste</button></div>' +
       '<label class="case"><input type="checkbox" data-action="clotures"' + (etat.clotures ? ' checked' : '') + '> Afficher les affaires clôturées (' + nbClotures + ')</label>' +
       '</div>';
 
     var corps;
     if (!affaires.length) {
       corps = '<div class="bandeau">Aucune affaire. Créez la première avec « Nouvelle affaire » ; les avis de la veille arriveront au lot 3.</div>';
-    } else if (mobile) {
-      corps = statuts.map(function (s) {
-        if (!parStatut[s].length) return '';
-        return '<section class="groupe-statut"><h2>' + pastille(s) + ' <span class="mono legende">' + parStatut[s].length + '</span></h2>' +
-          parStatut[s].map(carte).join('') + '</section>';
-      }).join('');
     } else if (etat.vue === 'liste') {
       var lignes = [];
       statuts.forEach(function (s) { lignes = lignes.concat(parStatut[s]); });
@@ -880,10 +807,19 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
             '<td class="num mono">' + esc(a.score_final || a.pre_score || '') + '</td></tr>';
         }).join('') + '</tbody></table></div>';
     } else {
-      corps = '<div class="colonnes" style="--nb-colonnes:' + statuts.length + '">' + statuts.map(function (s) {
-        return '<section class="colonne" data-statut="' + esc(s) + '" aria-label="' + esc(s) + '">' +
-          '<h2 class="colonne__titre">' + pastille(s) + ' <span class="mono legende">' + parStatut[s].length + '</span></h2>' +
-          '<div class="colonne__cartes">' + parStatut[s].map(carte).join('') + '</div></section>';
+      // Une colonne par statut en cours, puis une colonne unique « Clôturées » (statut affiché sur chaque carte).
+      var colonnes = meta.actifs.map(function (s) {
+        return { cle: s, titre: pastille(s), cartes: parStatut[s] || [] };
+      });
+      if (etat.clotures) {
+        var clotures = affaires.filter(function (a) { return meta.actifs.indexOf(a.statut) < 0; })
+          .sort(function (x, y) { return String(y.date_statut).localeCompare(String(x.date_statut)); });
+        colonnes.push({ cle: COLONNE_CLOTUREES, titre: '<span class="colonne__nom">Clôturées</span>', cartes: clotures });
+      }
+      corps = '<div class="colonnes" style="--nb-colonnes:' + colonnes.length + '">' + colonnes.map(function (c) {
+        return '<section class="colonne" data-statut="' + esc(c.cle) + '" aria-label="' + esc(c.cle) + '">' +
+          '<h2 class="colonne__titre">' + c.titre + ' <span class="mono legende">' + c.cartes.length + '</span></h2>' +
+          '<div class="colonne__cartes">' + c.cartes.map(carte).join('') + '</div></section>';
       }).join('') + '</div>' +
       '<p class="legende">Glisser une carte vers une autre colonne pour changer de statut ; seules les colonnes autorisées s\'activent.</p>';
     }
@@ -902,12 +838,15 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
       n.addEventListener('click', function (ev) { if (!ev.target.closest('a')) ouvrir(); });
       n.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') ouvrir(); });
     });
-    if (!mobile && etat.vue === 'colonnes') brancherGlisser(el, affaires);
+    if (affaires.length && etat.vue === 'colonnes') brancherGlisser(el, affaires);
   }
 
+  var COLONNE_CLOTUREES = 'Clôturées';
+
   function carte(a) {
-    return '<article class="carte-affaire" draggable="true" data-id="' + esc(a.id) + '" data-ouvrir="' + esc(a.id) + '" tabindex="0">' +
-      '<div class="carte-affaire__tete"><span class="mono">' + esc(a.id) + '</span>' + badgeDelai(a) + '</div>' +
+    var cloturee = etat.meta.actifs.indexOf(a.statut) < 0;
+    return '<article class="carte-affaire" draggable="' + (!cloturee || (etat.meta.transitions[a.statut] || []).length > 0) + '" data-id="' + esc(a.id) + '" data-ouvrir="' + esc(a.id) + '" tabindex="0">' +
+      '<div class="carte-affaire__tete"><span class="mono">' + esc(a.id) + '</span>' + (cloturee ? pastille(a.statut) : badgeDelai(a)) + '</div>' +
       '<div class="carte-affaire__acheteur">' + esc(a.acheteur) + (a.departement ? ' <span class="mono legende">(' + esc(a.departement) + ')</span>' : '') + '</div>' +
       '<div class="carte-affaire__objet">' + esc(a.objet) + '</div>' +
       '<div class="carte-affaire__pied mono">' +
@@ -926,8 +865,9 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
         var permis = etat.meta.transitions[enCours.statut] || [];
         $$('.colonne', el).forEach(function (col) {
           var s = col.getAttribute('data-statut');
-          col.classList.toggle('est-cible', permis.indexOf(s) >= 0);
-          col.classList.toggle('est-interdite', s !== enCours.statut && permis.indexOf(s) < 0);
+          var ok = s === COLONNE_CLOTUREES ? clotureesPermises(enCours).length > 0 : permis.indexOf(s) >= 0;
+          col.classList.toggle('est-cible', ok);
+          col.classList.toggle('est-interdite', !ok && s !== enCours.statut);
         });
       });
       c.addEventListener('dragend', function () {
@@ -944,10 +884,30 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
         if (!enCours || !col.classList.contains('est-cible')) return;
         var statut = col.getAttribute('data-statut');
         var a = enCours;
+        var apres = function () { ecranAffaires($('#ecran')); };
         K.appel('apiAffaire', a.id).then(function (f) {
-          passerStatut(f.affaire, statut, function () { ecranAffaires($('#ecran')); });
+          if (statut !== COLONNE_CLOTUREES) return passerStatut(f.affaire, statut, apres);
+          var choix = clotureesPermises(a);
+          if (choix.length === 1) return passerStatut(f.affaire, choix[0], apres);
+          choisirCloture(f.affaire, choix, apres);
         }).catch(function (e) { K.toast(e.message, true); });
       });
+    });
+  }
+
+  /** Statuts de clôture accessibles depuis le statut de l'affaire (ex. Déposée → Perdue, Sans suite). */
+  function clotureesPermises(a) {
+    return (etat.meta.transitions[a.statut] || []).filter(function (s) { return etat.meta.actifs.indexOf(s) < 0; });
+  }
+
+  function choisirCloture(a, choix, apres) {
+    var corps = '<p class="legende">' + esc(a.id) + ' · ' + esc(a.acheteur) + '</p><div class="choix-statut">' +
+      choix.map(function (s, i) {
+        return '<label class="case"><input type="radio" name="cloture" value="' + esc(s) + '"' + (i === 0 ? ' checked' : '') + '> ' + pastille(s) + '</label>';
+      }).join('') + '</div>';
+    dialogue('Clôturer l\'affaire', corps, 'Continuer', function (form) {
+      var s = $('input[name=cloture]:checked', form).value;
+      setTimeout(function () { passerStatut(a, s, apres); }, 0);
     });
   }
 
@@ -963,7 +923,7 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
   }
 
   function rendreFiche(el, f) {
-    var a = f.affaire, meta = etat.meta, mobile = K.estMobile();
+    var a = f.affaire, meta = etat.meta;
     var liens = (a.lien_avis ? '<a class="bouton bouton--discret" href="' + esc(a.lien_avis) + '" target="_blank" rel="noopener" data-externe>Avis</a>' : '') +
       (a.lien_dce ? '<a class="bouton bouton--discret" href="' + esc(a.lien_dce) + '" target="_blank" rel="noopener" data-externe>Dossier DCE</a>' : '');
     var actions = f.transitions.map(function (s) {
@@ -978,15 +938,7 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
         '</div>' +
       '</header>';
 
-    var corps;
-    if (mobile) {
-      corps = meta.blocs.filter(function (b) { return b.id !== 'journal'; }).map(function (b) {
-        return '<section class="bloc-lecture"><h2>' + esc(b.titre) + '</h2><dl class="liste-def">' +
-          b.champs.map(function (c) { return '<dt>' + esc(c.libelle) + '</dt><dd>' + valeurLisible(c, a[c.nom]) + '</dd>'; }).join('') +
-          '</dl>' + (b.id === 'resultat' ? tableCriteres(f.criteres, false) : '') + (b.id === 'execution' ? tableFactures(f, false) : '') + '</section>';
-      }).join('') + '<section class="bloc-lecture"><h2>Journal</h2>' + blocJournal(f) + '</section>';
-    } else {
-      corps = '<div class="onglets" role="tablist">' + meta.blocs.map(function (b) {
+    var corps = '<div class="onglets" role="tablist">' + meta.blocs.map(function (b) {
         return '<button type="button" role="tab" id="o-' + b.id + '" aria-controls="p-' + b.id + '" aria-selected="' + (b.id === ongletFiche) + '" data-onglet="' + b.id + '">' + esc(b.titre) + '</button>';
       }).join('') + '</div>' +
       meta.blocs.map(function (b) {
@@ -996,12 +948,11 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
           html = '<form class="bloc-form" data-bloc="' + b.id + '" novalidate><div class="form-grille">' +
             b.champs.map(function (c) { return champHtml(c, a[c.nom], meta.listes, b.id); }).join('') + '</div>' +
             '<div class="bloc-form__actions"><button type="submit" class="bouton" disabled>Enregistrer</button></div></form>';
-          if (b.id === 'resultat') html += tableCriteres(f.criteres, true);
-          if (b.id === 'execution') html += tableFactures(f, true);
+          if (b.id === 'resultat') html += tableCriteres(f.criteres);
+          if (b.id === 'execution') html += tableFactures(f);
         }
         return '<section class="panneau" role="tabpanel" id="p-' + b.id + '" aria-labelledby="o-' + b.id + '"' + (b.id === ongletFiche ? '' : ' hidden') + '>' + html + '</section>';
       }).join('');
-    }
     el.innerHTML = tete + corps;
     brancherFiche(el, f);
   }
@@ -1020,14 +971,8 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
       }).join('') + '</ul>' : '');
   }
 
-  function tableCriteres(criteres, edition) {
+  function tableCriteres(criteres) {
     var total = function (k) { return criteres.reduce(function (s, c) { return s + (Number(c[k]) || 0); }, 0); };
-    if (!edition) {
-      if (!criteres.length) return '';
-      return '<h3>Notes par critère</h3><div class="tableau-conteneur"><table><thead><tr><th scope="col">Critère</th><th scope="col" class="num">Pond.</th><th scope="col" class="num">Kompa</th><th scope="col" class="num">Attrib.</th></tr></thead><tbody>' +
-        criteres.map(function (c) { return '<tr><td>' + esc(c.critere) + '</td><td class="num mono">' + esc(c.ponderation) + '</td><td class="num mono">' + esc(c.note_kompa) + '</td><td class="num mono">' + esc(c.note_attributaire) + '</td></tr>'; }).join('') +
-        '<tr class="ligne-total"><td>Total</td><td class="num mono">' + total('ponderation') + '</td><td class="num mono">' + total('note_kompa') + '</td><td class="num mono">' + total('note_attributaire') + '</td></tr></tbody></table></div>';
-    }
     var ligne = function (c, i) {
       return '<tr><td><input class="champ" aria-label="Critère ' + (i + 1) + '" data-c="critere" value="' + esc(c.critere || '') + '"></td>' +
         ['ponderation', 'note_kompa', 'note_attributaire'].map(function (k) {
@@ -1043,20 +988,19 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
       '<div class="bloc-form__actions"><button type="submit" class="bouton">Enregistrer les critères</button></div></form>';
   }
 
-  function tableFactures(f, edition) {
+  function tableFactures(f) {
     var t = f.totaux;
     var resume = '<dl class="totaux"><div><dt>Facturé</dt><dd class="mono">' + K.euros(t.facture) + '</dd></div>' +
       '<div><dt>Encaissé</dt><dd class="mono">' + K.euros(t.encaisse) + '</dd></div>' +
       '<div><dt>Reste à facturer</dt><dd class="mono">' + K.euros(t.resteAFacturer) + '</dd></div></dl>';
     var lignes = f.factures.map(function (x) {
-      var enc = edition && !x.date_encaissement
+      var enc = !x.date_encaissement
         ? '<button type="button" class="bouton bouton--discret" data-encaisser="' + esc(x.id) + '" data-montant="' + esc(x.montant) + '">Encaissée</button>'
         : '<span class="mono">' + jour(x.date_encaissement) + '</span>';
       return '<tr><td class="mono">' + esc(x.numero) + '</td><td class="mono">' + jour(x.date) + '</td><td class="num mono">' + montant(x.montant) + '</td>' +
         '<td class="mono">' + jour(x.date_echeance) + '</td><td>' + enc + '</td><td class="num mono">' + montant(x.montant_encaisse) + '</td></tr>';
     }).join('');
     var table = '<h3>Factures</h3>' + resume + (f.factures.length ? '<div class="tableau-conteneur"><table><thead><tr><th scope="col">N°</th><th scope="col">Date</th><th scope="col" class="num">Montant</th><th scope="col">Échéance</th><th scope="col">Encaissement</th><th scope="col" class="num">Encaissé</th></tr></thead><tbody>' + lignes + '</tbody></table></div>' : '<p class="vide">Aucune facture.</p>');
-    if (!edition) return table;
     return table + (f.affaire.statut === 'Gagnée'
       ? '<form class="bloc-form ligne-ajout" data-facture novalidate><h3>Nouvelle facture</h3><div class="form-grille form-grille--4">' +
         champHtml({ nom: 'numero', libelle: 'N°', type: 'texte', obligatoire: true }, '', {}, 'f') +

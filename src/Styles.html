@@ -5,6 +5,7 @@
 /* Styles Kompa Affaires — couleurs : variables de Tokens.html uniquement. */
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+body { min-width: 1024px; }
 body {
   background: var(--kompa-blanc);
   color: var(--kompa-encre);
@@ -24,8 +25,7 @@ a { color: var(--kompa-ardoise); text-underline-offset: 2px; }
   background: var(--kompa-ardoise);
   color: var(--kompa-texte-inverse);
   position: sticky; top: 0; z-index: 10;
-  padding-top: env(safe-area-inset-top);
-}
+  }
 .entete__barre {
   display: flex; align-items: center; gap: var(--kompa-s6);
   max-width: 1280px; margin: 0 auto; padding: 0 var(--kompa-s5);
@@ -56,7 +56,7 @@ h2 { font-size: var(--kompa-fs-h3); font-weight: 600; color: var(--kompa-encre);
 
 .grille { display: grid; gap: var(--kompa-s4); grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 .carte { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius); background: var(--kompa-blanc); padding: var(--kompa-s5); }
-@media (min-width: 761px) { .carte--large { grid-column: span 2; } }
+.carte--large { grid-column: span 2; }
 .carte--attente { background: var(--kompa-brume); border-color: var(--kompa-brume); }
 .carte--attente p { color: var(--kompa-gris); margin: 0; font-size: var(--kompa-fs-small); }
 .carte__lot { font-family: var(--kompa-font-mono); font-weight: 500; font-size: 13px; color: var(--kompa-gris); margin-bottom: var(--kompa-s1); }
@@ -74,10 +74,6 @@ thead th {
 }
 tbody td { padding: var(--kompa-s2) var(--kompa-s3); border-bottom: var(--kompa-filet-fin); vertical-align: top; }
 td.num, th.num { text-align: right; white-space: nowrap; }
-.seul-mobile { display: none; }
-.ca-jalon { padding: var(--kompa-s3) 0; border-bottom: var(--kompa-filet-fin); font-size: var(--kompa-fs-small); }
-.ca-jalon:first-child { border-top: var(--kompa-filet-fin); }
-.ca-jalon__tete { display: flex; justify-content: space-between; align-items: center; gap: var(--kompa-s2); margin-bottom: var(--kompa-s1); }
 
 /* ——— Statuts (couleur + libellé) ——— */
 .statut {
@@ -133,8 +129,6 @@ textarea.champ { resize: vertical; }
 .param-com { color: var(--kompa-gris); }
 .param-date { font-family: var(--kompa-font-mono); font-size: 13px; color: var(--kompa-gris); white-space: nowrap; }
 .col-cle { width: 22%; } .col-val { width: 40%; } .col-com { width: 24%; } .col-act { width: 1%; }
-.param-carte { padding: var(--kompa-s3) 0; border-bottom: var(--kompa-filet-fin); font-size: var(--kompa-fs-small); }
-.param-carte .param-val { font-family: var(--kompa-font-mono); font-weight: 500; overflow-wrap: anywhere; margin-top: var(--kompa-s1); }
 .vide { color: var(--kompa-gris); font-style: italic; font-family: var(--kompa-font-sans); font-weight: 400; }
 
 /* ——— Messages ——— */
@@ -142,7 +136,7 @@ textarea.champ { resize: vertical; }
 .bandeau--erreur { background: var(--app-statut-perdue-fond); color: var(--app-statut-perdue); }
 .chargement { color: var(--kompa-gris); padding: var(--kompa-s4) 0; font-size: var(--kompa-fs-small); }
 .toast {
-  position: fixed; left: 50%; bottom: calc(var(--kompa-s5) + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: var(--kompa-s5); transform: translateX(-50%);
   background: var(--kompa-ardoise); color: var(--kompa-texte-inverse); padding: var(--kompa-s3) var(--kompa-s4);
   border-radius: var(--kompa-radius-sm); z-index: 20; max-width: calc(100% - 32px); font-size: var(--kompa-fs-small);
 }
@@ -150,25 +144,6 @@ textarea.champ { resize: vertical; }
 
 .pied { max-width: 1280px; margin: 0 auto; padding: var(--kompa-s4) var(--kompa-s5) var(--kompa-s6); color: var(--kompa-gris); font-size: 13px; }
 
-/* ——— Mobile ——— */
-@media (max-width: 760px) {
-  .seul-pc { display: none !important; }
-  .seul-mobile { display: block; }
-  .ca-jalons-mobile { margin-bottom: var(--kompa-s3); }
-  .entete__barre { flex-direction: column; align-items: stretch; gap: 0; padding: 0; }
-  .marque { padding: var(--kompa-s3) var(--kompa-s4) 0; }
-  .marque svg { height: 28px; }
-  .nav { padding: 0 var(--kompa-s2); }
-  .nav a { min-height: var(--app-cible-tactile); }
-  main { padding: var(--kompa-s5) var(--kompa-s4); }
-  .pied { padding: var(--kompa-s4); }
-  .titre-ecran h1 { font-size: var(--kompa-fs-h3); }
-  .carte { padding: var(--kompa-s4); }
-  .bouton, .champ { min-height: var(--app-cible-tactile); }
-  .liste-def { grid-template-columns: 1fr; gap: 0; }
-  .liste-def dd { margin-bottom: var(--kompa-s2); }
-  .ca-chiffre__valeur { font-size: var(--kompa-fs-h3); }
-}
 
 /* ——— Lot 2 : Affaires ——— */
 h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardoise); text-transform: uppercase; letter-spacing: 0.06em; margin: var(--kompa-s5) 0 var(--kompa-s2); }
@@ -181,7 +156,7 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
 .bouton--discret { background: var(--kompa-blanc); color: var(--kompa-ardoise); border-color: var(--kompa-filet); text-decoration: none; display: inline-flex; align-items: center; }
 .bouton--discret:hover:not(:disabled) { background: var(--kompa-brume); }
 .bouton--discret[aria-pressed="true"] { background: var(--kompa-ardoise); color: var(--kompa-texte-inverse); border-color: var(--kompa-ardoise); }
-.case { display: inline-flex; align-items: center; gap: var(--kompa-s2); font-size: var(--kompa-fs-small); color: var(--kompa-gris); min-height: var(--app-cible-tactile); cursor: pointer; }
+.case { display: inline-flex; align-items: center; gap: var(--kompa-s2); font-size: var(--kompa-fs-small); color: var(--kompa-gris); min-height: 36px; cursor: pointer; }
 .case input { width: 18px; height: 18px; accent-color: var(--kompa-ardoise); }
 
 /* Vue en colonnes */
@@ -189,19 +164,19 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
 .colonne { background: var(--kompa-brume); border-radius: var(--kompa-radius); padding: var(--kompa-s3); min-height: 240px; border: 2px solid transparent; transition: opacity .15s; }
 .colonne__titre { display: flex; justify-content: space-between; align-items: center; font-size: var(--kompa-fs-small); margin: 0 0 var(--kompa-s3); }
 .colonne__cartes { display: flex; flex-direction: column; gap: var(--kompa-s2); }
+.colonne__nom { font-weight: 600; color: var(--kompa-ardoise); }
+.choix-statut { display: flex; flex-direction: column; gap: var(--kompa-s1); }
 .colonne.est-cible { border-color: var(--kompa-ardoise); border-style: dashed; }
 .colonne.est-survolee { background: var(--kompa-blanc); }
 .colonne.est-interdite { opacity: .45; }
 .carte-affaire { background: var(--kompa-blanc); border: var(--kompa-filet-fin); border-radius: var(--kompa-radius-sm); padding: var(--kompa-s3); cursor: pointer; font-size: var(--kompa-fs-small); }
 .carte-affaire:hover { border-color: var(--kompa-ardoise); }
 .carte-affaire[draggable="true"] { cursor: grab; }
+.carte-affaire__tete .mono { white-space: nowrap; }
 .carte-affaire__tete { display: flex; justify-content: space-between; align-items: center; gap: var(--kompa-s2); font-size: 13px; color: var(--kompa-gris); }
 .carte-affaire__acheteur { font-weight: 600; margin-top: var(--kompa-s1); }
 .carte-affaire__objet { color: var(--kompa-gris); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .carte-affaire__pied { display: flex; justify-content: space-between; gap: var(--kompa-s2); margin-top: var(--kompa-s2); font-size: 13px; color: var(--kompa-ardoise); }
-.groupe-statut { margin-bottom: var(--kompa-s5); }
-.groupe-statut h2 { display: flex; align-items: center; gap: var(--kompa-s2); }
-.groupe-statut .carte-affaire { margin-bottom: var(--kompa-s2); }
 .table-affaires tbody tr { cursor: pointer; }
 .table-affaires tbody tr:hover td { background: var(--kompa-brume); }
 .objet-court { max-width: 420px; }
@@ -235,21 +210,11 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
 .notes { background: var(--kompa-brume); border-radius: var(--kompa-radius-sm); padding: var(--kompa-s3) var(--kompa-s4); font-size: var(--kompa-fs-small); }
 .note-form label { display: block; color: var(--kompa-gris); font-size: var(--kompa-fs-small); font-weight: 500; margin-bottom: var(--kompa-s1); }
 .liste-simple { padding-left: var(--kompa-s5); font-size: var(--kompa-fs-small); }
-.bloc-lecture { border-top: var(--kompa-filet-section); padding-top: var(--kompa-s3); margin-bottom: var(--kompa-s5); }
 
 /* Boîte de dialogue */
 .dialogue { border: 0; border-radius: var(--kompa-radius); padding: var(--kompa-s5); width: min(640px, calc(100vw - 32px)); color: var(--kompa-encre); }
 .dialogue::backdrop { background: rgba(11, 18, 32, 0.45); }
 .dialogue h2 { margin-top: 0; }
 .dialogue__actions { display: flex; justify-content: flex-end; gap: var(--kompa-s2); margin-top: var(--kompa-s5); }
-@media (max-width: 760px) {
-  .fiche-tete { flex-direction: column; gap: var(--kompa-s3); }
-  .fiche-tete h1 { font-size: var(--kompa-fs-h3); }
-  .fiche-tete__actions { align-items: flex-start; }
-  .fiche-tete__actions > a { margin-left: 0; }
-  .form-grille, .form-grille--4 { grid-template-columns: 1fr; }
-  .dialogue { padding: var(--kompa-s4); width: calc(100vw - 24px); }
-  .barre-outils .bouton { min-height: var(--app-cible-tactile); }
-}
 .dialogue__erreur { margin-top: var(--kompa-s3); color: var(--app-statut-perdue); background: var(--app-statut-perdue-fond); padding: var(--kompa-s2) var(--kompa-s3); border-radius: var(--kompa-radius-sm); font-size: var(--kompa-fs-small); }
 </style>
