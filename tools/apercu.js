@@ -40,6 +40,14 @@ function assembler() {
   const log = console.log; console.log = () => {};
   env.ctx.installer();
   console.log = log;
+  // Données FICTIVES pour visualiser le compteur de CA (aperçu uniquement).
+  const T = env.ctx.TABLES;
+  env.ctx.Db_insererPlusieurs(T.FACTURES, [
+    { id_affaire: 'KA-2026-001', numero: 'F-01', date: '15/01/2026', montant: 18000, date_encaissement: '12/02/2026', montant_encaisse: 18000 },
+    { id_affaire: 'KA-2026-001', numero: 'F-02', date: '02/05/2026', montant: 13000, date_encaissement: '01/06/2026', montant_encaisse: 13000 },
+    { id_affaire: 'KA-2026-002', numero: 'F-03', date: '01/10/2026', montant: 4000 }
+  ]);
+  env.ctx.Db_inserer(T.AFFAIRES, { id: 'KA-2026-002', statut: 'En exécution', montant_notifie: 12000, date_notification: '01/09/2026' });
   const html = assembler();
   fs.writeFileSync(path.join(sortie, 'index.html'), html);
 
@@ -57,6 +65,7 @@ function assembler() {
   // PC
   const pc = await ouvrir({ viewport: { width: 1366, height: 900 }, deviceScaleFactor: 2 });
   await pc.page.waitForSelector('#carte-etat dl');
+  await pc.page.waitForSelector('#carte-ca table');
   await pc.page.screenshot({ path: path.join(sortie, 'pc-accueil.png') });
 
   await pc.page.click('nav a[href="#parametres"]');

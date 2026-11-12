@@ -91,11 +91,18 @@
   function ecranAccueil(el) {
     el.innerHTML = titre('Accueil', '') +
       '<div class="grille">' +
-        '<section class="carte carte--large" id="carte-etat"><h2>État du socle</h2><div class="chargement">Lecture du classeur…</div></section>' +
-        carteAttente('Tableau de bord', 'Lot 5', 'Affaires par statut, taux d\'attribution, CA face aux seuils de TVA et de la micro-entreprise.') +
+        '<section class="carte carte--large" id="carte-ca"><h2>Chiffre d\'affaires</h2><div class="chargement">Calcul du CA…</div></section>' +
+        '<section class="carte" id="carte-etat"><h2>État du socle</h2><div class="chargement">Lecture du classeur…</div></section>' +
+        carteAttente('Tableau de bord', 'Lot 5', 'Affaires par statut, taux de Go et d\'attribution, écarts avec les attributaires.') +
         carteAttente('Échéances à 7 jours', 'Lot 4', 'Remises, questions à l\'acheteur, visites de site.') +
         carteAttente('Relances à faire', 'Lot 4', 'Motifs de rejet, décisions en attente, factures à encaisser.') +
       '</div>';
+
+    appel('apiCompteurCA').then(function (ca) {
+      $('#carte-ca').innerHTML = rendreCompteur(ca);
+    }).catch(function (e) {
+      $('#carte-ca').innerHTML = '<h2>Chiffre d\'affaires</h2>' + bandeauErreur(e);
+    });
 
     appel('apiEtat').then(function (etat) {
       var present = etat.onglets.filter(function (o) { return o.present; }).length;
@@ -114,6 +121,72 @@
     }).catch(function (e) {
       $('#carte-etat').innerHTML = '<h2>État du socle</h2>' + bandeauErreur(e);
     });
+  }
+
+  var formatEuro = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
+  function euros(n) { return formatEuro.format(n) + '\u00a0€'; }
+
+  function pastilleEtat(etat, pct) {
+    if (etat === 'depasse') return '<span class="statut statut--ko">Dépassé</span>';
+    if (etat === 'alerte') return '<span class="statut statut--alerte">≥ ' + pct + ' %</span>';
+    return '<span class="statut statut--ok">Sous le seuil</span>';
+  }
+
+  function rendreCompteur(ca) {
+    var jalons = ca.jalons;
+    var prochain = jalons.filter(function (j) { return j.cle === ca.prochain; })[0];
+    var echelle = Math.max(ca.engage, Math.max.apply(null, jalons.map(function (j) { return j.seuil; }).concat([1]))) * 1.02;
+    var pc = function (v) { return Math.min(v / echelle * 100, 100).toFixed(2) + '%'; };
+
+    var message;
+    if (!prochain) {
+      message = '<p class="ca-message ca-message--alerte" role="alert">Tous les seuils sont dépassés.</p>';
+    } else if (prochain.etat === 'alerte') {
+      message = '<p class="ca-message ca-message--alerte" role="alert">Alerte — ' + esc(prochain.libelle) +
+        ' : plus que <span class="mono">' + euros(prochain.reste) + '</span> avant <span class="mono">' + euros(prochain.seuil) + '</span>.</p>';
+    } else {
+      message = '<p class="ca-message">Prochain jalon — ' + esc(prochain.libelle) +
+        ' — reste <span class="mono">' + euros(prochain.reste) + '</span> à encaisser.</p>';
+    }
+    // Seuil le plus élevé que le CA engagé franchirait (le plus lourd de conséquences).
+    var risque = jalons.filter(function (j) { return j.etat !== 'depasse' && j.etatEngage === 'depasse'; }).pop();
+    if (risque) {
+      message += '<p class="ca-message ca-message--alerte">Avec le CA engagé : ' + esc(risque.libelle) +
+        ' dépassé de <span class="mono">' + euros(-risque.resteEngage) + '</span>. ' + esc(risque.consequence) + '</p>';
+    }
+
+    return '<h2>Chiffre d\'affaires ' + esc(ca.annee) + '</h2>' +
+      '<div class="ca-chiffres">' +
+        '<div><div class="legende">Encaissé</div><div class="ca-chiffre__valeur">' + euros(ca.encaisse) + '</div></div>' +
+        '<div><div class="legende">Engagé</div><div class="ca-chiffre__valeur ca-chiffre__valeur--second">' + euros(ca.engage) + '</div></div>' +
+        '<div><div class="legende">Facturé ' + esc(ca.annee) + '</div><div class="ca-chiffre__valeur ca-chiffre__valeur--second">' + euros(ca.facture) + '</div></div>' +
+      '</div>' +
+      message +
+      '<div class="jauge" role="img" aria-label="Encaissé ' + euros(ca.encaisse) + ', engagé ' + euros(ca.engage) + '">' +
+        '<div class="jauge__engage" style="width:' + pc(ca.engage) + '"></div>' +
+        '<div class="jauge__encaisse" style="width:' + pc(ca.encaisse) + '"></div>' +
+        jalons.map(function (j) {
+          return '<div class="jauge__repere' + (j.vise ? ' jauge__repere--vise' : '') + '" style="left:' + pc(j.seuil) + '" title="' + esc(j.libelle) + ' — ' + euros(j.seuil) + '"></div>';
+        }).join('') +
+      '</div>' +
+      '<div class="cle-jauge"><span class="cle--encaisse">Encaissé</span><span class="cle--engage">Engagé</span><span class="cle--repere">Seuils</span></div>' +
+      '<div class="ca-jalons-mobile seul-mobile">' + jalons.map(function (j) {
+        return '<div class="ca-jalon">' +
+          '<div class="ca-jalon__tete"><span>' + (j.vise ? '<strong>' + esc(j.libelle) + '</strong>' : esc(j.libelle)) + '</span>' + pastilleEtat(j.etat, ca.alertePct) + '</div>' +
+          '<div class="mono">' + euros(j.seuil) + ' · reste ' + (j.reste >= 0 ? euros(j.reste) : '− ' + euros(-j.reste)) + '</div>' +
+          '<div class="legende">' + esc(j.consequence) + '</div></div>';
+      }).join('') + '</div>' +
+      '<div class="tableau-conteneur seul-pc"><table>' +
+        '<thead><tr><th scope="col">Jalon</th><th scope="col" class="num">Seuil</th><th scope="col" class="num">Reste</th><th scope="col">État</th></tr></thead><tbody>' +
+        jalons.map(function (j) {
+          return '<tr><td>' + (j.vise ? '<strong>' + esc(j.libelle) + '</strong>' : esc(j.libelle)) + '<div class="legende">' + esc(j.consequence) + '</div></td>' +
+            '<td class="num mono">' + euros(j.seuil) + '</td>' +
+            '<td class="num mono">' + (j.reste >= 0 ? euros(j.reste) : '− ' + euros(-j.reste)) + '</td>' +
+            '<td>' + pastilleEtat(j.etat, ca.alertePct) + '</td></tr>';
+        }).join('') +
+      '</tbody></table></div>' +
+      '<p class="legende">Engagé = encaissé + factures non payées (' + euros(ca.aEncaisser) + ') + reste à facturer sur les affaires gagnées (' + euros(ca.resteAFacturer) + '). ' +
+      'Factures et encaissements : onglet Factures du classeur (écran de saisie au lot 4).</p>';
   }
 
   function ecranParametres(el) {

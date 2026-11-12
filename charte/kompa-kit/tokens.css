@@ -1,0 +1,46 @@
+/* Kompa Ingénierie — variables de la charte (V1).
+   Source de vérité : ne jamais coder une couleur en dur.
+   Les teintes marquées [commun] sont partagées avec Kontrol. */
+
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+
+:root {
+  /* Couleurs */
+  --kompa-encre: #0B1220;        /* [commun] texte courant */
+  --kompa-ardoise: #1B263B;      /* [commun] logo, titres, fonds sombres */
+  --kompa-rouille: #B4460E;      /* accent sur fond clair (5:1 sur papier) */
+  --kompa-rouille-clair: #E2733A;/* accent sur fond sombre (≥ 5:1 sur ardoise/encre) */
+  --kompa-papier: #F6F5F1;       /* fond des documents */
+  --kompa-brume: #EEF1F6;        /* [commun] bandeaux, aplats, en-têtes de tableau */
+  --kompa-gris: #4A5568;         /* [commun] texte secondaire, légendes */
+  --kompa-filet: #D5DBE5;        /* [commun] traits, bordures de tableau */
+  --kompa-blanc: #FFFFFF;
+  --kompa-texte-inverse: #EEF2F8;        /* texte sur ardoise */
+  --kompa-texte-inverse-2: #A3B0C4;      /* texte secondaire sur ardoise */
+
+  /* Typographie */
+  --kompa-font-sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --kompa-font-mono: "IBM Plex Mono", "Consolas", "Courier New", monospace;
+
+  --kompa-fs-display: 68px;  /* accroche plaquette / couverture — 700, -0.015em */
+  --kompa-fs-h1: 40px;       /* 700, -0.015em */
+  --kompa-fs-h2: 28px;       /* 700, -0.01em */
+  --kompa-fs-h3: 20px;       /* 600 */
+  --kompa-fs-body: 16px;     /* 400, interligne 1.55 */
+  --kompa-fs-small: 14px;    /* 400 */
+  --kompa-fs-kicker: 13px;   /* 600, capitales, interlettrage 0.14em */
+  --kompa-fs-mono: 14px;     /* 500 — références */
+
+  /* Formes */
+  --kompa-radius-sm: 4px;
+  --kompa-radius: 12px;
+  --kompa-radius-lg: 16px;
+  --kompa-radius-icone: 22%;
+  --kompa-filet-section: 2px solid var(--kompa-ardoise);
+  --kompa-filet-etape: 4px solid var(--kompa-rouille);
+  --kompa-filet-fin: 1px solid var(--kompa-filet);
+
+  /* Espacements (base 4) */
+  --kompa-s1: 4px;  --kompa-s2: 8px;  --kompa-s3: 12px; --kompa-s4: 16px;
+  --kompa-s5: 24px; --kompa-s6: 32px; --kompa-s7: 48px; --kompa-s8: 64px;
+}

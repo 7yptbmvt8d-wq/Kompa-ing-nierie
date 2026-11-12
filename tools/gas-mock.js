@@ -184,11 +184,17 @@ function creerEnvironnement(options = {}) {
   };
 
   const contexte = vm.createContext(Object.assign({}, gas));
-  const dossierSrc = path.join(__dirname, '..', 'src');
-  fs.readdirSync(dossierSrc)
-    .filter((f) => f.endsWith('.js'))
-    .sort()
-    .forEach((f) => vm.runInContext(fs.readFileSync(path.join(dossierSrc, f), 'utf8'), contexte, { filename: f }));
+  if (options.dist) {
+    // Version assemblée pour le copier-coller (dist/Code.gs)
+    const f = path.join(__dirname, '..', 'dist', 'Code.gs');
+    vm.runInContext(fs.readFileSync(f, 'utf8'), contexte, { filename: 'Code.gs' });
+  } else {
+    const dossierSrc = path.join(__dirname, '..', 'src');
+    fs.readdirSync(dossierSrc)
+      .filter((f) => f.endsWith('.js'))
+      .sort()
+      .forEach((f) => vm.runInContext(fs.readFileSync(path.join(dossierSrc, f), 'utf8'), contexte, { filename: f }));
+  }
 
   return { ctx: contexte, classeurs, proprietes, declencheurs, fichiersDrive };
 }

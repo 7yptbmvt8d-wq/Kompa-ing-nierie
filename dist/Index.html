@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<!-- Kompa Affaires 1.0.0-lot1 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
+<html lang="fr">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+/* Kompa Ingénierie — variables de la charte (V1).
+   Copie conforme de charte/kompa-kit/tokens.css (sans l'@import des polices,
+   chargées dans Styles.html). En cas de mise à jour du kit, recopier ce bloc. */
+:root {
+  /* Couleurs */
+  --kompa-encre: #0B1220;        /* [commun] texte courant */
+  --kompa-ardoise: #1B263B;      /* [commun] logo, titres, fonds sombres */
+  --kompa-rouille: #B4460E;      /* accent sur fond clair (5:1 sur papier) */
+  --kompa-rouille-clair: #E2733A;/* accent sur fond sombre (≥ 5:1 sur ardoise/encre) */
+  --kompa-papier: #F6F5F1;       /* fond des documents */
+  --kompa-brume: #EEF1F6;        /* [commun] bandeaux, aplats, en-têtes de tableau */
+  --kompa-gris: #4A5568;         /* [commun] texte secondaire, légendes */
+  --kompa-filet: #D5DBE5;        /* [commun] traits, bordures de tableau */
+  --kompa-blanc: #FFFFFF;
+  --kompa-texte-inverse: #EEF2F8;        /* texte sur ardoise */
+  --kompa-texte-inverse-2: #A3B0C4;      /* texte secondaire sur ardoise */
+
+  /* Typographie */
+  --kompa-font-sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --kompa-font-mono: "IBM Plex Mono", "Consolas", "Courier New", monospace;
+
+  --kompa-fs-display: 68px;  /* accroche plaquette / couverture — 700, -0.015em */
+  --kompa-fs-h1: 40px;       /* 700, -0.015em */
+  --kompa-fs-h2: 28px;       /* 700, -0.01em */
+  --kompa-fs-h3: 20px;       /* 600 */
+  --kompa-fs-body: 16px;     /* 400, interligne 1.55 */
+  --kompa-fs-small: 14px;    /* 400 */
+  --kompa-fs-kicker: 13px;   /* 600, capitales, interlettrage 0.14em */
+  --kompa-fs-mono: 14px;     /* 500 — références */
+
+  /* Formes */
+  --kompa-radius-sm: 4px;
+  --kompa-radius: 12px;
+  --kompa-radius-lg: 16px;
+  --kompa-radius-icone: 22%;
+  --kompa-filet-section: 2px solid var(--kompa-ardoise);
+  --kompa-filet-etape: 4px solid var(--kompa-rouille);
+  --kompa-filet-fin: 1px solid var(--kompa-filet);
+
+  /* Espacements (base 4) */
+  --kompa-s1: 4px;  --kompa-s2: 8px;  --kompa-s3: 12px; --kompa-s4: 16px;
+  --kompa-s5: 24px; --kompa-s6: 32px; --kompa-s7: 48px; --kompa-s8: 64px;
+}
+</style>
+<style>
+/* Extension propre à l'app Kompa Affaires — absente du kit.
+   Statuts (§ 10 du cahier des charges) : une couleur par famille, toujours avec
+   un libellé texte. Contrastes vérifiés ≥ 4,5:1 (texte sur fond indiqué). */
+:root {
+  --app-statut-encours: var(--kompa-ardoise);      /* sur brume : 13,4:1 */
+  --app-statut-encours-fond: var(--kompa-brume);
+  --app-statut-abandonnee: var(--kompa-gris);      /* sur brume : 6,7:1 */
+  --app-statut-abandonnee-fond: var(--kompa-brume);
+  --app-statut-gagnee: #1E6B3A;                    /* sur son fond : 5,7:1 */
+  --app-statut-gagnee-fond: #E6F2EA;
+  --app-statut-perdue: #9B1C1C;                    /* sur son fond : 6,8:1 */
+  --app-statut-perdue-fond: #F9E6E6;
+
+  --app-focus: var(--kompa-ardoise);
+  --app-cible-tactile: 44px;
+}
+</style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Styles Kompa Affaires — couleurs : variables de Tokens.html uniquement. */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--kompa-blanc);
+  color: var(--kompa-encre);
+  font-family: var(--kompa-font-sans);
+  font-size: var(--kompa-fs-body);
+  line-height: 1.55;
+  -webkit-text-size-adjust: 100%;
+}
+.mono { font-family: var(--kompa-font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+a { color: var(--kompa-ardoise); text-underline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--app-focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.seul-lecteur { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ——— En-tête ardoise ——— */
+.entete {
+  background: var(--kompa-ardoise);
+  color: var(--kompa-texte-inverse);
+  position: sticky; top: 0; z-index: 10;
+  padding-top: env(safe-area-inset-top);
+}
+.entete__barre {
+  display: flex; align-items: center; gap: var(--kompa-s6);
+  max-width: 1280px; margin: 0 auto; padding: 0 var(--kompa-s5);
+  min-height: 60px;
+}
+.marque { display: flex; align-items: center; gap: var(--kompa-s3); color: inherit; text-decoration: none; flex-shrink: 0; }
+.marque svg { height: 32px; width: auto; display: block; }
+.marque__nom { font-weight: 700; font-size: 17px; letter-spacing: 0.01em; white-space: nowrap; }
+.marque__nom span { font-weight: 500; color: var(--kompa-texte-inverse-2); }
+
+.nav { display: flex; gap: var(--kompa-s1); overflow-x: auto; scrollbar-width: none; }
+.nav::-webkit-scrollbar { display: none; }
+.nav a {
+  color: var(--kompa-texte-inverse-2); text-decoration: none; white-space: nowrap;
+  padding: 0 var(--kompa-s3); min-height: 60px; display: flex; align-items: center;
+  border-bottom: 3px solid transparent; font-weight: 500; font-size: 15px;
+}
+.nav a:hover { color: var(--kompa-texte-inverse); }
+.nav a[aria-current="page"] { color: var(--kompa-texte-inverse); border-bottom-color: var(--kompa-rouille-clair); }
+
+/* ——— Contenu ——— */
+main { max-width: 1280px; margin: 0 auto; padding: var(--kompa-s6) var(--kompa-s5); }
+.titre-ecran { display: flex; align-items: baseline; justify-content: space-between; gap: var(--kompa-s4); flex-wrap: wrap; margin: 0 0 var(--kompa-s5); }
+.titre-ecran h1 { font-size: var(--kompa-fs-h2); font-weight: 700; letter-spacing: -0.01em; color: var(--kompa-ardoise); margin: 0; }
+.titre-ecran p { margin: 0; color: var(--kompa-gris); font-size: var(--kompa-fs-small); }
+h2 { font-size: var(--kompa-fs-h3); font-weight: 600; color: var(--kompa-encre); margin: 0 0 var(--kompa-s3); }
+.legende { color: var(--kompa-gris); font-size: var(--kompa-fs-small); }
+
+.grille { display: grid; gap: var(--kompa-s4); grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.carte { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius); background: var(--kompa-blanc); padding: var(--kompa-s5); }
+@media (min-width: 761px) { .carte--large { grid-column: span 2; } }
+.carte--attente { background: var(--kompa-brume); border-color: var(--kompa-brume); }
+.carte--attente p { color: var(--kompa-gris); margin: 0; font-size: var(--kompa-fs-small); }
+.carte__lot { font-family: var(--kompa-font-mono); font-weight: 500; font-size: 13px; color: var(--kompa-gris); margin-bottom: var(--kompa-s1); }
+
+.liste-def { display: grid; grid-template-columns: max-content 1fr; gap: var(--kompa-s2) var(--kompa-s4); margin: 0; font-size: var(--kompa-fs-small); }
+.liste-def dt { color: var(--kompa-gris); white-space: nowrap; }
+.liste-def dd { margin: 0; overflow-wrap: anywhere; }
+
+/* ——— Tableaux (en-tête brume, filets horizontaux, montants à droite) ——— */
+.tableau-conteneur { overflow-x: auto; border-top: var(--kompa-filet-fin); }
+table { width: 100%; border-collapse: collapse; font-size: var(--kompa-fs-small); }
+thead th {
+  background: var(--kompa-brume); color: var(--kompa-ardoise); font-weight: 600;
+  text-align: left; padding: var(--kompa-s2) var(--kompa-s3); border-bottom: var(--kompa-filet-fin);
+}
+tbody td { padding: var(--kompa-s2) var(--kompa-s3); border-bottom: var(--kompa-filet-fin); vertical-align: top; }
+td.num, th.num { text-align: right; white-space: nowrap; }
+.seul-mobile { display: none; }
+.ca-jalon { padding: var(--kompa-s3) 0; border-bottom: var(--kompa-filet-fin); font-size: var(--kompa-fs-small); }
+.ca-jalon:first-child { border-top: var(--kompa-filet-fin); }
+.ca-jalon__tete { display: flex; justify-content: space-between; align-items: center; gap: var(--kompa-s2); margin-bottom: var(--kompa-s1); }
+
+/* ——— Statuts (couleur + libellé) ——— */
+.statut {
+  display: inline-flex; align-items: center; gap: var(--kompa-s1); white-space: nowrap;
+  font-size: 13px; font-weight: 600; padding: 2px var(--kompa-s2); border-radius: var(--kompa-radius-sm);
+}
+.statut::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.statut--ok { color: var(--app-statut-gagnee); background: var(--app-statut-gagnee-fond); }
+.statut--ko { color: var(--app-statut-perdue); background: var(--app-statut-perdue-fond); }
+.statut--encours { color: var(--app-statut-encours); background: var(--app-statut-encours-fond); }
+.statut--neutre { color: var(--app-statut-abandonnee); background: var(--app-statut-abandonnee-fond); }
+.statut--alerte { color: var(--kompa-rouille); background: var(--kompa-blanc); box-shadow: inset 0 0 0 1px var(--kompa-rouille); }
+
+/* ——— Compteur de CA ——— */
+.ca-chiffres { display: flex; flex-wrap: wrap; gap: var(--kompa-s5); margin-bottom: var(--kompa-s4); }
+.ca-chiffre__valeur { font-family: var(--kompa-font-mono); font-weight: 500; font-size: var(--kompa-fs-h2); color: var(--kompa-ardoise); line-height: 1.2; }
+.ca-chiffre__valeur--second { font-size: var(--kompa-fs-h3); color: var(--kompa-gris); }
+.ca-message { margin: 0 0 var(--kompa-s4); font-weight: 600; }
+.ca-message--alerte { color: var(--kompa-rouille); }
+.jauge { position: relative; height: 14px; background: var(--kompa-brume); border-radius: var(--kompa-radius-sm); margin: var(--kompa-s2) 0 var(--kompa-s5); }
+.jauge__engage, .jauge__encaisse { position: absolute; left: 0; top: 0; bottom: 0; border-radius: var(--kompa-radius-sm); }
+.jauge__engage { background: var(--kompa-texte-inverse-2); }
+.jauge__encaisse { background: var(--kompa-ardoise); }
+.jauge__repere { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--kompa-encre); }
+.jauge__repere--vise { width: 4px; }
+.cle-jauge { display: flex; gap: var(--kompa-s4); flex-wrap: wrap; font-size: 13px; color: var(--kompa-gris); margin-top: calc(-1 * var(--kompa-s3)); margin-bottom: var(--kompa-s4); }
+.cle-jauge span::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: var(--kompa-s1); vertical-align: -1px; border-radius: 2px; }
+.cle-jauge .cle--encaisse::before { background: var(--kompa-ardoise); }
+.cle-jauge .cle--engage::before { background: var(--kompa-texte-inverse-2); }
+.cle-jauge .cle--repere::before { width: 2px; background: var(--kompa-encre); }
+
+/* ——— Formulaires ——— */
+.champ {
+  width: 100%; font: inherit; font-size: var(--kompa-fs-small); color: var(--kompa-encre); background: var(--kompa-blanc);
+  border: 1px solid var(--kompa-filet); border-radius: var(--kompa-radius-sm);
+  padding: var(--kompa-s2) var(--kompa-s3); min-height: 38px;
+}
+.champ.mono { font-family: var(--kompa-font-mono); font-weight: 400; }
+.champ:focus { border-color: var(--kompa-ardoise); outline: none; box-shadow: 0 0 0 1px var(--kompa-ardoise); }
+textarea.champ { resize: vertical; }
+.champ.est-modifie { border-color: var(--kompa-ardoise); background: var(--kompa-brume); }
+
+.bouton {
+  font: inherit; font-weight: 600; font-size: var(--kompa-fs-small); cursor: pointer;
+  border: 1px solid var(--kompa-ardoise); background: var(--kompa-ardoise); color: var(--kompa-texte-inverse);
+  border-radius: var(--kompa-radius-sm); padding: 0 var(--kompa-s4); min-height: 38px;
+}
+.bouton:disabled { cursor: default; background: var(--kompa-brume); border-color: var(--kompa-brume); color: var(--kompa-gris); }
+
+/* ——— Paramètres ——— */
+.groupe-param { margin-bottom: var(--kompa-s6); padding-top: var(--kompa-s3); border-top: var(--kompa-filet-section); }
+.param-cle { font-family: var(--kompa-font-mono); font-weight: 500; font-size: 13px; white-space: nowrap; }
+.param-com { color: var(--kompa-gris); }
+.param-date { font-family: var(--kompa-font-mono); font-size: 13px; color: var(--kompa-gris); white-space: nowrap; }
+.col-cle { width: 22%; } .col-val { width: 40%; } .col-com { width: 24%; } .col-act { width: 1%; }
+.param-carte { padding: var(--kompa-s3) 0; border-bottom: var(--kompa-filet-fin); font-size: var(--kompa-fs-small); }
+.param-carte .param-val { font-family: var(--kompa-font-mono); font-weight: 500; overflow-wrap: anywhere; margin-top: var(--kompa-s1); }
+.vide { color: var(--kompa-gris); font-style: italic; font-family: var(--kompa-font-sans); font-weight: 400; }
+
+/* ——— Messages ——— */
+.bandeau { border-radius: var(--kompa-radius-sm); padding: var(--kompa-s3) var(--kompa-s4); margin-bottom: var(--kompa-s4); background: var(--kompa-brume); font-size: var(--kompa-fs-small); }
+.bandeau--erreur { background: var(--app-statut-perdue-fond); color: var(--app-statut-perdue); }
+.chargement { color: var(--kompa-gris); padding: var(--kompa-s4) 0; font-size: var(--kompa-fs-small); }
+.toast {
+  position: fixed; left: 50%; bottom: calc(var(--kompa-s5) + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  background: var(--kompa-ardoise); color: var(--kompa-texte-inverse); padding: var(--kompa-s3) var(--kompa-s4);
+  border-radius: var(--kompa-radius-sm); z-index: 20; max-width: calc(100% - 32px); font-size: var(--kompa-fs-small);
+}
+.toast--erreur { background: var(--app-statut-perdue); }
+
+.pied { max-width: 1280px; margin: 0 auto; padding: var(--kompa-s4) var(--kompa-s5) var(--kompa-s6); color: var(--kompa-gris); font-size: 13px; }
+
+/* ——— Mobile ——— */
+@media (max-width: 760px) {
+  .seul-pc { display: none !important; }
+  .seul-mobile { display: block; }
+  .ca-jalons-mobile { margin-bottom: var(--kompa-s3); }
+  .entete__barre { flex-direction: column; align-items: stretch; gap: 0; padding: 0; }
+  .marque { padding: var(--kompa-s3) var(--kompa-s4) 0; }
+  .marque svg { height: 28px; }
+  .nav { padding: 0 var(--kompa-s2); }
+  .nav a { min-height: var(--app-cible-tactile); }
+  main { padding: var(--kompa-s5) var(--kompa-s4); }
+  .pied { padding: var(--kompa-s4); }
+  .titre-ecran h1 { font-size: var(--kompa-fs-h3); }
+  .carte { padding: var(--kompa-s4); }
+  .bouton, .champ { min-height: var(--app-cible-tactile); }
+  .liste-def { grid-template-columns: 1fr; gap: 0; }
+  .liste-def dd { margin-bottom: var(--kompa-s2); }
+  .ca-chiffre__valeur { font-size: var(--kompa-fs-h3); }
+}
+</style>
+</head>
+<body>
+  <header class="entete">
+    <div class="entete__barre">
+      <a class="marque" href="#accueil" aria-label="Kompa Affaires — accueil">
+        <!-- Symbole négatif du kit (charte/kompa-kit/logos/svg/kompa-symbole-negatif.svg), non modifié -->
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="6 -1 88 109" width="88" height="109" aria-hidden="true" focusable="false"><circle cx="50" cy="16" r="10" fill="none" stroke="#EEF2F8" stroke-width="6.0"/><path d="M44.5 25 L14 100" fill="none" stroke="#EEF2F8" stroke-width="7.0" stroke-linecap="round"/><path d="M21.5 86.5 Q50 97 79 83" fill="none" stroke="#EEF2F8" stroke-width="6.5" stroke-linecap="round"/><path d="M55.5 25 L86 100" fill="none" stroke="#E2733A" stroke-width="7.0" stroke-linecap="round"/></svg>
+        <span class="marque__nom">Kompa <span>Affaires</span></span>
+      </a>
+      <nav class="nav" aria-label="Navigation principale">
+        <a href="#accueil">Accueil</a>
+        <a href="#veille">Veille</a>
+        <a href="#affaires">Affaires</a>
+        <a href="#echeancier">Échéancier</a>
+        <a href="#enseignements">Enseignements</a>
+        <a href="#parametres">Paramètres</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="ecran" tabindex="-1"></main>
+
+  <footer class="pied mono" id="pied"></footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script>
+/* Kompa Affaires — interface (lot 1 : socle). */
+(function () {
+  'use strict';
+
+  // ——— Appels serveur ———
+  function appel(nom) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resoudre, rejeter) {
+      var runner = google.script.run
+        .withSuccessHandler(function (r) {
+          if (r && r.ok) resoudre(r.data);
+          else rejeter(new Error((r && r.erreur) || 'Réponse vide du serveur.'));
+        })
+        .withFailureHandler(function (e) { rejeter(e instanceof Error ? e : new Error(String(e))); });
+      runner[nom].apply(runner, args);
+    });
+  }
+
+  // ——— Utilitaires ———
+  var $ = function (sel, racine) { return (racine || document).querySelector(sel); };
+  var $$ = function (sel, racine) { return Array.prototype.slice.call((racine || document).querySelectorAll(sel)); };
+
+  function esc(v) {
+    return String(v === null || v === undefined ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function dateHeure(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d)) return '';
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  var toastMinuteur = null;
+  function toast(message, erreur) {
+    var t = $('#toast');
+    t.textContent = message;
+    t.className = 'toast' + (erreur ? ' toast--erreur' : '');
+    t.hidden = false;
+    clearTimeout(toastMinuteur);
+    toastMinuteur = setTimeout(function () { t.hidden = true; }, erreur ? 6000 : 2500);
+  }
+
+  function estMobile() { return window.matchMedia('(max-width: 760px)').matches; }
+
+  function bandeauErreur(e) {
+    return '<div class="bandeau bandeau--erreur" role="alert"><strong>Erreur.</strong> ' + esc(e.message || e) + '</div>';
+  }
+
+  function titre(t, sousTitre) {
+    return '<div class="titre-ecran"><h1>' + esc(t) + '</h1>' + (sousTitre ? '<p>' + esc(sousTitre) + '</p>' : '') + '</div>';
+  }
+
+  function carteAttente(t, lot, texte) {
+    return '<section class="carte carte--attente"><div class="carte__lot">' + esc(lot) + '</div>' +
+      '<h2>' + esc(t) + '</h2><p>' + esc(texte) + '</p></section>';
+  }
+
+  // ——— Écrans ———
+  var ECRANS = {
+    accueil: { titre: 'Accueil', rendu: ecranAccueil },
+    veille: { titre: 'Veille', rendu: ecranAttente('Veille', 'Lot 3', [
+      ['Avis collectés', 'BOAMP et alertes des plateformes, filtrés, dédoublonnés et pré-scorés chaque matin à 6 h.'],
+      ['Étudier / Ignorer', 'Un clic pour transformer un avis en affaire.']
+    ]) },
+    affaires: { titre: 'Affaires', rendu: ecranAttente('Affaires', 'Lot 2', [
+      ['Vue en colonnes', 'Une colonne par statut, glisser-déposer pour changer de statut.'],
+      ['Fiche affaire', 'Identification, échéances, décision, offre, résultat, enseignements, exécution, journal.']
+    ]) },
+    echeancier: { titre: 'Échéancier', rendu: ecranAttente('Échéancier', 'Lot 4', [
+      ['Calendrier', 'Remises, questions, visites, décisions attendues.'],
+      ['Relances', 'Motifs de rejet, décisions en attente, encaissements, avec modèles de courriers.']
+    ]) },
+    enseignements: { titre: 'Enseignements', rendu: ecranAttente('Enseignements', 'Lot 5', [
+      ['Offres perdues', 'Écarts de prix et de note avec l\'attributaire, motifs, actions correctives.']
+    ]) },
+    parametres: { titre: 'Paramètres', rendu: ecranParametres }
+  };
+
+  function ecranAttente(nom, lot, cartes) {
+    return function (el) {
+      el.innerHTML = titre(nom, 'Disponible au ' + lot.toLowerCase()) +
+        '<div class="grille">' + cartes.map(function (c) { return carteAttente(c[0], lot, c[1]); }).join('') + '</div>';
+    };
+  }
+
+  function ecranAccueil(el) {
+    el.innerHTML = titre('Accueil', '') +
+      '<div class="grille">' +
+        '<section class="carte carte--large" id="carte-ca"><h2>Chiffre d\'affaires</h2><div class="chargement">Calcul du CA…</div></section>' +
+        '<section class="carte" id="carte-etat"><h2>État du socle</h2><div class="chargement">Lecture du classeur…</div></section>' +
+        carteAttente('Tableau de bord', 'Lot 5', 'Affaires par statut, taux de Go et d\'attribution, écarts avec les attributaires.') +
+        carteAttente('Échéances à 7 jours', 'Lot 4', 'Remises, questions à l\'acheteur, visites de site.') +
+        carteAttente('Relances à faire', 'Lot 4', 'Motifs de rejet, décisions en attente, factures à encaisser.') +
+      '</div>';
+
+    appel('apiCompteurCA').then(function (ca) {
+      $('#carte-ca').innerHTML = rendreCompteur(ca);
+    }).catch(function (e) {
+      $('#carte-ca').innerHTML = '<h2>Chiffre d\'affaires</h2>' + bandeauErreur(e);
+    });
+
+    appel('apiEtat').then(function (etat) {
+      var present = etat.onglets.filter(function (o) { return o.present; }).length;
+      var ok = present === etat.onglets.length;
+      $('#carte-etat').innerHTML = '<h2>État du socle</h2>' +
+        '<dl class="liste-def">' +
+          '<dt>Classeur</dt><dd><span class="statut ' + (ok ? 'statut--ok">Connecté' : 'statut--ko">Incomplet') + '</span> ' +
+            '<a href="' + esc(etat.classeur.url) + '" target="_blank" rel="noopener">' + esc(etat.classeur.nom) + '</a></dd>' +
+          '<dt>Onglets</dt><dd class="mono">' + present + ' / ' + etat.onglets.length + '</dd>' +
+          '<dt>Compte</dt><dd class="mono">' + esc(etat.compte) + '</dd>' +
+          '<dt>E-mails restants</dt><dd class="mono">' + esc(etat.quotaEmailRestant) + ' aujourd\'hui</dd>' +
+          '<dt>Déclencheurs</dt><dd class="mono">' + (etat.declencheurs.length ? esc(etat.declencheurs.join(', ')) : '<span class="vide">aucun</span>') + '</dd>' +
+          '<dt>Lu à</dt><dd class="mono">' + esc(dateHeure(etat.maintenant)) + '</dd>' +
+        '</dl>';
+      $('#pied').textContent = etat.app + ' · v' + etat.version;
+    }).catch(function (e) {
+      $('#carte-etat').innerHTML = '<h2>État du socle</h2>' + bandeauErreur(e);
+    });
+  }
+
+  var formatEuro = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
+  function euros(n) { return formatEuro.format(n) + '\u00a0€'; }
+
+  function pastilleEtat(etat, pct) {
+    if (etat === 'depasse') return '<span class="statut statut--ko">Dépassé</span>';
+    if (etat === 'alerte') return '<span class="statut statut--alerte">≥ ' + pct + ' %</span>';
+    return '<span class="statut statut--ok">Sous le seuil</span>';
+  }
+
+  function rendreCompteur(ca) {
+    var jalons = ca.jalons;
+    var prochain = jalons.filter(function (j) { return j.cle === ca.prochain; })[0];
+    var echelle = Math.max(ca.engage, Math.max.apply(null, jalons.map(function (j) { return j.seuil; }).concat([1]))) * 1.02;
+    var pc = function (v) { return Math.min(v / echelle * 100, 100).toFixed(2) + '%'; };
+
+    var message;
+    if (!prochain) {
+      message = '<p class="ca-message ca-message--alerte" role="alert">Tous les seuils sont dépassés.</p>';
+    } else if (prochain.etat === 'alerte') {
+      message = '<p class="ca-message ca-message--alerte" role="alert">Alerte — ' + esc(prochain.libelle) +
+        ' : plus que <span class="mono">' + euros(prochain.reste) + '</span> avant <span class="mono">' + euros(prochain.seuil) + '</span>.</p>';
+    } else {
+      message = '<p class="ca-message">Prochain jalon — ' + esc(prochain.libelle) +
+        ' — reste <span class="mono">' + euros(prochain.reste) + '</span> à encaisser.</p>';
+    }
+    // Seuil le plus élevé que le CA engagé franchirait (le plus lourd de conséquences).
+    var risque = jalons.filter(function (j) { return j.etat !== 'depasse' && j.etatEngage === 'depasse'; }).pop();
+    if (risque) {
+      message += '<p class="ca-message ca-message--alerte">Avec le CA engagé : ' + esc(risque.libelle) +
+        ' dépassé de <span class="mono">' + euros(-risque.resteEngage) + '</span>. ' + esc(risque.consequence) + '</p>';
+    }
+
+    return '<h2>Chiffre d\'affaires ' + esc(ca.annee) + '</h2>' +
+      '<div class="ca-chiffres">' +
+        '<div><div class="legende">Encaissé</div><div class="ca-chiffre__valeur">' + euros(ca.encaisse) + '</div></div>' +
+        '<div><div class="legende">Engagé</div><div class="ca-chiffre__valeur ca-chiffre__valeur--second">' + euros(ca.engage) + '</div></div>' +
+        '<div><div class="legende">Facturé ' + esc(ca.annee) + '</div><div class="ca-chiffre__valeur ca-chiffre__valeur--second">' + euros(ca.facture) + '</div></div>' +
+      '</div>' +
+      message +
+      '<div class="jauge" role="img" aria-label="Encaissé ' + euros(ca.encaisse) + ', engagé ' + euros(ca.engage) + '">' +
+        '<div class="jauge__engage" style="width:' + pc(ca.engage) + '"></div>' +
+        '<div class="jauge__encaisse" style="width:' + pc(ca.encaisse) + '"></div>' +
+        jalons.map(function (j) {
+          return '<div class="jauge__repere' + (j.vise ? ' jauge__repere--vise' : '') + '" style="left:' + pc(j.seuil) + '" title="' + esc(j.libelle) + ' — ' + euros(j.seuil) + '"></div>';
+        }).join('') +
+      '</div>' +
+      '<div class="cle-jauge"><span class="cle--encaisse">Encaissé</span><span class="cle--engage">Engagé</span><span class="cle--repere">Seuils</span></div>' +
+      '<div class="ca-jalons-mobile seul-mobile">' + jalons.map(function (j) {
+        return '<div class="ca-jalon">' +
+          '<div class="ca-jalon__tete"><span>' + (j.vise ? '<strong>' + esc(j.libelle) + '</strong>' : esc(j.libelle)) + '</span>' + pastilleEtat(j.etat, ca.alertePct) + '</div>' +
+          '<div class="mono">' + euros(j.seuil) + ' · reste ' + (j.reste >= 0 ? euros(j.reste) : '− ' + euros(-j.reste)) + '</div>' +
+          '<div class="legende">' + esc(j.consequence) + '</div></div>';
+      }).join('') + '</div>' +
+      '<div class="tableau-conteneur seul-pc"><table>' +
+        '<thead><tr><th scope="col">Jalon</th><th scope="col" class="num">Seuil</th><th scope="col" class="num">Reste</th><th scope="col">État</th></tr></thead><tbody>' +
+        jalons.map(function (j) {
+          return '<tr><td>' + (j.vise ? '<strong>' + esc(j.libelle) + '</strong>' : esc(j.libelle)) + '<div class="legende">' + esc(j.consequence) + '</div></td>' +
+            '<td class="num mono">' + euros(j.seuil) + '</td>' +
+            '<td class="num mono">' + (j.reste >= 0 ? euros(j.reste) : '− ' + euros(-j.reste)) + '</td>' +
+            '<td>' + pastilleEtat(j.etat, ca.alertePct) + '</td></tr>';
+        }).join('') +
+      '</tbody></table></div>' +
+      '<p class="legende">Engagé = encaissé + factures non payées (' + euros(ca.aEncaisser) + ') + reste à facturer sur les affaires gagnées (' + euros(ca.resteAFacturer) + '). ' +
+      'Factures et encaissements : onglet Factures du classeur (écran de saisie au lot 4).</p>';
+  }
+
+  function ecranParametres(el) {
+    el.innerHTML = titre('Paramètres', 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.') +
+      '<div class="chargement">Lecture des paramètres…</div>';
+
+    appel('apiParametres').then(function (groupes) {
+      var mobile = estMobile();
+      var html = titre('Paramètres', mobile
+        ? 'Lecture seule sur téléphone — modification sur PC.'
+        : 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.');
+      groupes.forEach(function (g) {
+        html += '<section class="groupe-param"><h2>' + esc(g.titre) + '</h2>';
+        html += mobile ? paramsMobile(g.parametres) : paramsPC(g.parametres);
+        html += '</section>';
+      });
+      el.innerHTML = html;
+      if (!mobile) brancherParams(el);
+    }).catch(function (e) {
+      el.innerHTML = titre('Paramètres', '') + bandeauErreur(e);
+    });
+  }
+
+  function paramsPC(params) {
+    return '<div class="tableau-conteneur"><table>' +
+      '<colgroup><col class="col-cle"><col class="col-val"><col class="col-com"><col><col class="col-act"></colgroup>' +
+      '<thead><tr><th scope="col">Clé</th><th scope="col">Valeur</th><th scope="col">Commentaire</th><th scope="col">Modifié le</th><th scope="col"><span class="seul-lecteur">Action</span></th></tr></thead><tbody>' +
+      params.map(function (p) {
+        var long = p.valeur.indexOf(';') >= 0 || p.valeur.length > 40;
+        var id = 'p-' + p.cle.replace(/[^a-z0-9]/gi, '-');
+        var champ = long
+          ? '<textarea class="champ mono" id="' + id + '" rows="2">' + esc(p.valeur) + '</textarea>'
+          : '<input class="champ mono" id="' + id + '" type="text" value="' + esc(p.valeur) + '">';
+        return '<tr data-cle="' + esc(p.cle) + '" data-initial="' + esc(p.valeur) + '">' +
+          '<td><label class="param-cle" for="' + id + '">' + esc(p.cle) + '</label></td>' +
+          '<td>' + champ + '</td>' +
+          '<td class="param-com">' + esc(p.commentaire) + '</td>' +
+          '<td class="param-date">' + esc(dateHeure(p.modifie_le)) + '</td>' +
+          '<td><button class="bouton" type="button" disabled>Enregistrer</button></td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table></div>';
+  }
+
+  function paramsMobile(params) {
+    return params.map(function (p) {
+      return '<div class="param-carte">' +
+        '<div class="param-cle">' + esc(p.cle) + '</div>' +
+        '<div class="param-com">' + esc(p.commentaire) + '</div>' +
+        '<div class="param-val">' + (p.valeur ? esc(p.valeur.split(';').join(' · ')) : '<span class="vide">non renseigné</span>') + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function brancherParams(racine) {
+    $$('tr[data-cle]', racine).forEach(function (tr) {
+      var champ = $('.champ', tr);
+      var bouton = $('button', tr);
+      var majEtat = function () {
+        var modifie = champ.value !== tr.getAttribute('data-initial');
+        champ.classList.toggle('est-modifie', modifie);
+        bouton.disabled = !modifie;
+      };
+      var enregistrer = function () {
+        if (bouton.disabled) return;
+        bouton.disabled = true;
+        bouton.textContent = 'Envoi…';
+        appel('apiParametreEnregistrer', tr.getAttribute('data-cle'), champ.value).then(function (p) {
+          tr.setAttribute('data-initial', p.valeur);
+          champ.value = p.valeur;
+          $('.param-date', tr).textContent = dateHeure(p.modifie_le);
+          bouton.textContent = 'Enregistrer';
+          majEtat();
+          toast('Paramètre « ' + p.cle + ' » enregistré.');
+        }).catch(function (e) {
+          bouton.textContent = 'Enregistrer';
+          majEtat();
+          toast(e.message, true);
+        });
+      };
+      champ.addEventListener('input', majEtat);
+      champ.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' && (champ.tagName === 'INPUT' || ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); enregistrer(); }
+        if (ev.key === 'Escape') { champ.value = tr.getAttribute('data-initial'); majEtat(); }
+      });
+      bouton.addEventListener('click', enregistrer);
+    });
+  }
+
+  // ——— Navigation ———
+  // La web app tourne dans un iframe : on gère l'écran courant en JS et on reflète
+  // l'ancre dans l'URL de la page parente via google.script.history (liens directs).
+  var historique = window.google && google.script && google.script.history;
+
+  function afficher(nom, pousser) {
+    if (!ECRANS[nom]) nom = 'accueil';
+    $$('.nav a').forEach(function (a) {
+      if (a.getAttribute('href') === '#' + nom) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    });
+    document.title = ECRANS[nom].titre + ' — Kompa Affaires';
+    var el = $('#ecran');
+    ECRANS[nom].rendu(el);
+    if (pousser && historique) historique.push({ ecran: nom }, {}, nom);
+    window.scrollTo(0, 0);
+  }
+
+  document.addEventListener('click', function (ev) {
+    var a = ev.target.closest('a[href^="#"]');
+    if (!a) return;
+    ev.preventDefault();
+    afficher(a.getAttribute('href').slice(1), true);
+  });
+
+  if (historique) {
+    historique.setChangeHandler(function (e) { afficher((e.state && e.state.ecran) || e.location.hash || 'accueil', false); });
+  }
+
+  function demarrer() {
+    if (window.google && google.script && google.script.url) {
+      google.script.url.getLocation(function (loc) { afficher(loc.hash || 'accueil', false); });
+    } else {
+      afficher((location.hash || '').slice(1) || 'accueil', false);
+    }
+  }
+
+  $('#pied').textContent = 'Kompa Affaires';
+  demarrer();
+})();
+</script>
+</body>
+</html>

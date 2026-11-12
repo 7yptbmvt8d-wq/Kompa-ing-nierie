@@ -60,12 +60,13 @@ var PARAMETRES_DEFAUT = [
   ['score.seuil_possible', '40', 'Pré-score ≥ ce seuil : « possible » ; en dessous : archivé'],
 
   // Capacité (§ 11)
-  ['capacite.montant_max_mission', '', 'Montant HT maximal par mission (€) — À FIXER'],
-  ['capacite.charge_annuelle_jours', '', 'Charge annuelle visée (jours) — À FIXER'],
+  ['capacite.montant_max_mission', '', 'Montant HT maximal d\'une mission (€). Vide = seul le reste sous le plafond visé compte'],
+  ['capacite.charge_annuelle_jours', '', 'Jours facturables par an (facultatif, pour le suivi de charge)'],
 
   // Seuils (§ 7)
   ['seuil.tva_franchise', '37500', 'Franchise de TVA, services (€)'],
   ['seuil.tva_majore', '41250', 'Franchise de TVA, seuil majoré (€)'],
+  ['seuil.plafond_vise', '80000', 'Plafond de CA annuel que vous vous fixez, sous le plafond légal (€)'],
   ['seuil.micro_plafond', '83600', 'Plafond micro-entreprise, prestations de services (€)'],
   ['seuil.alerte_pct', '80', 'Première alerte à ce pourcentage du seuil'],
 

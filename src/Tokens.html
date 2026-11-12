@@ -1,54 +1,63 @@
 <style>
-/*
- * Tokens Kompa — VERSION PROVISOIRE.
- * À remplacer intégralement par le contenu de tokens.css du kit de charte Kompa
- * (§ 11). Seuls les noms de variables ci-dessous sont utilisés par Styles.html :
- * si le kit emploie d'autres noms, faire la correspondance en bas de ce fichier.
- */
+/* Kompa Ingénierie — variables de la charte (V1).
+   Copie conforme de charte/kompa-kit/tokens.css (sans l'@import des polices,
+   chargées dans Styles.html). En cas de mise à jour du kit, recopier ce bloc. */
 :root {
-  /* Couleurs de base */
-  --k-blanc: #FFFFFF;
-  --k-ardoise: #2E3A44;
-  --k-ardoise-clair: #44525E;
-  --k-brume: #EEF1F4;
-  --k-filet: #D8DEE4;
-  --k-texte: #1D262E;
-  --k-texte-doux: #55636F;
-  --k-sur-ardoise: #FFFFFF;
-  --k-sur-ardoise-doux: #C9D2DA;
-
-  /* Accent unique par écran */
-  --k-rouille: #B4460E;
-  --k-rouille-fond: #FBEDE5;
-
-  /* Familles de statuts (libellé texte toujours affiché en plus) */
-  --k-statut-encours: #1E5A85;
-  --k-statut-encours-fond: #E4EFF7;
-  --k-statut-gagnee: #23703A;
-  --k-statut-gagnee-fond: #E3F2E7;
-  --k-statut-perdue: #9E1C1C;
-  --k-statut-perdue-fond: #F8E4E4;
-  --k-statut-abandonnee: #5B6670;
-  --k-statut-abandonnee-fond: #ECEFF1;
-
-  /* Retours système */
-  --k-succes: #23703A;
-  --k-erreur: #9E1C1C;
-  --k-focus: #1E5A85;
+  /* Couleurs */
+  --kompa-encre: #0B1220;        /* [commun] texte courant */
+  --kompa-ardoise: #1B263B;      /* [commun] logo, titres, fonds sombres */
+  --kompa-rouille: #B4460E;      /* accent sur fond clair (5:1 sur papier) */
+  --kompa-rouille-clair: #E2733A;/* accent sur fond sombre (≥ 5:1 sur ardoise/encre) */
+  --kompa-papier: #F6F5F1;       /* fond des documents */
+  --kompa-brume: #EEF1F6;        /* [commun] bandeaux, aplats, en-têtes de tableau */
+  --kompa-gris: #4A5568;         /* [commun] texte secondaire, légendes */
+  --kompa-filet: #D5DBE5;        /* [commun] traits, bordures de tableau */
+  --kompa-blanc: #FFFFFF;
+  --kompa-texte-inverse: #EEF2F8;        /* texte sur ardoise */
+  --kompa-texte-inverse-2: #A3B0C4;      /* texte secondaire sur ardoise */
 
   /* Typographie */
-  --k-police-texte: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --k-police-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --kompa-font-sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --kompa-font-mono: "IBM Plex Mono", "Consolas", "Courier New", monospace;
 
-  /* Espacements, rayons, ombres */
-  --k-esp-1: 4px;
-  --k-esp-2: 8px;
-  --k-esp-3: 12px;
-  --k-esp-4: 16px;
-  --k-esp-5: 24px;
-  --k-esp-6: 32px;
-  --k-rayon: 6px;
-  --k-ombre: 0 1px 2px rgba(29, 38, 46, 0.08), 0 1px 3px rgba(29, 38, 46, 0.06);
-  --k-cible-tactile: 44px;
+  --kompa-fs-display: 68px;  /* accroche plaquette / couverture — 700, -0.015em */
+  --kompa-fs-h1: 40px;       /* 700, -0.015em */
+  --kompa-fs-h2: 28px;       /* 700, -0.01em */
+  --kompa-fs-h3: 20px;       /* 600 */
+  --kompa-fs-body: 16px;     /* 400, interligne 1.55 */
+  --kompa-fs-small: 14px;    /* 400 */
+  --kompa-fs-kicker: 13px;   /* 600, capitales, interlettrage 0.14em */
+  --kompa-fs-mono: 14px;     /* 500 — références */
+
+  /* Formes */
+  --kompa-radius-sm: 4px;
+  --kompa-radius: 12px;
+  --kompa-radius-lg: 16px;
+  --kompa-radius-icone: 22%;
+  --kompa-filet-section: 2px solid var(--kompa-ardoise);
+  --kompa-filet-etape: 4px solid var(--kompa-rouille);
+  --kompa-filet-fin: 1px solid var(--kompa-filet);
+
+  /* Espacements (base 4) */
+  --kompa-s1: 4px;  --kompa-s2: 8px;  --kompa-s3: 12px; --kompa-s4: 16px;
+  --kompa-s5: 24px; --kompa-s6: 32px; --kompa-s7: 48px; --kompa-s8: 64px;
+}
+</style>
+<style>
+/* Extension propre à l'app Kompa Affaires — absente du kit.
+   Statuts (§ 10 du cahier des charges) : une couleur par famille, toujours avec
+   un libellé texte. Contrastes vérifiés ≥ 4,5:1 (texte sur fond indiqué). */
+:root {
+  --app-statut-encours: var(--kompa-ardoise);      /* sur brume : 13,4:1 */
+  --app-statut-encours-fond: var(--kompa-brume);
+  --app-statut-abandonnee: var(--kompa-gris);      /* sur brume : 6,7:1 */
+  --app-statut-abandonnee-fond: var(--kompa-brume);
+  --app-statut-gagnee: #1E6B3A;                    /* sur son fond : 5,7:1 */
+  --app-statut-gagnee-fond: #E6F2EA;
+  --app-statut-perdue: #9B1C1C;                    /* sur son fond : 6,8:1 */
+  --app-statut-perdue-fond: #F9E6E6;
+
+  --app-focus: var(--kompa-ardoise);
+  --app-cible-tactile: 44px;
 }
 </style>

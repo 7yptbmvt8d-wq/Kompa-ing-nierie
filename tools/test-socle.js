@@ -142,6 +142,60 @@ test('Db : insertion, recherche et mise à jour avec horodatage', () => {
   assert.strictEqual(env.ctx.Db_trouver(T, l.id).avis_lus, 3);
 });
 
+test('compteur CA : encaissé, engagé, jalons et alertes', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer();
+  const T = env.ctx.TABLES;
+  env.ctx.Db_insererPlusieurs(T.FACTURES, [
+    { id_affaire: 'KA-2026-001', numero: 'F1', date: '15/01/2026', montant: 20000, date_encaissement: '10/02/2026', montant_encaisse: 20000 },
+    { id_affaire: 'KA-2026-001', numero: 'F2', date: new Date(2026, 4, 2), montant: '11 000,00 €', date_encaissement: new Date(2026, 5, 1), montant_encaisse: 11000 },
+    { id_affaire: 'KA-2026-002', numero: 'F3', date: '01/10/2026', montant: 4000 }, // non payée
+    { id_affaire: 'KA-2025-009', numero: 'F0', date: '01/12/2025', montant: 5000, date_encaissement: '05/01/2025', montant_encaisse: 5000 } // autre année
+  ]);
+  env.ctx.Db_insererPlusieurs(T.AFFAIRES, [
+    { id: 'KA-2026-002', statut: 'En exécution', montant_notifie: 12000, date_notification: '01/09/2026' },
+    { id: 'KA-2026-003', statut: 'Perdue', montant_notifie: '' }
+  ]);
+  const ca = brut(env.ctx.Compteur_ca(2026));
+  assert.strictEqual(ca.encaisse, 31000);
+  assert.strictEqual(ca.aEncaisser, 4000);
+  assert.strictEqual(ca.resteAFacturer, 8000);
+  assert.strictEqual(ca.engage, 43000);
+  assert.strictEqual(ca.facture, 35000);
+  assert.strictEqual(ca.signe, 12000);
+  const j = Object.fromEntries(ca.jalons.map((x) => [x.cle, x]));
+  assert.deepStrictEqual(Object.keys(j), ['seuil.tva_franchise', 'seuil.tva_majore', 'seuil.plafond_vise', 'seuil.micro_plafond']);
+  assert.strictEqual(j['seuil.tva_franchise'].etat, 'alerte'); // 31 000 ≥ 80 % de 37 500
+  assert.strictEqual(j['seuil.tva_franchise'].reste, 6500);
+  assert.strictEqual(j['seuil.tva_majore'].etatEngage, 'depasse'); // 43 000 > 41 250
+  assert.strictEqual(j['seuil.plafond_vise'].seuil, 80000);
+  assert.strictEqual(j['seuil.plafond_vise'].etat, 'ok');
+  assert.strictEqual(ca.prochain, 'seuil.tva_franchise');
+});
+
+test('compteur CA : classeur vide, aucun seuil dépassé', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer();
+  const r = env.ctx.apiCompteurCA();
+  assert.ok(r.ok, r.erreur);
+  assert.strictEqual(r.data.encaisse, 0);
+  assert.ok(r.data.jalons.every((x) => x.etat === 'ok'));
+});
+
+test('dist/ est à jour et le Code.gs assemblé fonctionne', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const avant = fs.readFileSync(path.join(__dirname, '..', 'dist', 'Code.gs'), 'utf8');
+  require('child_process').execFileSync(process.execPath, [path.join(__dirname, 'build.js')]);
+  const apres = fs.readFileSync(path.join(__dirname, '..', 'dist', 'Code.gs'), 'utf8');
+  assert.strictEqual(avant, apres, 'dist/ n\'était pas à jour : lancer npm run build et committer');
+  const env = creerEnvironnement({ dist: true });
+  env.ctx.installer();
+  assert.ok(env.ctx.apiParametreEnregistrer('seuil.plafond_vise', '75000').ok);
+  assert.ok(env.ctx.apiCompteurCA().ok);
+  assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', 'dist', 'Index.html'), 'utf8'), /<\?/);
+});
+
 let echecs = 0;
 tests.forEach(({ nom, fn }) => {
   try {

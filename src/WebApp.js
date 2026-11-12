@@ -105,3 +105,8 @@ function apiParametreEnregistrer(cle, valeur) {
     return { cle: String(l.cle), valeur: String(l.valeur), commentaire: String(l.commentaire || ''), modifie_le: l.modifie_le };
   });
 }
+
+/** Compteur de CA de l'année civile face aux seuils. */
+function apiCompteurCA() {
+  return repondre_(function () { return Compteur_ca(); });
+}

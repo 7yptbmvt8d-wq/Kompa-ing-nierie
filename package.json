@@ -5,6 +5,7 @@
   "description": "Kompa Affaires — veille et suivi des marchés publics d'AMO (Google Apps Script)",
   "scripts": {
     "test": "node tools/test-socle.js",
+    "build": "node tools/build.js",
     "apercu": "node tools/apercu.js",
     "push": "clasp push"
   }
