@@ -205,6 +205,17 @@ function creerEnvironnement(options = {}) {
       })
     },
     HtmlService: {
+      sorties: [],
+      createTemplateFromFile: () => ({
+        evaluate: () => {
+          const o = { titre: '', favicon: '', meta: {} };
+          o.setTitle = (t) => { o.titre = t; return o; };
+          o.addMetaTag = (n, v) => { o.meta[n] = v; return o; };
+          o.setFaviconUrl = (u) => { if (!/\.(png|ico|gif|jpe?g)$/i.test(u)) throw new Error('extension'); o.favicon = u; return o; };
+          gas.HtmlService.sorties.push(o);
+          return o;
+        }
+      }),
       createHtmlOutputFromFile: (nom) => ({
         getContent: () => fs.readFileSync(path.join(__dirname, '..', 'src', nom + '.html'), 'utf8')
       })

@@ -939,7 +939,10 @@ var APP = {
   DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
   PROP_DOSSIER_SAUVEGARDES_ID: 'DOSSIER_SAUVEGARDES_ID',
-  FUSEAU: 'Europe/Paris'
+  FUSEAU: 'Europe/Paris',
+  // Icône de l'onglet du navigateur : icône Kompa du kit, servie par le dépôt GitHub public
+  // (l'adresse doit se terminer par .png). Remplaçable par le paramètre app.favicon_url.
+  FAVICON: 'https://raw.githubusercontent.com/7yptbmvt8d-wq/Kompa-ing-nierie/claude/amazing-cray-l4l2w9/charte/kompa-kit/logos/png/kompa-icone-192.png'
 };
 
 /** Couleurs de mise en forme du classeur (reprises des tokens de l'app). */
@@ -2460,7 +2463,7 @@ var PARAMETRES_DEFAUT = [
   ['sauvegarde.nb_copies', '8', 'Nombre de copies hebdomadaires conservées dans Drive'],
 
   // Application
-  ['app.favicon_url', '', 'URL publique (PNG) du symbole Kompa pour l\'onglet du navigateur'],
+  ['app.favicon_url', '', 'Icône de l\'onglet : URL publique se terminant par .png (vide = icône Kompa du kit)'],
   ['app.url', '', 'Adresse /exec de l\'app pour les liens de l\'e-mail (vide = détectée automatiquement)']
 ];
 
@@ -2971,8 +2974,7 @@ function doGet() {
     .evaluate()
     .setTitle(APP.NOM);
   try {
-    var favicon = Params_texte('app.favicon_url', '');
-    if (favicon) sortie.setFaviconUrl(favicon);
+    sortie.setFaviconUrl(Params_texte('app.favicon_url', '') || APP.FAVICON);
   } catch (e) {
     // Classeur pas encore installé : la page s'affiche quand même et signale l'erreur.
   }

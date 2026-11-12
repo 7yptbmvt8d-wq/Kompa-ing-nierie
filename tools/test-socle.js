@@ -967,6 +967,16 @@ test('Drive : installer() crée le dossier de l\'exercice Mouthe', () => {
   assert.match(env.ctx.Affaires_get_('KA-2026-001').lien_dce, /folders/);
 });
 
+test('page : titre « Kompa Affaires » et icône Kompa dans l\'onglet', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const o = env.ctx.doGet();
+  assert.strictEqual(o.titre, 'Kompa Affaires');
+  assert.match(o.favicon, /kompa-icone-192\.png$/);
+  env.ctx.Params_enregistrer('app.favicon_url', 'https://exemple.fr/icone.png'); env.ctx.Params_cache_ = null;
+  assert.strictEqual(env.ctx.doGet().favicon, 'https://exemple.fr/icone.png');
+});
+
 let echecs = 0;
 tests.forEach(({ nom, fn }) => {
   try {

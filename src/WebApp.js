@@ -12,8 +12,7 @@ function doGet() {
     .evaluate()
     .setTitle(APP.NOM);
   try {
-    var favicon = Params_texte('app.favicon_url', '');
-    if (favicon) sortie.setFaviconUrl(favicon);
+    sortie.setFaviconUrl(Params_texte('app.favicon_url', '') || APP.FAVICON);
   } catch (e) {
     // Classeur pas encore installé : la page s'affiche quand même et signale l'erreur.
   }

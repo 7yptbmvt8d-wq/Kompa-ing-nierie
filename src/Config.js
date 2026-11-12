@@ -12,7 +12,10 @@ var APP = {
   DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
   PROP_DOSSIER_SAUVEGARDES_ID: 'DOSSIER_SAUVEGARDES_ID',
-  FUSEAU: 'Europe/Paris'
+  FUSEAU: 'Europe/Paris',
+  // Icône de l'onglet du navigateur : icône Kompa du kit, servie par le dépôt GitHub public
+  // (l'adresse doit se terminer par .png). Remplaçable par le paramètre app.favicon_url.
+  FAVICON: 'https://raw.githubusercontent.com/7yptbmvt8d-wq/Kompa-ing-nierie/claude/amazing-cray-l4l2w9/charte/kompa-kit/logos/png/kompa-icone-192.png'
 };
 
 /** Couleurs de mise en forme du classeur (reprises des tokens de l'app). */

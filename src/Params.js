@@ -126,7 +126,7 @@ var PARAMETRES_DEFAUT = [
   ['sauvegarde.nb_copies', '8', 'Nombre de copies hebdomadaires conservées dans Drive'],
 
   // Application
-  ['app.favicon_url', '', 'URL publique (PNG) du symbole Kompa pour l\'onglet du navigateur'],
+  ['app.favicon_url', '', 'Icône de l\'onglet : URL publique se terminant par .png (vide = icône Kompa du kit)'],
   ['app.url', '', 'Adresse /exec de l\'app pour les liens de l\'e-mail (vide = détectée automatiquement)']
 ];
 
