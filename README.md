@@ -14,7 +14,7 @@ Recette : [lot 1](docs/recette-lot-1.md) · [lot 2](docs/recette-lot-2.md) · [l
 | 2. Affaires | Fiche affaire, statuts et règles de passage, historique, vues colonnes et liste, affaire d'exercice Mouthe | Livré |
 | 3. Veille | Collecte BOAMP + boîte de veille, filtres, dédoublonnage, pré-score, écran Veille | Installé — en recette ([recette-lot-3.md](docs/recette-lot-3.md)) |
 | 4. Échéances et e-mail | Échéancier (calendrier), relances automatiques, modèles de courriers, e-mail de 7 h du lundi au vendredi vers kompa.ingenierie@gmail.com | Installé |
-| 5. Tableau de bord | Indicateurs du § 7, alertes de seuils, écran Enseignements | Livré — en recette ([recette-lot-5.md](docs/recette-lot-5.md)) |
+| 5. Tableau de bord | Indicateurs du § 7, alertes de seuils, écran Enseignements | Installé — recette validée le 12/11/2026 |
 
 ## Installation
 
