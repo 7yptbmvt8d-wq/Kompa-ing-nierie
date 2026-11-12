@@ -103,7 +103,7 @@ function Setup_supprimerFeuilleVide_(classeur) {
 
 /**
  * Déclencheurs : sauvegarde hebdomadaire (lundi, 5 h), collecte de la veille (6 h, paramètre).
- * L'e-mail du matin (7 h) sera ajouté au lot 4.
+ * et e-mail du matin (7 h, paramètre ; l'envoi vérifie le jour de la semaine).
  */
 function Setup_declencheurs_() {
   var voulus = [
@@ -120,6 +120,13 @@ function Setup_declencheurs_() {
       creer: function () {
         return ScriptApp.newTrigger('collecteQuotidienne').timeBased()
           .everyDays(1).atHour(Params_nombre('veille.heure_collecte', 6)).inTimezone(APP.FUSEAU).create();
+      }
+    },
+    {
+      fonction: 'envoyerEmailMatin',
+      creer: function () {
+        return ScriptApp.newTrigger('envoyerEmailMatin').timeBased()
+          .everyDays(1).atHour(Params_nombre('email.heure', 7)).inTimezone(APP.FUSEAU).create();
       }
     }
   ];

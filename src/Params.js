@@ -79,6 +79,9 @@ var PARAMETRES_DEFAUT = [
   ['echeance.visite_alerte_j', '2', 'Alerte avant la visite de site (jours)'],
   ['echeance.rejet_relance_j', '10', 'Relance des motifs du rejet si rien reçu (jours)'],
   ['echeance.paiement_public_j', '30', 'Délai de paiement public (jours)'],
+  ['echeance.validite_defaut_j', '90', 'Validité de l\'offre si non renseignée dans l\'affaire (jours)'],
+  ['courrier.signature', 'Sébastien De Raedt EI\nKompa Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · kompa.ingenierie@gmail.com\nSIRET [n°] · TVA non applicable, art. 293 B du CGI',
+    'Signature des modèles de courriers (\\n = retour à la ligne)'],
 
   // E-mail (§ 6)
   ['email.heure', '7', 'Heure d\'envoi de l\'e-mail du matin (0-23)'],
@@ -102,7 +105,8 @@ var PARAMETRES_DEFAUT = [
   ['sauvegarde.nb_copies', '8', 'Nombre de copies hebdomadaires conservées dans Drive'],
 
   // Application
-  ['app.favicon_url', '', 'URL publique (PNG) du symbole Kompa pour l\'onglet et l\'écran d\'accueil']
+  ['app.favicon_url', '', 'URL publique (PNG) du symbole Kompa pour l\'onglet du navigateur'],
+  ['app.url', '', 'Adresse /exec de l\'app pour les liens de l\'e-mail (vide = détectée automatiquement)']
 ];
 
 var Params_cache_ = null;

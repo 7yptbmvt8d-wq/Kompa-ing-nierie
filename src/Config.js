@@ -7,7 +7,7 @@
 
 var APP = {
   NOM: 'Kompa Affaires',
-  VERSION: '1.0.0-lot3',
+  VERSION: '1.0.0-lot4',
   CLASSEUR: 'Kompa Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
@@ -105,7 +105,7 @@ var TABLES = {
     onglet: 'Relances',
     cle: 'id',
     prefixe: 'RE',
-    colonnes: ['id', 'id_affaire', 'type', 'date_prevue', 'statut', 'date_faite', 'commentaire']
+    colonnes: ['id', 'id_affaire', 'type', 'date_prevue', 'statut', 'date_faite', 'commentaire', 'cle', 'id_facture']
   },
   ACHETEURS: {
     onglet: 'Acheteurs',

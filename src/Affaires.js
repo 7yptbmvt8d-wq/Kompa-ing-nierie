@@ -283,6 +283,7 @@ function Affaires_changerStatut(id, nouveau, champsSaisis, options) {
     Db_inserer(TABLES.RELANCES, {
       id_affaire: id,
       type: 'Motifs du rejet',
+      cle: 'motifs:' + id,
       date_prevue: champs.date_resultat || quand,
       statut: 'à faire',
       commentaire: 'Demander les motifs du rejet, les notes et le prix de l\'attributaire.'

@@ -1,0 +1,191 @@
+<script>
+/* Kompa Affaires — lot 4 : échéancier (calendrier, relances, modèles de courriers, e-mail du matin). */
+(function () {
+  'use strict';
+  var K = window.KA;
+  var esc = K.esc, $ = K.$, $$ = K.$$;
+  var moisAffiche = '';
+
+  var CLASSES_TYPE = {
+    'Remise': 'ech--remise', 'Questions': 'ech--secondaire', 'Visite': 'ech--secondaire',
+    'Décision': 'ech--attente', 'Facturation': 'ech--argent', 'Encaissement': 'ech--argent'
+  };
+  var NOMS_MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+  function jour(iso) {
+    var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+  }
+  function relatif(n) {
+    if (n === 0) return 'aujourd\'hui';
+    return n > 0 ? 'J-' + n : 'retard ' + (-n) + ' j';
+  }
+  function decaler(mois, n) {
+    var m = mois.split('-').map(Number);
+    var d = new Date(m[0], m[1] - 1 + n, 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+
+  function ecranEcheancier(el) {
+    el.innerHTML = K.titre('Échéancier', '') + '<div class="chargement">Calcul des échéances…</div>';
+    K.appel('apiEcheancier', moisAffiche).then(function (r) { moisAffiche = r.mois; rendre(el, r); })
+      .catch(function (e) { el.innerHTML = K.titre('Échéancier', '') + K.bandeauErreur(e); });
+  }
+
+  function rendre(el, r) {
+    var actions = '<div class="barre-outils">' +
+      '<button type="button" class="bouton bouton--discret" data-action="apercu">Aperçu de l\'e-mail du matin</button>' +
+      '<button type="button" class="bouton bouton--discret" data-action="envoyer">Envoyer l\'e-mail maintenant</button></div>';
+    el.innerHTML = K.titre('Échéancier', r.relances.length + ' relance' + (r.relances.length > 1 ? 's' : '') + ' à faire · ' + r.prochaines.length + ' échéance' + (r.prochaines.length > 1 ? 's' : '') + ' à 60 jours') +
+      actions + blocRelances(r) + blocCalendrier(r) + blocListe(r);
+    brancher(el, r);
+  }
+
+  function blocRelances(r) {
+    if (!r.relances.length) return '<h2>Relances</h2><p class="vide">Aucune relance à faire.</p>';
+    return '<h2>Relances à faire</h2><div class="tableau-conteneur"><table><thead><tr>' +
+      '<th scope="col">Prévue le</th><th scope="col">Relance</th><th scope="col">Affaire</th><th scope="col">Note</th><th scope="col"><span class="seul-lecteur">Actions</span></th></tr></thead><tbody>' +
+      r.relances.map(function (x) {
+        var n = x.jours;
+        return '<tr><td class="mono">' + jour(x.date_prevue) + ' ' + (n <= 0 ? '<span class="statut statut--alerte">' + relatif(n) + '</span>' : '<span class="legende mono">' + relatif(n) + '</span>') + '</td>' +
+          '<td><strong>' + esc(x.type) + '</strong></td>' +
+          '<td><a href="#affaire/' + esc(x.id_affaire) + '" class="mono">' + esc(x.id_affaire) + '</a> ' + esc(x.acheteur) + '</td>' +
+          '<td class="legende">' + esc(x.commentaire) + '</td>' +
+          '<td class="actions-veille"><button type="button" class="bouton" data-courrier="' + esc(x.id) + '">Courrier</button>' +
+          '<button type="button" class="bouton bouton--discret" data-relance="' + esc(x.id) + '" data-statut="faite">Faite</button>' +
+          '<button type="button" class="bouton bouton--discret" data-relance="' + esc(x.id) + '" data-statut="sans objet">Sans objet</button></td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  function blocCalendrier(r) {
+    var parJour = {};
+    r.calendrier.forEach(function (e) { (parJour[e.date] = parJour[e.date] || []).push(e); });
+    var m = r.mois.split('-').map(Number);
+    var debut = r.grille.debut.split('-').map(Number);
+    var d = new Date(debut[0], debut[1] - 1, debut[2]);
+    var fin = r.grille.fin;
+    var cases = [];
+    while (true) {
+      var cle = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      var dansMois = d.getMonth() === m[1] - 1;
+      var items = parJour[cle] || [];
+      cases.push('<div class="cal-jour' + (dansMois ? '' : ' cal-jour--hors') + (cle === r.aujourdhui ? ' cal-jour--auj' : '') + '">' +
+        '<div class="cal-jour__num mono">' + d.getDate() + '</div>' +
+        items.map(function (e) {
+          return '<a class="ech ' + (CLASSES_TYPE[e.type] || '') + (e.depassee ? ' ech--depassee' : '') + '" href="#affaire/' + esc(e.id_affaire) + '" title="' + esc(e.libelle + ' — ' + e.acheteur + ' — ' + e.objet) + '">' +
+            esc(e.type) + ' · ' + esc(e.acheteur) + '</a>';
+        }).join('') + '</div>');
+      if (cle === fin) break;
+      d.setDate(d.getDate() + 1);
+    }
+    return '<div class="cal-tete"><h2>' + NOMS_MOIS[m[1] - 1] + ' ' + m[0] + '</h2><div class="bascule">' +
+      '<button type="button" class="bouton bouton--discret" data-mois="-1" aria-label="Mois précédent">‹</button>' +
+      '<button type="button" class="bouton bouton--discret" data-mois="0">Aujourd\'hui</button>' +
+      '<button type="button" class="bouton bouton--discret" data-mois="1" aria-label="Mois suivant">›</button></div></div>' +
+      '<div class="cal"><div class="cal-entete">' + ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'].map(function (j) { return '<div>' + j + '</div>'; }).join('') + '</div>' +
+      '<div class="cal-grille">' + cases.join('') + '</div></div>' +
+      '<p class="legende cle-cal"><span class="ech ech--remise">Remise</span> <span class="ech ech--secondaire">Questions, visite</span> <span class="ech ech--attente">Décision attendue</span> <span class="ech ech--argent">Facturation, encaissement</span></p>';
+  }
+
+  function blocListe(r) {
+    if (!r.prochaines.length) return '<h2>Prochaines échéances</h2><p class="vide">Aucune échéance dans les 60 jours.</p>';
+    return '<h2>Prochaines échéances (60 jours) et retards</h2><div class="tableau-conteneur"><table><thead><tr>' +
+      '<th scope="col">Date</th><th scope="col">Échéance</th><th scope="col">Affaire</th><th scope="col">Statut</th></tr></thead><tbody>' +
+      r.prochaines.map(function (e) {
+        var badge = e.depassee ? '<span class="statut statut--ko">' + relatif(e.jours) + '</span>'
+          : e.urgent || e.alerte ? '<span class="statut statut--alerte">' + relatif(e.jours) + '</span>' : '<span class="legende mono">' + relatif(e.jours) + '</span>';
+        return '<tr><td class="mono">' + jour(e.date) + ' ' + badge + '</td><td>' + esc(e.libelle) + '</td>' +
+          '<td><a href="#affaire/' + esc(e.id_affaire) + '" class="mono">' + esc(e.id_affaire) + '</a> ' + esc(e.acheteur) + '</td><td>' + esc(e.statut || '') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  function copier(texte, zone) {
+    var ok = function () { K.toast('Copié dans le presse-papiers.'); };
+    var secours = function () {
+      zone.focus(); zone.select();
+      try { document.execCommand('copy'); ok(); } catch (e) { K.toast('Sélectionnez le texte et copiez-le (Ctrl+C).', true); }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(texte).then(ok, secours);
+    else secours();
+  }
+
+  function ouvrirCourrier(id) {
+    K.appel('apiCourrier', id).then(function (c) {
+      var d = document.createElement('dialog');
+      d.className = 'dialogue dialogue--large';
+      d.innerHTML = '<h2>Modèle — ' + esc(c.type) + '</h2>' +
+        '<p class="legende">Destinataire : ' + esc(c.destinataire) + ' · compléter les informations entre crochets avant l\'envoi.</p>' +
+        '<div class="champ-bloc"><label for="c-objet">Objet</label><div class="champ-lien"><input class="champ" id="c-objet" readonly value="' + esc(c.objet) + '">' +
+        '<button type="button" class="bouton bouton--discret" data-copier="c-objet">Copier</button></div></div>' +
+        '<div class="champ-bloc" style="margin-top:12px"><label for="c-corps">Texte</label><textarea class="champ courrier" id="c-corps" readonly rows="16">' + esc(c.corps) + '</textarea></div>' +
+        '<div class="dialogue__actions"><button type="button" class="bouton bouton--discret" data-fermer>Fermer</button>' +
+        '<button type="button" class="bouton" data-copier="c-corps">Copier le texte</button></div>';
+      document.body.appendChild(d);
+      $$('[data-copier]', d).forEach(function (b) {
+        b.addEventListener('click', function () { var z = $('#' + b.getAttribute('data-copier'), d); copier(z.value, z); });
+      });
+      $('[data-fermer]', d).addEventListener('click', function () { d.close(); d.remove(); });
+      d.addEventListener('cancel', function () { d.remove(); });
+      d.showModal();
+    }).catch(function (e) { K.toast(e.message, true); });
+  }
+
+  function apercuEmail() {
+    K.appel('apiEmailApercu').then(function (m) {
+      var d = document.createElement('dialog');
+      d.className = 'dialogue dialogue--large';
+      d.innerHTML = '<h2>Aperçu de l\'e-mail du matin</h2><p class="legende mono">' + esc(m.sujet) + '</p>' +
+        '<iframe class="apercu-email" title="Aperçu de l\'e-mail"></iframe>' +
+        '<div class="dialogue__actions"><button type="button" class="bouton" data-fermer>Fermer</button></div>';
+      document.body.appendChild(d);
+      $('iframe', d).srcdoc = m.html;
+      $('[data-fermer]', d).addEventListener('click', function () { d.close(); d.remove(); });
+      d.addEventListener('cancel', function () { d.remove(); });
+      d.showModal();
+    }).catch(function (e) { K.toast(e.message, true); });
+  }
+
+  function brancher(el, r) {
+    $$('[data-mois]', el).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var n = Number(b.getAttribute('data-mois'));
+        moisAffiche = n === 0 ? '' : decaler(moisAffiche, n);
+        ecranEcheancier(el);
+      });
+    });
+    $$('[data-courrier]', el).forEach(function (b) { b.addEventListener('click', function () { ouvrirCourrier(b.getAttribute('data-courrier')); }); });
+    $$('[data-relance]', el).forEach(function (b) {
+      b.addEventListener('click', function () {
+        b.disabled = true;
+        K.appel('apiRelanceStatut', b.getAttribute('data-relance'), b.getAttribute('data-statut')).then(function () {
+          K.toast('Relance marquée « ' + b.getAttribute('data-statut') + ' ».');
+          ecranEcheancier(el);
+        }).catch(function (e) { b.disabled = false; K.toast(e.message, true); });
+      });
+    });
+    $('[data-action="apercu"]', el).addEventListener('click', apercuEmail);
+    $('[data-action="envoyer"]', el).addEventListener('click', function (ev) {
+      var b = ev.currentTarget; b.disabled = true;
+      K.appel('apiEmailEnvoyer').then(function (res) {
+        b.disabled = false;
+        K.toast(res.envoye ? 'E-mail envoyé à ' + res.destinataire + '.' : 'Pas d\'envoi : ' + res.motif + '.');
+      }).catch(function (e) { b.disabled = false; K.toast(e.message, true); });
+    });
+  }
+
+  // Cartes de l'accueil : échéances à 7 jours et relances à faire
+  K.suiviAccueil = function (elEch, elRel) {
+    K.appel('apiSuivi').then(function (s) {
+      elEch.innerHTML = '<h2>Échéances à 7 jours</h2>' + (s.echeances.length ? '<ul class="liste-suivi">' + s.echeances.map(function (e) {
+        return '<li><span class="mono">' + jour(e.date) + '</span> ' + (e.depassee ? '<span class="statut statut--ko">' + relatif(e.jours) + '</span>' : e.urgent ? '<span class="statut statut--alerte">' + relatif(e.jours) + '</span>' : '<span class="legende mono">' + relatif(e.jours) + '</span>') +
+          '<br><a href="#affaire/' + esc(e.id_affaire) + '">' + esc(e.libelle) + '</a> — ' + esc(e.acheteur) + '</li>';
+      }).join('') + '</ul>' : '<p class="vide">Aucune échéance dans les 7 jours.</p>');
+      elRel.innerHTML = '<h2>Relances à faire</h2>' + (s.relances.length ? '<ul class="liste-suivi">' + s.relances.map(function (x) {
+        return '<li><span class="mono">' + jour(x.date_prevue) + '</span> <strong>' + esc(x.type) + '</strong><br>' + esc(x.acheteur) + '</li>';
+      }).join('') + '</ul><p><a href="#echeancier">Ouvrir l\'échéancier</a></p>' : '<p class="vide">Aucune relance à faire.</p>');
+    }).catch(function (e) { elEch.innerHTML = '<h2>Échéances à 7 jours</h2>' + K.bandeauErreur(e); });
+  };
+
+  K.ecrans.echeancier = { titre: 'Échéancier', rendu: ecranEcheancier };
+})();
+</script>

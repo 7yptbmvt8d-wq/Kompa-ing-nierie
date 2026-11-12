@@ -1,4 +1,4 @@
-/* Kompa Affaires 1.0.0-lot3 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
+/* Kompa Affaires 1.0.0-lot4 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
 
 // ════════ Setup.js ════════
 
@@ -107,7 +107,7 @@ function Setup_supprimerFeuilleVide_(classeur) {
 
 /**
  * Déclencheurs : sauvegarde hebdomadaire (lundi, 5 h), collecte de la veille (6 h, paramètre).
- * L'e-mail du matin (7 h) sera ajouté au lot 4.
+ * et e-mail du matin (7 h, paramètre ; l'envoi vérifie le jour de la semaine).
  */
 function Setup_declencheurs_() {
   var voulus = [
@@ -124,6 +124,13 @@ function Setup_declencheurs_() {
       creer: function () {
         return ScriptApp.newTrigger('collecteQuotidienne').timeBased()
           .everyDays(1).atHour(Params_nombre('veille.heure_collecte', 6)).inTimezone(APP.FUSEAU).create();
+      }
+    },
+    {
+      fonction: 'envoyerEmailMatin',
+      creer: function () {
+        return ScriptApp.newTrigger('envoyerEmailMatin').timeBased()
+          .everyDays(1).atHour(Params_nombre('email.heure', 7)).inTimezone(APP.FUSEAU).create();
       }
     }
   ];
@@ -456,6 +463,7 @@ function Affaires_changerStatut(id, nouveau, champsSaisis, options) {
     Db_inserer(TABLES.RELANCES, {
       id_affaire: id,
       type: 'Motifs du rejet',
+      cle: 'motifs:' + id,
       date_prevue: champs.date_resultat || quand,
       statut: 'à faire',
       commentaire: 'Demander les motifs du rejet, les notes et le prix de l\'attributaire.'
@@ -639,6 +647,81 @@ function apiFactureMaj(idAffaire, idFacture, champs) {
 }
 
 
+// ════════ ApiEcheances.js ════════
+
+/**
+ * API du lot 4 (échéancier, relances, courriers, e-mail du matin).
+ */
+
+function echeanceClient_(e) {
+  var o = Object.assign({}, e);
+  o.date = jourIso_(e.date);
+  return o;
+}
+
+function relanceClient_(r) {
+  return versClient_(TABLES.RELANCES, r);
+}
+
+/** Échéancier : échéances du mois affiché (aaaa-mm) ± marge, échéances dépassées, relances. */
+function apiEcheancier(mois) {
+  return repondre_(function () {
+    var sync = Relances_synchroniser();
+    var auj = aujourdhui_();
+    var m = String(mois || '').match(/^(\d{4})-(\d{2})$/);
+    var debutMois = m ? new Date(Number(m[1]), Number(m[2]) - 1, 1) : new Date(auj.getFullYear(), auj.getMonth(), 1);
+    var finMois = new Date(debutMois.getFullYear(), debutMois.getMonth() + 1, 0);
+    // Grille du calendrier : du lundi précédant le 1er au dimanche suivant la fin du mois
+    var debut = ajouterJours_(debutMois, -((debutMois.getDay() + 6) % 7));
+    var fin = ajouterJours_(finMois, (7 - finMois.getDay()) % 7);
+    var liste = Echeances_calculer(auj, ajouterJours_(auj, 60));
+    return {
+      mois: Utilities.formatDate(debutMois, APP.FUSEAU, 'yyyy-MM'),
+      grille: { debut: jourIso_(debut), fin: jourIso_(fin) },
+      calendrier: Echeances_calculer(debut, fin).map(echeanceClient_),
+      prochaines: liste.map(echeanceClient_),
+      relances: Relances_aFaire(null, true).map(relanceClient_),
+      synchronisation: sync,
+      aujourdhui: jourIso_(auj)
+    };
+  });
+}
+
+/** Accueil : échéances à 7 jours et relances à faire. */
+function apiSuivi() {
+  return repondre_(function () {
+    Relances_synchroniser();
+    var auj = aujourdhui_();
+    return {
+      echeances: Echeances_calculer(auj, ajouterJours_(auj, 7)).map(echeanceClient_),
+      relances: Relances_aFaire().map(relanceClient_)
+    };
+  });
+}
+
+function apiRelanceStatut(idRelance, statut) {
+  return repondre_(function () { return relanceClient_(Relances_changerStatut(idRelance, statut)); });
+}
+
+function apiCourrier(idRelance) {
+  return repondre_(function () { return Courriers_modele(idRelance); });
+}
+
+/** Aperçu de l'e-mail du matin (sans envoi). */
+function apiEmailApercu() {
+  return repondre_(function () {
+    Relances_synchroniser();
+    var m = Email_construire(new Date());
+    return { sujet: m.sujet, html: m.html, nombres: m.nombres };
+  });
+}
+
+/** Envoi immédiat de l'e-mail du matin (test). */
+function apiEmailEnvoyer() {
+  return repondre_(function () { return Email_envoyerTest(); });
+}
+
+
 // ════════ ApiVeille.js ════════
 
 /**
@@ -814,7 +897,7 @@ function arrondi_(n) {
 
 var APP = {
   NOM: 'Kompa Affaires',
-  VERSION: '1.0.0-lot3',
+  VERSION: '1.0.0-lot4',
   CLASSEUR: 'Kompa Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
@@ -912,7 +995,7 @@ var TABLES = {
     onglet: 'Relances',
     cle: 'id',
     prefixe: 'RE',
-    colonnes: ['id', 'id_affaire', 'type', 'date_prevue', 'statut', 'date_faite', 'commentaire']
+    colonnes: ['id', 'id_affaire', 'type', 'date_prevue', 'statut', 'date_faite', 'commentaire', 'cle', 'id_facture']
   },
   ACHETEURS: {
     onglet: 'Acheteurs',
@@ -984,6 +1067,113 @@ function depuisClient_(table, champs) {
 
 function jourIso_(d) {
   return Utilities.formatDate(d, APP.FUSEAU, 'yyyy-MM-dd');
+}
+
+
+// ════════ Courriers.js ════════
+
+/**
+ * Modèles de courriers des relances (§ 5) : texte prêt à copier dans un e-mail ou un courrier.
+ * Les informations manquantes restent entre crochets, à compléter (charte Kompa § 1.7).
+ */
+
+function Courriers_modele(idRelance) {
+  var r = Db_trouver(TABLES.RELANCES, idRelance);
+  if (!r) throw new Error('Relance introuvable : ' + idRelance);
+  var a = Db_trouver(TABLES.AFFAIRES, r.id_affaire) || {};
+  var f = r.id_facture ? Db_trouver(TABLES.FACTURES, r.id_facture) || {} : {};
+  var j = function (v) { var d = date_(v); return d ? Utilities.formatDate(d, APP.FUSEAU, 'dd/MM/yyyy') : '[date]'; };
+  var e = function (v) { return montant_(v) ? Courriers_euros_(montant_(v)) : '[montant]'; };
+  var consultation = '« ' + (a.objet || '[objet de la consultation]') + ' »' + (a.reference_acheteur ? ' (référence ' + a.reference_acheteur + ')' : '');
+  var ref = a.reference_acheteur ? a.reference_acheteur + ' — ' : '';
+  var signature = Params_texte('courrier.signature', 'Sébastien De Raedt EI\nKompa Ingénierie');
+  var politesse = 'Nous vous prions d\'agréer, Madame, Monsieur, l\'expression de nos salutations distinguées.';
+  var corps, objet;
+
+  switch (r.type) {
+    case TYPES_RELANCE.MOTIFS:
+    case TYPES_RELANCE.MOTIFS_RAPPEL:
+      objet = ref + 'Demande des motifs de rejet de notre offre' + (r.type === TYPES_RELANCE.MOTIFS_RAPPEL ? ' — rappel' : '');
+      corps = [
+        'Madame, Monsieur,',
+        '',
+        (r.type === TYPES_RELANCE.MOTIFS_RAPPEL
+          ? 'Notre demande du ' + j(Courriers_premiereDemande_(a.id)) + ' étant restée sans réponse, nous nous permettons de la renouveler.\n\n'
+          : '') +
+        'Par courrier du ' + j(a.date_resultat) + ', vous nous avez informés du rejet de l\'offre remise par Kompa Ingénierie le ' + j(a.date_depot) +
+          ' pour la consultation ' + consultation + '.',
+        '',
+        'En application des articles R. 2181-1 à R. 2181-4 du code de la commande publique, nous vous remercions de bien vouloir nous communiquer :',
+        '– les motifs détaillés du rejet de notre offre ;',
+        '– le nom de l\'attributaire et le montant de son offre ;',
+        '– les notes obtenues par notre offre et par celle de l\'attributaire pour chacun des critères de jugement, ainsi que notre classement.',
+        '',
+        'Ces éléments nous permettront d\'améliorer nos prochaines propositions.',
+        '',
+        politesse
+      ];
+      break;
+    case TYPES_RELANCE.DECISION:
+      objet = ref + 'Demande d\'information sur l\'attribution';
+      corps = [
+        'Madame, Monsieur,',
+        '',
+        'Kompa Ingénierie a remis le ' + j(a.date_depot) + ' une offre pour la consultation ' + consultation + '.',
+        '',
+        'La durée de validité de notre offre (' + (montant_(a.validite_offre_jours) || Params_nombre('echeance.validite_defaut_j', 90)) +
+          ' jours) étant arrivée à son terme, nous vous remercions de bien vouloir nous indiquer où en est la procédure et, le cas échéant, la date prévisionnelle d\'attribution.',
+        '',
+        'Nous restons disposés à prolonger la validité de notre offre si nécessaire.',
+        '',
+        politesse
+      ];
+      break;
+    case TYPES_RELANCE.ENCAISSEMENT:
+      objet = ref + 'Relance de paiement — facture ' + (f.numero || '[n°]');
+      corps = [
+        'Madame, Monsieur,',
+        '',
+        'Sauf erreur de notre part, la facture n° ' + (f.numero || '[n°]') + ' du ' + j(f.date) + ', d\'un montant de ' + e(f.montant) +
+          ' HT (TVA non applicable, art. 293 B du CGI), relative à la mission ' + consultation + ', n\'a pas encore été réglée.',
+        '',
+        'Le délai global de paiement de 30 jours (article R. 2192-10 du code de la commande publique) est échu depuis le ' + j(f.date_echeance) +
+          '. Nous vous remercions de bien vouloir procéder à son règlement dans les meilleurs délais.',
+        '',
+        'Pour mémoire, le dépassement du délai de paiement fait courir de plein droit des intérêts moratoires et une indemnité forfaitaire pour frais de recouvrement de 40 € (articles L. 2192-13 et D. 2192-35 du même code).',
+        '',
+        politesse
+      ];
+      break;
+    case TYPES_RELANCE.FACTURATION:
+      objet = ref + 'Facture ' + (f.numero || '[n°]');
+      corps = [
+        'Madame, Monsieur,',
+        '',
+        'Nous avons déposé ce jour sur Chorus Pro la facture n° ' + (f.numero || '[n°]') + ', d\'un montant de ' + e(f.montant) +
+          ' HT (TVA non applicable, art. 293 B du CGI), au titre de la mission ' + consultation + '.',
+        '',
+        'Nous restons à votre disposition pour tout complément.',
+        '',
+        politesse
+      ];
+      break;
+    default:
+      objet = ref + (r.type || 'Relance');
+      corps = ['Madame, Monsieur,', '', '[texte]', '', politesse];
+  }
+  var texte = corps.join('\n') + '\n\n' + signature;
+  return { type: r.type, destinataire: a.acheteur || '[acheteur]', objet: objet, corps: texte };
+}
+
+function Courriers_premiereDemande_(idAffaire) {
+  var m = Db_lire(TABLES.RELANCES).filter(function (r) { return r.id_affaire === idAffaire && r.type === TYPES_RELANCE.MOTIFS; })[0];
+  return m ? (m.date_faite || m.date_prevue) : '';
+}
+
+function Courriers_euros_(n) {
+  var s = (Math.round(n * 100) / 100).toFixed(2).replace('.', ',');
+  var p = s.split(',');
+  return p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ',' + p[1] + ' €';
 }
 
 
@@ -1128,6 +1318,373 @@ function Db_verrou_(fn) {
 }
 
 
+// ════════ Echeances.js ════════
+
+/**
+ * Échéancier et relances (§ 5).
+ *
+ * Les échéances sont calculées à partir des affaires et des factures : rien n'est saisi deux fois.
+ * Les relances sont des lignes de l'onglet Relances, créées automatiquement par
+ * Relances_synchroniser() (clé unique par relance) et closes « sans objet » quand la situation
+ * qui les justifiait a disparu (résultat reçu, facture encaissée…).
+ */
+
+var TYPES_RELANCE = {
+  MOTIFS: 'Motifs du rejet',
+  MOTIFS_RAPPEL: 'Motifs du rejet — rappel',
+  DECISION: 'Décision attendue',
+  ENCAISSEMENT: 'Encaissement',
+  FACTURATION: 'Facturation'
+};
+
+/** Statuts pour lesquels remise, questions et visite restent à surveiller. */
+var STATUTS_AVANT_DEPOT = ['En étude', 'Go'];
+
+function aujourdhui_(quand) {
+  var d = quand ? new Date(quand.getTime ? quand.getTime() : date_(quand)) : new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function ajouterJours_(d, n) {
+  var r = new Date(d.getTime());
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+function ecartJours_(d, ref) {
+  var x = aujourdhui_(d), y = aujourdhui_(ref);
+  return Math.round((x - y) / 86400000);
+}
+
+// ——— Échéances ———
+
+/**
+ * Échéances entre debut et fin (dates incluses) + échéances dépassées non traitées.
+ * Chaque échéance : { date, type, libelle, id_affaire, acheteur, objet, jours, urgent, depassee }.
+ */
+function Echeances_calculer(debut, fin, quand) {
+  var auj = aujourdhui_(quand);
+  debut = aujourdhui_(debut || auj);
+  fin = aujourdhui_(fin || ajouterJours_(auj, 60));
+  var alertesRemise = Params_liste('echeance.remise_alertes_j').map(Number);
+  var validiteDefaut = Params_nombre('echeance.validite_defaut_j', 90);
+  var out = [];
+  var ajouter = function (d, type, libelle, a, extra) {
+    if (!d) return;
+    var j = ecartJours_(d, auj);
+    var dansFenetre = aujourdhui_(d) >= debut && aujourdhui_(d) <= fin;
+    if (!dansFenetre && !(extra && extra.siDepassee && j < 0)) return;
+    out.push(Object.assign({
+      date: aujourdhui_(d), type: type, libelle: libelle, id_affaire: a.id, acheteur: a.acheteur,
+      objet: a.objet, statut: a.statut, jours: j, urgent: j >= 0 && j <= 3, depassee: j < 0
+    }, extra || {}));
+  };
+
+  Affaires_lister().forEach(function (a) {
+    if (STATUTS_AVANT_DEPOT.indexOf(a.statut) >= 0) {
+      var dr = date_(a.date_limite_remise);
+      if (dr) {
+        var jr = ecartJours_(dr, auj);
+        ajouter(dr, 'Remise', 'Remise de l\'offre', a, { alerte: alertesRemise.indexOf(jr) >= 0 || (jr >= 0 && jr <= 1) });
+      }
+      ajouter(date_(a.date_limite_questions), 'Questions', 'Date limite des questions à l\'acheteur', a,
+        { alerte: ecartJours_(date_(a.date_limite_questions) || auj, auj) === Params_nombre('echeance.questions_alerte_j', 3) });
+      ajouter(date_(a.date_visite), 'Visite', 'Visite de site', a,
+        { alerte: ecartJours_(date_(a.date_visite) || auj, auj) === Params_nombre('echeance.visite_alerte_j', 2) });
+    }
+    if (a.statut === 'Déposée') {
+      var dd = date_(a.date_depot);
+      if (dd) ajouter(ajouterJours_(dd, montant_(a.validite_offre_jours) || validiteDefaut), 'Décision', 'Fin de validité de l\'offre : décision attendue', a, { siDepassee: true });
+    }
+  });
+
+  var affaires = {};
+  Affaires_lister().forEach(function (a) { affaires[a.id] = a; });
+  Db_lire(TABLES.FACTURES).forEach(function (f) {
+    var a = affaires[f.id_affaire] || { id: f.id_affaire, acheteur: '', objet: '' };
+    if (Factures_prevue_(f, auj)) {
+      ajouter(date_(f.date), 'Facturation', 'Émettre la facture ' + (f.numero || '') + ' (' + arrondi_(montant_(f.montant)) + ' € HT)', a, { id_facture: f.id });
+    } else if (!date_(f.date_encaissement) && date_(f.date_echeance)) {
+      ajouter(date_(f.date_echeance), 'Encaissement', 'Paiement attendu de la facture ' + (f.numero || ''), a,
+        { id_facture: f.id, siDepassee: true });
+    }
+  });
+
+  return out.sort(function (x, y) { return x.date - y.date || x.type.localeCompare(y.type); });
+}
+
+/** Facture « prévue » : saisie à l'avance (date d'émission postérieure à sa création) et pas encore arrivée. */
+function Factures_prevue_(f, auj) {
+  var d = date_(f.date), c = date_(f.cree_le);
+  return d && c && aujourdhui_(d) > aujourdhui_(c) && aujourdhui_(d) >= aujourdhui_(auj);
+}
+
+// ——— Relances ———
+
+/**
+ * Crée les relances dues et clôt celles devenues sans objet. Idempotent (clé par relance).
+ * Renvoie { creees, closes }.
+ */
+function Relances_synchroniser(quand) {
+  var auj = aujourdhui_(quand);
+  var relances = Db_lire(TABLES.RELANCES);
+  var parCle = {};
+  relances.forEach(function (r) { if (r.cle) parCle[r.cle] = r; });
+  var affaires = Affaires_lister();
+  var parId = {};
+  affaires.forEach(function (a) { parId[a.id] = a; });
+  var aCreer = [], closes = 0;
+  var dues = {};
+  var due = function (cle, ligne) {
+    dues[cle] = true;
+    if (!parCle[cle]) aCreer.push(Object.assign({ cle: cle, statut: 'à faire' }, ligne));
+  };
+  var validiteDefaut = Params_nombre('echeance.validite_defaut_j', 90);
+  var delaiRappel = Params_nombre('echeance.rejet_relance_j', 10);
+
+  affaires.forEach(function (a) {
+    // Décision attendue : offre déposée, validité dépassée, pas de résultat
+    if (a.statut === 'Déposée' && date_(a.date_depot)) {
+      var fin = ajouterJours_(aujourdhui_(date_(a.date_depot)), montant_(a.validite_offre_jours) || validiteDefaut);
+      if (fin < auj) due('decision:' + a.id, { id_affaire: a.id, type: TYPES_RELANCE.DECISION, date_prevue: fin,
+        commentaire: 'Validité de l\'offre dépassée sans résultat : demander où en est la décision.' });
+    }
+    // Motifs du rejet : J+0 (créée au passage en Perdue), rappel à J+10 si rien reçu
+    if (a.statut === 'Perdue') {
+      var motifs = relances.filter(function (r) { return r.id_affaire === a.id && r.type === TYPES_RELANCE.MOTIFS; })[0];
+      var depart = motifs ? date_(motifs.date_prevue) : date_(a.date_resultat);
+      if (depart && !String(a.motifs_rejet || '').trim() && ajouterJours_(aujourdhui_(depart), delaiRappel) <= auj) {
+        due('motifs-rappel:' + a.id, { id_affaire: a.id, type: TYPES_RELANCE.MOTIFS_RAPPEL,
+          date_prevue: ajouterJours_(aujourdhui_(depart), delaiRappel),
+          commentaire: 'Aucun motif reçu ' + delaiRappel + ' jours après la première demande : relancer l\'acheteur.' });
+      }
+    }
+  });
+
+  Db_lire(TABLES.FACTURES).forEach(function (f) {
+    var encaissee = !!date_(f.date_encaissement);
+    var d = date_(f.date), c = date_(f.cree_le);
+    if (d && c && aujourdhui_(d) > aujourdhui_(c) && aujourdhui_(d) <= auj && !encaissee) {
+      // Facture saisie à l'avance (prévue) dont la date d'émission est arrivée : J-0
+      due('facturation:' + f.id, { id_affaire: f.id_affaire, id_facture: f.id, type: TYPES_RELANCE.FACTURATION,
+        date_prevue: aujourdhui_(date_(f.date)), commentaire: 'Émettre la facture ' + (f.numero || '') + '.' });
+    }
+    var ech = date_(f.date_echeance);
+    if (!encaissee && ech && aujourdhui_(ech) < auj) {
+      due('encaissement:' + f.id, { id_affaire: f.id_affaire, id_facture: f.id, type: TYPES_RELANCE.ENCAISSEMENT,
+        date_prevue: aujourdhui_(ech), commentaire: 'Facture ' + (f.numero || '') + ' non payée à l\'échéance (délai de paiement public dépassé).' });
+    }
+  });
+
+  Db_insererPlusieurs(TABLES.RELANCES, aCreer);
+
+  // Clôture automatique des relances devenues sans objet
+  relances.forEach(function (r) {
+    if (r.statut !== 'à faire' || !r.cle) return;
+    var a = parId[r.id_affaire];
+    var sansObjet = false;
+    if (r.type === TYPES_RELANCE.MOTIFS || r.type === TYPES_RELANCE.MOTIFS_RAPPEL) sansObjet = a && String(a.motifs_rejet || '').trim() !== '';
+    else if (r.type === TYPES_RELANCE.DECISION) sansObjet = !a || a.statut !== 'Déposée';
+    else if (r.type === TYPES_RELANCE.ENCAISSEMENT) sansObjet = !dues[r.cle]; // facture encaissée entre-temps
+    if (sansObjet) {
+      Db_maj(TABLES.RELANCES, r.id, { statut: 'sans objet', date_faite: auj,
+        commentaire: (r.commentaire ? r.commentaire + ' ' : '') + '[Clôturée automatiquement]' });
+      closes++;
+    }
+  });
+  return { creees: aCreer.length, closes: closes };
+}
+
+/** Relances à faire (date prévue atteinte ou dépassée, ou toutes si tout = true). */
+function Relances_aFaire(quand, tout) {
+  var auj = aujourdhui_(quand);
+  var affaires = {};
+  Affaires_lister().forEach(function (a) { affaires[a.id] = a; });
+  return Db_lire(TABLES.RELANCES)
+    .filter(function (r) { return r.statut === 'à faire' && (tout || !date_(r.date_prevue) || aujourdhui_(date_(r.date_prevue)) <= auj); })
+    .map(function (r) {
+      var a = affaires[r.id_affaire] || {};
+      return Object.assign({}, r, { acheteur: a.acheteur || '', objet: a.objet || '', jours: date_(r.date_prevue) ? ecartJours_(date_(r.date_prevue), auj) : 0 });
+    })
+    .sort(function (x, y) { return (date_(x.date_prevue) || 0) - (date_(y.date_prevue) || 0); });
+}
+
+function Relances_changerStatut(idRelance, statut, quand) {
+  if (['à faire', 'faite', 'sans objet'].indexOf(statut) < 0) throw new Error('Statut de relance inconnu : ' + statut);
+  var r = Db_trouver(TABLES.RELANCES, idRelance);
+  if (!r) throw new Error('Relance introuvable : ' + idRelance);
+  return Db_maj(TABLES.RELANCES, idRelance, { statut: statut, date_faite: statut === 'à faire' ? '' : aujourdhui_(quand) });
+}
+
+
+// ════════ Email.js ════════
+
+/**
+ * E-mail du matin (§ 6) : du lundi au vendredi à 7 h vers le compte Kompa.
+ * Rubriques : nouveaux avis PACA, nouveaux avis France, échéances à 7 jours, relances à faire,
+ * indicateurs. Rubriques vides masquées ; pas d'envoi si les quatre premières sont vides,
+ * sauf le lundi (récapitulatif).
+ *
+ * Les e-mails n'acceptent pas les variables CSS : les couleurs de la charte (tokens.css)
+ * sont reprises ici en valeurs.
+ */
+
+var COULEURS_EMAIL = {
+  encre: '#0B1220', ardoise: '#1B263B', rouille: '#B4460E', brume: '#EEF1F6',
+  gris: '#4A5568', filet: '#D5DBE5', blanc: '#FFFFFF', inverse: '#EEF2F8', inverse2: '#A3B0C4'
+};
+var JOURS_SEMAINE = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
+
+/** Déclencheur quotidien (7 h). */
+function envoyerEmailMatin() {
+  return Email_envoyer_(new Date(), false);
+}
+
+/** Envoi immédiat depuis l'app (bouton de test) : ignore le jour de la semaine. */
+function Email_envoyerTest() {
+  return Email_envoyer_(new Date(), true);
+}
+
+function Email_envoyer_(quand, force) {
+  var jour = JOURS_SEMAINE[quand.getDay()];
+  var jours = Params_liste('email.jours');
+  if (!force && jours.length && jours.indexOf(jour) < 0) {
+    console.log('E-mail du matin : pas d\'envoi le ' + jour + '.');
+    return { envoye: false, motif: 'jour non ouvré (' + jour + ')' };
+  }
+  Relances_synchroniser(quand);
+  var props = PropertiesService.getScriptProperties();
+  var dernier = props.getProperty('EMAIL_DERNIER_ENVOI');
+  var mail = Email_construire(quand, dernier ? new Date(dernier) : null);
+  var lundi = jour === 'lun' && Params_texte('email.recap_lundi', 'oui') === 'oui';
+  if (!mail.contenu && !lundi && !force) {
+    console.log('E-mail du matin : rien à signaler, pas d\'envoi.');
+    return { envoye: false, motif: 'rubriques vides' };
+  }
+  var destinataire = Params_texte('email.destinataire', '') || Session.getEffectiveUser().getEmail();
+  MailApp.sendEmail({ to: destinataire, subject: mail.sujet, htmlBody: mail.html, body: mail.texte, name: APP.NOM });
+  props.setProperty('EMAIL_DERNIER_ENVOI', quand.toISOString());
+  return { envoye: true, destinataire: destinataire, sujet: mail.sujet };
+}
+
+/** Contenu de l'e-mail. depuis : avis créés depuis cette date (défaut : 24 h). */
+function Email_construire(quand, depuis) {
+  quand = quand || new Date();
+  var auj = aujourdhui_(quand);
+  depuis = depuis || new Date(quand.getTime() - 86400000);
+  var paca = Params_texte('zone.libelle_paca', 'PACA');
+  var url = Email_urlApp_();
+
+  var nouveaux = Db_lire(TABLES.AVIS).filter(function (a) {
+    return a.statut === 'nouveau' && date_(a.cree_le) && new Date(a.cree_le) > depuis;
+  }).sort(function (x, y) { return (Number(y.pre_score) || 0) - (Number(x.pre_score) || 0); });
+  var avisPaca = nouveaux.filter(function (a) { return a.zone === paca; });
+  // Hors PACA : seuls les avis « à étudier » sont détaillés ; les « possibles » sont comptés (lisibilité).
+  var horsPaca = nouveaux.filter(function (a) { return a.zone !== paca; });
+  var avisFrance = horsPaca.filter(function (a) { return a.classement === 'à étudier'; });
+  var autresFrance = horsPaca.length - avisFrance.length;
+  var echeances = Echeances_calculer(auj, ajouterJours_(auj, 7), quand)
+    .filter(function (e) { return ['Remise', 'Questions', 'Visite'].indexOf(e.type) >= 0; });
+  var relances = Relances_aFaire(quand);
+  var ind = Indicateurs_resume(quand);
+
+  var C = COULEURS_EMAIL;
+  var h = function (s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+  var jr = function (d) { return Utilities.formatDate(date_(d) || new Date(d), APP.FUSEAU, 'dd/MM/yyyy'); };
+  var mono = 'font-family:\'IBM Plex Mono\',Consolas,monospace;';
+  var bouton = function (lien, txt) {
+    return '<a href="' + h(lien) + '" style="display:inline-block;background:' + C.ardoise + ';color:' + C.inverse + ';text-decoration:none;padding:6px 12px;border-radius:4px;font-size:13px;font-weight:600">' + h(txt) + '</a>';
+  };
+  var section = function (titre, nb, lignes) {
+    return '<tr><td style="padding:24px 24px 0"><h2 style="margin:0 0 8px;font-size:16px;color:' + C.ardoise + ';border-top:2px solid ' + C.ardoise + ';padding-top:10px">' +
+      h(titre) + ' <span style="' + mono + 'color:' + C.gris + ';font-weight:400">(' + nb + ')</span></h2>' +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px">' + lignes + '</table></td></tr>';
+  };
+  var ligneAvis = function (a, etiquette) {
+    var jl = date_(a.date_limite) ? ecartJours_(new Date(a.date_limite), auj) : null;
+    return '<tr><td style="padding:10px 0;border-bottom:1px solid ' + C.filet + ';vertical-align:top;width:44px">' +
+      '<span style="' + mono + 'display:inline-block;background:' + (a.classement === 'à étudier' ? C.ardoise + ';color:' + C.inverse : C.brume + ';color:' + C.ardoise) + ';padding:2px 6px;border-radius:4px;font-weight:600">' + h(a.pre_score) + '</span></td>' +
+      '<td style="padding:10px 8px;border-bottom:1px solid ' + C.filet + ';vertical-align:top">' +
+      '<div style="font-weight:600">' + h(a.acheteur) + (a.departement ? ' <span style="' + mono + 'color:' + C.gris + ';font-weight:400">(' + h(a.departement) + ')</span>' : '') + '</div>' +
+      '<div>' + h(a.objet) + '</div>' +
+      '<div style="color:' + C.gris + ';font-size:13px">' + (jl === null ? 'Date limite inconnue' : 'Date limite <span style="' + mono + '">' + jr(a.date_limite) + '</span> (J-' + jl + ')') +
+      (etiquette ? ' · <span style="color:' + C.rouille + ';font-weight:600">' + h(etiquette) + '</span>' : '') +
+      ' · <a href="' + h(a.lien) + '" style="color:' + C.ardoise + '">Voir l\'avis</a></div></td>' +
+      '<td style="padding:10px 0;border-bottom:1px solid ' + C.filet + ';vertical-align:top;text-align:right">' + bouton(url + '#veille', 'Étudier') + '</td></tr>';
+  };
+  var ligneSimple = function (date, quoi, a, lien, urgent) {
+    return '<tr><td style="padding:8px 0;border-bottom:1px solid ' + C.filet + ';' + mono + 'white-space:nowrap;vertical-align:top;' + (urgent ? 'color:' + C.rouille + ';font-weight:600' : '') + '">' + h(date) + '</td>' +
+      '<td style="padding:8px;border-bottom:1px solid ' + C.filet + ';vertical-align:top"><strong>' + h(quoi) + '</strong> — ' + h(a.acheteur) +
+      '<div style="color:' + C.gris + ';font-size:13px">' + h(String(a.objet || '').slice(0, 140)) + '</div></td>' +
+      '<td style="padding:8px 0;border-bottom:1px solid ' + C.filet + ';text-align:right;vertical-align:top"><a href="' + h(lien) + '" style="color:' + C.ardoise + '">Ouvrir</a></td></tr>';
+  };
+
+  var corps = '';
+  if (avisPaca.length) corps += section('Nouveaux avis ' + paca, avisPaca.length, avisPaca.map(function (a) { return ligneAvis(a, ''); }).join(''));
+  if (avisFrance.length || autresFrance) corps += section('Nouveaux avis hors ' + paca + ' à étudier', avisFrance.length,
+    avisFrance.map(function (a) { return ligneAvis(a, 'présentiel à vérifier'); }).join('') +
+    (autresFrance ? '<tr><td colspan="3" style="padding:10px 0;color:' + C.gris + ';font-size:13px">+ ' + autresFrance + ' autre' + (autresFrance > 1 ? 's' : '') +
+      ' avis « possible » hors ' + h(paca) + ' : <a href="' + h(url) + '#veille" style="color:' + C.ardoise + '">voir dans l\'app</a></td></tr>' : ''));
+  if (echeances.length) corps += section('Échéances des 7 prochains jours', echeances.length, echeances.map(function (e) {
+    return ligneSimple(jr(e.date) + (e.jours === 0 ? ' (aujourd\'hui)' : ' (J-' + e.jours + ')'), e.libelle, e, url + '#affaire/' + e.id_affaire, e.urgent);
+  }).join(''));
+  if (relances.length) corps += section('Relances à faire', relances.length, relances.map(function (r) {
+    return ligneSimple(jr(r.date_prevue), r.type, r, url + '#echeancier', r.jours < 0);
+  }).join(''));
+  var contenu = !!corps;
+  if (!contenu) {
+    corps = '<tr><td style="padding:24px 24px 0;color:' + C.gris + '">Rien de nouveau depuis le dernier envoi : pas de nouvel avis, pas d\'échéance dans les 7 jours, pas de relance à faire.</td></tr>';
+  }
+
+  // Indicateurs
+  var statuts = Object.keys(ind.enCours).map(function (s) { return s + ' : <strong style="' + mono + '">' + ind.enCours[s] + '</strong>'; }).join(' · ');
+  var taux = ind.attribution.gagnees + ind.attribution.perdues
+    ? '<strong style="' + mono + '">' + Math.round(ind.attribution.taux * 100) + ' %</strong> (' + ind.attribution.gagnees + ' gagnée(s) / ' + (ind.attribution.gagnees + ind.attribution.perdues) + ')'
+    : 'pas encore de résultat';
+  var ca = ind.ca;
+  var jalons = ca.jalons.map(function (j) {
+    var couleur = j.etat === 'ok' ? C.gris : C.rouille;
+    return '<span style="color:' + couleur + '">' + h(j.libelle) + ' <span style="' + mono + '">' + Courriers_euros_(j.seuil) + '</span>' + (j.etat === 'depasse' ? ' — dépassé' : j.etat === 'alerte' ? ' — ≥ ' + ca.alertePct + ' %' : '') + '</span>';
+  }).join('<br>');
+  corps += section('Indicateurs', 3,
+    '<tr><td style="padding:8px 0;border-bottom:1px solid ' + C.filet + ';width:170px;color:' + C.gris + '">Affaires en cours</td><td style="padding:8px;border-bottom:1px solid ' + C.filet + '">' + (statuts || 'aucune') + '</td></tr>' +
+    '<tr><td style="padding:8px 0;border-bottom:1px solid ' + C.filet + ';color:' + C.gris + '">Taux d\'attribution (12 mois)</td><td style="padding:8px;border-bottom:1px solid ' + C.filet + '">' + taux + '</td></tr>' +
+    '<tr><td style="padding:8px 0;border-bottom:1px solid ' + C.filet + ';color:' + C.gris + ';vertical-align:top">CA encaissé ' + ca.annee + '</td><td style="padding:8px;border-bottom:1px solid ' + C.filet + '"><strong style="' + mono + '">' + Courriers_euros_(ca.encaisse) + '</strong> · engagé <span style="' + mono + '">' + Courriers_euros_(ca.engage) + '</span><br>' + jalons + '</td></tr>');
+
+  var dateTxt = Utilities.formatDate(quand, APP.FUSEAU, 'dd/MM/yyyy');
+  var nbAvis = avisPaca.length + horsPaca.length;
+  var sujet = APP.NOM + ' — ' + dateTxt + ' — ' + nbAvis + (nbAvis > 1 ? ' nouveaux' : ' nouvel') + ' avis · ' + echeances.length + ' échéance' + (echeances.length > 1 ? 's' : '');
+
+  var html = '<!DOCTYPE html><html lang="fr"><body style="margin:0;background:' + C.brume + ';font-family:\'IBM Plex Sans\',Arial,sans-serif;color:' + C.encre + '">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:' + C.brume + '"><tr><td align="center" style="padding:16px 8px">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:680px;background:' + C.blanc + ';border-radius:12px;overflow:hidden">' +
+    '<tr><td style="background:' + C.ardoise + ';padding:18px 24px;color:' + C.inverse + '">' +
+      '<div style="font-size:12px;letter-spacing:.14em;color:' + C.inverse2 + ';font-weight:600">KOMPA INGÉNIERIE</div>' +
+      '<div style="font-size:20px;font-weight:700">Kompa Affaires — ' + dateTxt + '</div></td></tr>' +
+    corps +
+    '<tr><td style="padding:24px">' + bouton(url, 'Ouvrir Kompa Affaires') + '</td></tr>' +
+    '<tr><td style="padding:12px 24px;border-top:1px solid ' + C.filet + ';color:' + C.gris + ';font-size:12px;' + mono + '">E-mail automatique du lundi au vendredi à ' + Params_nombre('email.heure', 7) + ' h — paramètres email.* de l\'app.</td></tr>' +
+    '</table></td></tr></table></body></html>';
+
+  var texte = [sujet, '']
+    .concat(avisPaca.length ? ['NOUVEAUX AVIS ' + paca].concat(avisPaca.map(function (a) { return '- [' + a.pre_score + '] ' + a.acheteur + ' — ' + a.objet + ' — ' + a.lien; })).concat(['']) : [])
+    .concat(avisFrance.length ? ['NOUVEAUX AVIS HORS ' + paca + ' (présentiel à vérifier)'].concat(avisFrance.map(function (a) { return '- [' + a.pre_score + '] ' + a.acheteur + ' — ' + a.objet + ' — ' + a.lien; })).concat(['']) : [])
+    .concat(echeances.length ? ['ÉCHÉANCES À 7 JOURS'].concat(echeances.map(function (e) { return '- ' + jr(e.date) + ' ' + e.libelle + ' — ' + e.acheteur; })).concat(['']) : [])
+    .concat(relances.length ? ['RELANCES À FAIRE'].concat(relances.map(function (r) { return '- ' + jr(r.date_prevue) + ' ' + r.type + ' — ' + r.acheteur; })).concat(['']) : [])
+    .concat(['Ouvrir l\'app : ' + url]).join('\n');
+
+  return { sujet: sujet, html: html, texte: texte, contenu: contenu,
+    nombres: { avisPaca: avisPaca.length, avisFrance: horsPaca.length, echeances: echeances.length, relances: relances.length } };
+}
+
+function Email_urlApp_() {
+  var u = Params_texte('app.url', '');
+  if (u) return u;
+  try { return ScriptApp.getService().getUrl() || ''; } catch (e) { return ''; }
+}
+
+
 // ════════ Exercice.js ════════
 
 /**
@@ -1218,6 +1775,35 @@ function creerAffaireExerciceMouthe() {
 }
 
 
+// ════════ Indicateurs.js ════════
+
+/**
+ * Indicateurs (§ 7). Lot 4 : résumé pour l'e-mail du matin. Le lot 5 complète le tableau de bord.
+ */
+
+function Indicateurs_resume(quand) {
+  var auj = aujourdhui_(quand);
+  var il_y_a_un_an = ajouterJours_(auj, -365);
+  var affaires = Affaires_lister();
+  var enCours = {};
+  STATUTS_ACTIFS.forEach(function (s) {
+    var n = affaires.filter(function (a) { return a.statut === s; }).length;
+    if (n) enCours[s] = n;
+  });
+  var resultats = affaires.filter(function (a) {
+    var d = date_(a.date_resultat);
+    return d && d >= il_y_a_un_an && d <= ajouterJours_(auj, 1);
+  });
+  var gagnees = resultats.filter(function (a) { return a.statut_final === 'Gagnée'; }).length;
+  var perdues = resultats.filter(function (a) { return a.statut_final === 'Perdue'; }).length;
+  return {
+    enCours: enCours,
+    attribution: { gagnees: gagnees, perdues: perdues, taux: gagnees + perdues ? gagnees / (gagnees + perdues) : 0 },
+    ca: Compteur_ca(Number(Utilities.formatDate(auj, APP.FUSEAU, 'yyyy')))
+  };
+}
+
+
 // ════════ Params.js ════════
 
 /**
@@ -1301,6 +1887,9 @@ var PARAMETRES_DEFAUT = [
   ['echeance.visite_alerte_j', '2', 'Alerte avant la visite de site (jours)'],
   ['echeance.rejet_relance_j', '10', 'Relance des motifs du rejet si rien reçu (jours)'],
   ['echeance.paiement_public_j', '30', 'Délai de paiement public (jours)'],
+  ['echeance.validite_defaut_j', '90', 'Validité de l\'offre si non renseignée dans l\'affaire (jours)'],
+  ['courrier.signature', 'Sébastien De Raedt EI\nKompa Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · kompa.ingenierie@gmail.com\nSIRET [n°] · TVA non applicable, art. 293 B du CGI',
+    'Signature des modèles de courriers (\\n = retour à la ligne)'],
 
   // E-mail (§ 6)
   ['email.heure', '7', 'Heure d\'envoi de l\'e-mail du matin (0-23)'],
@@ -1324,7 +1913,8 @@ var PARAMETRES_DEFAUT = [
   ['sauvegarde.nb_copies', '8', 'Nombre de copies hebdomadaires conservées dans Drive'],
 
   // Application
-  ['app.favicon_url', '', 'URL publique (PNG) du symbole Kompa pour l\'onglet et l\'écran d\'accueil']
+  ['app.favicon_url', '', 'URL publique (PNG) du symbole Kompa pour l\'onglet du navigateur'],
+  ['app.url', '', 'Adresse /exec de l\'app pour les liens de l\'e-mail (vide = détectée automatiquement)']
 ];
 
 var Params_cache_ = null;

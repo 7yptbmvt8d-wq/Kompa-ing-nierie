@@ -20,7 +20,7 @@ test('installer() crée le classeur, les 9 onglets et supprime la feuille par d�
   const noms = ss.getSheets().map((f) => f.getName());
   assert.deepStrictEqual(noms, ['Avis', 'Affaires', 'Historique', 'Critères', 'Factures', 'Relances', 'Acheteurs', 'Paramètres', 'Journal moteur']);
   assert.ok(rapport.parametresAjoutes > 40);
-  assert.deepStrictEqual(brut(rapport.declencheurs), ['sauvegardeHebdo', 'collecteQuotidienne']);
+  assert.deepStrictEqual(brut(rapport.declencheurs), ['sauvegardeHebdo', 'collecteQuotidienne', 'envoyerEmailMatin']);
 });
 
 test('chaque onglet a id/clé en 1re colonne et cree_le, modifie_le en fin', () => {
@@ -42,7 +42,7 @@ test('installer() est idempotent : pas de doublon de paramètres ni de déclench
   const r2 = env.ctx.installer({ exercice: false });
   assert.strictEqual(r2.parametresAjoutes, 0);
   assert.strictEqual(r2.colonnesAjoutees, 0);
-  assert.strictEqual(env.declencheurs.length, 2);
+  assert.strictEqual(env.declencheurs.length, 3);
   const params = env.ctx.Db_lire(env.ctx.TABLES.PARAMETRES);
   const cles = params.map((p) => p.cle);
   assert.strictEqual(new Set(cles).size, cles.length);
@@ -516,6 +516,163 @@ test('veille : Étudier crée l\'affaire liée ; Ignorer ; étudié non modifiab
   assert.strictEqual(v.data.journal.length, 2);
 });
 
+// ——— Lot 4 : échéances, relances, courriers, e-mail ———
+
+const J = (n) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); return d; };
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** Jeu d'affaires couvrant tous les cas du § 5. */
+const jeuEcheances = () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const etude = A.Affaires_creer({ acheteur: 'Commune de Gap', objet: 'AMO programmation école', date_limite_remise: iso(J(3)), date_limite_questions: iso(J(3)), date_visite: iso(J(2)) }).id;
+  const deposee = A.Affaires_creer({ acheteur: 'Commune de Digne', objet: 'Faisabilité gymnase', validite_offre_jours: 90 }, { date: iso(J(-120)) }).id;
+  A.Affaires_changerStatut(deposee, 'Go', {}, { date: iso(J(-115)) });
+  A.Affaires_changerStatut(deposee, 'Déposée', { montant_ht: 12000, jours_reponse: 2, date_depot: iso(J(-100)) }, { date: iso(J(-100)) });
+  const perdue = A.Affaires_creer({ acheteur: 'CC Serre-Ponçon', objet: 'Programmation MSP', reference_acheteur: '2026-07' }, { date: iso(J(-60)) }).id;
+  A.Affaires_changerStatut(perdue, 'Go', {}, { date: iso(J(-55)) });
+  A.Affaires_changerStatut(perdue, 'Déposée', { montant_ht: 9000, jours_reponse: 2, date_depot: iso(J(-40)) }, { date: iso(J(-40)) });
+  A.Affaires_changerStatut(perdue, 'Perdue', { date_resultat: iso(J(-12)) }, { date: iso(J(-12)) });
+  const gagnee = A.Affaires_creer({ acheteur: 'Commune de Sisteron', objet: 'Faisabilité pôle culturel' }, { date: iso(J(-200)) }).id;
+  A.Affaires_changerStatut(gagnee, 'Go', {}, { date: iso(J(-190)) });
+  A.Affaires_changerStatut(gagnee, 'Déposée', { montant_ht: 16000, jours_reponse: 3, date_depot: iso(J(-180)) }, { date: iso(J(-180)) });
+  A.Affaires_changerStatut(gagnee, 'Gagnée', { date_notification: iso(J(-150)), montant_notifie: 16000 }, { date: iso(J(-150)) });
+  const f1 = A.Factures_ajouter(gagnee, { numero: 'F-2026-07', date: iso(J(-40)), montant: 8000 }); // échéance J-10, non payée
+  const f2 = A.Factures_ajouter(gagnee, { numero: 'F-2026-09', date: iso(J(5)), montant: 4000 });  // prévue
+  return { env, A, etude, deposee, perdue, gagnee, f1, f2 };
+};
+
+test('échéancier § 5 : remise, questions, visite, décision, facturation, encaissement', () => {
+  const { A, etude, deposee, gagnee } = jeuEcheances();
+  const e = brut(A.Echeances_calculer(J(0), J(30)));
+  const de = (type, id) => e.filter((x) => x.type === type && x.id_affaire === id);
+  assert.strictEqual(de('Remise', etude).length, 1);
+  assert.strictEqual(de('Remise', etude)[0].jours, 3);
+  assert.strictEqual(de('Remise', etude)[0].alerte, true);   // J-3
+  assert.strictEqual(de('Questions', etude)[0].alerte, true); // J-3
+  assert.strictEqual(de('Visite', etude)[0].alerte, true);    // J-2
+  assert.strictEqual(de('Facturation', gagnee).length, 1);    // facture prévue à J+5
+  assert.strictEqual(de('Encaissement', gagnee)[0].depassee, true); // échéance dépassée, non payée
+  assert.strictEqual(de('Décision', deposee).length, 1);      // dépôt J-100 + 90 j = J-10 : dépassée
+  assert.ok(e.every((x, i) => i === 0 || new Date(e[i - 1].date) <= new Date(x.date)));
+});
+
+test('relances § 5 : décision, motifs J+10, encaissement ; clôture automatique ; idempotent', () => {
+  const { A, deposee, perdue, gagnee, f1 } = jeuEcheances();
+  const s1 = brut(A.Relances_synchroniser());
+  const rel = () => A.Db_lire(A.TABLES.RELANCES);
+  const types = (id) => brut(rel().filter((x) => x.id_affaire === id).map((x) => x.type + ':' + x.statut).sort());
+  assert.deepStrictEqual(types(deposee), ['Décision attendue:à faire']);
+  assert.deepStrictEqual(types(perdue), ['Motifs du rejet — rappel:à faire', 'Motifs du rejet:à faire']);
+  assert.deepStrictEqual(types(gagnee), ['Encaissement:à faire']);
+  assert.strictEqual(s1.creees, 3);
+  assert.strictEqual(brut(A.Relances_synchroniser()).creees, 0); // idempotent
+  // Motifs reçus → relances motifs sans objet ; facture payée → encaissement sans objet ; résultat → décision sans objet
+  A.Affaires_maj(perdue, { motifs_rejet: 'Prix supérieur de 8 %.' });
+  A.Factures_maj(f1.id, { date_encaissement: iso(J(0)), montant_encaisse: 8000 });
+  A.Affaires_changerStatut(deposee, 'Sans suite', { date_resultat: iso(J(0)) });
+  const s2 = brut(A.Relances_synchroniser());
+  assert.strictEqual(s2.closes, 4);
+  assert.ok(rel().every((x) => x.statut !== 'à faire'));
+  assert.strictEqual(A.Relances_aFaire().length, 0);
+});
+
+test('relances : facture prévue → relance « Facturation » le jour J', () => {
+  const { A, gagnee } = jeuEcheances();
+  A.Relances_synchroniser(J(5));
+  const f = A.Db_lire(A.TABLES.RELANCES).filter((x) => x.id_affaire === gagnee && x.type === 'Facturation');
+  assert.strictEqual(f.length, 1);
+  assert.strictEqual(A.jourIso_(f[0].date_prevue), iso(J(5)));
+});
+
+test('relances : statut faite / sans objet / à faire', () => {
+  const { A } = jeuEcheances();
+  A.Relances_synchroniser();
+  const r = A.Relances_aFaire()[0];
+  const f = brut(A.apiRelanceStatut(r.id, 'faite'));
+  assert.ok(f.ok, f.erreur);
+  assert.strictEqual(f.data.statut, 'faite');
+  assert.strictEqual(f.data.date_faite, iso(J(0)));
+  assert.strictEqual(A.apiRelanceStatut(r.id, 'oubliée').ok, false);
+});
+
+test('modèles de courriers : motifs (CCP R. 2181), décision, relance de paiement (R. 2192-10, 40 €)', () => {
+  const { A, perdue, deposee, gagnee } = jeuEcheances();
+  A.Relances_synchroniser();
+  const rel = (id, type) => A.Db_lire(A.TABLES.RELANCES).find((x) => x.id_affaire === id && x.type === type);
+  const m = brut(A.Courriers_modele(rel(perdue, 'Motifs du rejet').id));
+  assert.match(m.objet, /^2026-07 — Demande des motifs de rejet/);
+  assert.match(m.corps, /R\. 2181-1 à R\. 2181-4/);
+  assert.match(m.corps, /« Programmation MSP » \(référence 2026-07\)/);
+  assert.match(m.corps, /Sébastien De Raedt EI/);
+  const rappel = brut(A.Courriers_modele(rel(perdue, 'Motifs du rejet — rappel').id));
+  assert.match(rappel.corps, /restée sans réponse/);
+  const d = brut(A.Courriers_modele(rel(deposee, 'Décision attendue').id));
+  assert.match(d.corps, /90 jours/);
+  const p = brut(A.Courriers_modele(rel(gagnee, 'Encaissement').id));
+  assert.match(p.objet, /F-2026-07/);
+  assert.match(p.corps, /8 000,00 € HT/);
+  assert.match(p.corps, /R\. 2192-10/);
+  assert.match(p.corps, /40 €/);
+  assert.match(p.corps, /293 B du CGI/);
+});
+
+test('e-mail du matin : rubriques, objet, pas d\'envoi le week-end, récap du lundi', () => {
+  const { A, env } = jeuEcheances();
+  A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'x1', acheteur: 'Commune de Lurs', objet: 'Faisabilité salle', zone: 'PACA', departement: '04', pre_score: 88, classement: 'à étudier', statut: 'nouveau', lien: 'https://www.boamp.fr/x1', date_limite: J(20) });
+  A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'x2', acheteur: 'Ville de Lyon', objet: 'AMO', zone: 'France — présentiel à vérifier', departement: '69', pre_score: 62, classement: 'à étudier', statut: 'nouveau', lien: 'https://www.boamp.fr/x2' });
+  A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'x4', acheteur: 'Ville de Lille', objet: 'AMO', zone: 'France — présentiel à vérifier', departement: '59', pre_score: 50, classement: 'possible', statut: 'nouveau', lien: 'https://www.boamp.fr/x4' });
+  A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'x3', acheteur: 'Ignoré', objet: 'AMO', zone: 'PACA', pre_score: 70, statut: 'ignoré', lien: 'https://www.boamp.fr/x3' });
+  const m = brut(A.Email_construire(new Date()));
+  assert.deepStrictEqual(m.nombres, { avisPaca: 1, avisFrance: 2, echeances: 3, relances: 1 }); // relance « motifs » créée au passage en Perdue
+  assert.match(m.sujet, /^Kompa Affaires — \d{2}\/\d{2}\/\d{4} — 3 nouveaux avis · 3 échéances$/);
+  assert.match(m.html, /\+ 1 autre avis « possible » hors PACA/);
+  assert.doesNotMatch(m.html, /Ville de Lille/);
+  assert.match(m.html, /Nouveaux avis PACA/);
+  assert.match(m.html, /présentiel à vérifier/);
+  assert.match(m.html, /#veille/);
+  assert.match(m.html, /Indicateurs/);
+  assert.doesNotMatch(m.html, /Ignoré/);
+  // Samedi 14/11/2026 : pas d'envoi
+  assert.strictEqual(brut(A.Email_envoyer_(new Date(2026, 10, 14, 7), false)).envoye, false);
+  // Jeudi 12/11/2026 : envoi vers le compte Kompa
+  const ok = brut(A.Email_envoyer_(new Date(2026, 10, 12, 7), false));
+  assert.strictEqual(ok.envoye, true);
+  assert.strictEqual(env.ctx.MailApp.envois.length, 1);
+  assert.strictEqual(env.ctx.MailApp.envois[0].to, 'kompa.affaires@example.com');
+  assert.strictEqual(env.ctx.MailApp.envois[0].name, 'Kompa Affaires');
+});
+
+test('e-mail du matin : rien à signaler → pas d\'envoi, sauf le lundi', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  assert.strictEqual(brut(A.Email_envoyer_(new Date(2026, 10, 17, 7), false)).envoye, false); // mardi
+  assert.strictEqual(brut(A.Email_envoyer_(new Date(2026, 10, 16, 7), false)).envoye, true);  // lundi
+  assert.match(A.MailApp.envois[0].htmlBody, /Rien de nouveau/);
+  A.Params_enregistrer('email.destinataire', 'autre@example.com');
+  A.Params_cache_ = null;
+  A.Email_envoyerTest();
+  assert.strictEqual(A.MailApp.envois[1].to, 'autre@example.com');
+});
+
+test('API échéancier : grille du mois, prochaines échéances, relances', () => {
+  const { A } = jeuEcheances();
+  const r = brut(A.apiEcheancier('2026-11'));
+  assert.ok(r.ok, r.erreur);
+  assert.strictEqual(r.data.mois, '2026-11');
+  assert.strictEqual(r.data.grille.debut, '2026-10-26'); // lundi
+  assert.strictEqual(r.data.grille.fin, '2026-12-06');   // dimanche
+  assert.ok(r.data.prochaines.length >= 4);
+  assert.strictEqual(r.data.relances.length, 4); // motifs J+0, rappel J+10, décision, encaissement
+  const s = brut(A.apiSuivi());
+  assert.ok(s.ok, s.erreur);
+  assert.ok(s.data.echeances.every((e) => e.jours <= 7));
+  const ap = brut(A.apiEmailApercu());
+  assert.ok(ap.ok && /<html/.test(ap.data.html));
+});
+
 let echecs = 0;
 tests.forEach(({ nom, fn }) => {
   try {
@@ -524,7 +681,7 @@ tests.forEach(({ nom, fn }) => {
     console.log('  ok   ' + nom);
   } catch (e) {
     echecs++;
-    console.log('  ÉCHEC ' + nom + '\n        ' + (e.stack || e).toString().split('\n').slice(0, 3).join('\n        '));
+    console.log('  ÉCHEC ' + nom + '\n        ' + (e.stack || e).toString().split('\n').slice(0, 8).join('\n        '));
   }
 });
 console.log(`\n${tests.length - echecs}/${tests.length} tests réussis`);

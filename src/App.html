@@ -62,10 +62,6 @@
   // ——— Écrans ———
   var ECRANS = {
     accueil: { titre: 'Accueil', rendu: ecranAccueil },
-    echeancier: { titre: 'Échéancier', rendu: ecranAttente('Échéancier', 'Lot 4', [
-      ['Calendrier', 'Remises, questions, visites, décisions attendues.'],
-      ['Relances', 'Motifs de rejet, décisions en attente, encaissements, avec modèles de courriers.']
-    ]) },
     enseignements: { titre: 'Enseignements', rendu: ecranAttente('Enseignements', 'Lot 5', [
       ['Offres perdues', 'Écarts de prix et de note avec l\'attributaire, motifs, actions correctives.']
     ]) },
@@ -85,9 +81,11 @@
         '<section class="carte carte--large" id="carte-ca"><h2>Chiffre d\'affaires</h2><div class="chargement">Calcul du CA…</div></section>' +
         '<section class="carte" id="carte-etat"><h2>État du socle</h2><div class="chargement">Lecture du classeur…</div></section>' +
         carteAttente('Tableau de bord', 'Lot 5', 'Affaires par statut, taux de Go et d\'attribution, écarts avec les attributaires.') +
-        carteAttente('Échéances à 7 jours', 'Lot 4', 'Remises, questions à l\'acheteur, visites de site.') +
-        carteAttente('Relances à faire', 'Lot 4', 'Motifs de rejet, décisions en attente, factures à encaisser.') +
+        '<section class="carte" id="carte-echeances"><h2>Échéances à 7 jours</h2><div class="chargement">Calcul…</div></section>' +
+        '<section class="carte" id="carte-relances"><h2>Relances à faire</h2><div class="chargement">Calcul…</div></section>' +
       '</div>';
+
+    if (window.KA && window.KA.suiviAccueil) window.KA.suiviAccueil($('#carte-echeances'), $('#carte-relances'));
 
     appel('apiCompteurCA').then(function (ca) {
       $('#carte-ca').innerHTML = rendreCompteur(ca);

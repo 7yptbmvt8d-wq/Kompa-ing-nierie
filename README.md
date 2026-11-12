@@ -4,7 +4,7 @@ Veille et suivi des marchés publics d'AMO de Kompa Ingénierie.
 Google Apps Script + Google Sheets + web app, dans le compte Google Kompa.
 
 Spécification : [docs/cahier-des-charges-v1.md](docs/cahier-des-charges-v1.md) ·
-Recette : [lot 1](docs/recette-lot-1.md) · [lot 2](docs/recette-lot-2.md) · [lot 3](docs/recette-lot-3.md)
+Recette : [lot 1](docs/recette-lot-1.md) · [lot 2](docs/recette-lot-2.md) · [lot 3](docs/recette-lot-3.md) · [lot 4](docs/recette-lot-4.md)
 
 ## Avancement
 
@@ -12,8 +12,8 @@ Recette : [lot 1](docs/recette-lot-1.md) · [lot 2](docs/recette-lot-2.md) · [l
 |---|---|---|
 | 1. Socle | Classeur et onglets, web app aux couleurs Kompa, connexion Google, Paramètres, compteur de CA | Installé |
 | 2. Affaires | Fiche affaire, statuts et règles de passage, historique, vues colonnes et liste, affaire d'exercice Mouthe | Livré |
-| 3. Veille | Collecte BOAMP + boîte de veille, filtres, dédoublonnage, pré-score, écran Veille | Livré — en recette ([recette-lot-3.md](docs/recette-lot-3.md)) |
-| 4. Échéances et e-mail | Échéancier, relances, modèles de courriers, e-mail de 7 h du lundi au vendredi vers kompa.ingenierie@gmail.com | — |
+| 3. Veille | Collecte BOAMP + boîte de veille, filtres, dédoublonnage, pré-score, écran Veille | Installé — en recette ([recette-lot-3.md](docs/recette-lot-3.md)) |
+| 4. Échéances et e-mail | Échéancier (calendrier), relances automatiques, modèles de courriers, e-mail de 7 h du lundi au vendredi vers kompa.ingenierie@gmail.com | Livré — en recette ([recette-lot-4.md](docs/recette-lot-4.md)) |
 | 5. Tableau de bord | Indicateurs, seuils, Enseignements | — |
 
 ## Installation
@@ -42,6 +42,11 @@ src/                    code source (Apps Script)
   Exercice.js           affaire d'exercice Mouthe (créée par installer)
   Veille.js             collecte BOAMP + alertes Gmail, filtres, doublons, pré-score (§ 3)
   ApiVeille.js          API de l'écran Veille
+  Echeances.js          échéances calculées et relances automatiques (§ 5)
+  Courriers.js          modèles de courriers des relances
+  Email.js              e-mail du matin (§ 6)
+  Indicateurs.js        indicateurs (résumé ; complété au lot 5)
+  ApiEcheances.js       API de l'échéancier et de l'e-mail
   Setup.js              installer(), déclencheurs, sauvegarde hebdomadaire
   WebApp.js             doGet() et API appelée par l'interface
   Index.html            gabarit de la page (symbole Kompa du kit)
@@ -50,6 +55,7 @@ src/                    code source (Apps Script)
   App.html              script de l'interface (navigation, accueil, paramètres)
   AppAffaires.html      écrans Affaires (colonnes, liste) et fiche affaire
   AppVeille.html        écran Veille (avis, Étudier / Ignorer, journal du moteur)
+  AppEcheancier.html    écran Échéancier (relances, courriers, calendrier, e-mail)
 dist/                   version assemblée à coller dans Apps Script (npm run build)
 charte/kompa-kit/       kit de charte Kompa (DESIGN.md, tokens.css, logos)
 tools/                  outils locaux, non déployés

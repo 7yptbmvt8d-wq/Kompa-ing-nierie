@@ -58,6 +58,12 @@ function assembler() {
   A.Affaires_changerStatut(w1, 'Gagnée', { date_notification: '2026-06-10', montant_notifie: 16000 }, { date: '2026-06-10' });
   A.Factures_ajouter(w1, { numero: 'F-2026-01', date: '2026-07-31', montant: 8000, date_encaissement: '2026-08-28', montant_encaisse: 8000 });
   A.Factures_ajouter(w1, { numero: 'F-2026-02', date: '2026-10-30', montant: 4000 });
+  A.Factures_ajouter(w1, { numero: 'F-2026-01b', date: '2026-09-25', montant: 2000 }); // échéance dépassée, non payée
+  A.Affaires_maj(e1, { date_limite_questions: '2026-11-13', date_visite: '2026-11-13' });
+  const p1 = cree({ acheteur: 'Commune de Forcalquier', type_acheteur: 'Commune', departement: '04', objet: 'Programmation d\'une médiathèque', procedure: 'MAPA' }, '2026-08-20');
+  A.Affaires_changerStatut(p1, 'Go', {}, { date: '2026-08-25' });
+  A.Affaires_changerStatut(p1, 'Déposée', { montant_ht: 11500, jours_reponse: 2, date_depot: '2026-09-15' }, { date: '2026-09-15' });
+  A.Affaires_changerStatut(p1, 'Perdue', { date_resultat: '2026-10-28', attributaire: '[attributaire]' }, { date: '2026-10-28' });
   console.log = log;
   const html = assembler();
   fs.writeFileSync(path.join(sortie, 'index.html'), html);
@@ -185,9 +191,37 @@ function assembler() {
   await p.selectOption('[data-filtre="statut"]', 'tous');
   await p.screenshot({ path: path.join(sortie, 'pc-veille-paca.png'), fullPage: true });
 
+  // ——— Lot 4 : Échéancier ———
+  await p.click('nav a[href="#accueil"]');
+  await p.waitForSelector('#carte-relances .liste-suivi');
+  await p.screenshot({ path: path.join(sortie, 'pc-accueil-suivi.png'), fullPage: true });
+  await p.click('nav a[href="#echeancier"]');
+  await p.waitForSelector('.cal-grille');
+  await p.screenshot({ path: path.join(sortie, 'pc-echeancier.png'), fullPage: true });
+  await p.click('[data-courrier]');
+  await p.waitForSelector('dialog.dialogue--large textarea.courrier');
+  const texte = await p.inputValue('textarea.courrier');
+  assert.match(texte, /code de la commande publique/);
+  await p.screenshot({ path: path.join(sortie, 'pc-courrier.png') });
+  await p.click('dialog.dialogue--large [data-fermer]');
+  const nbAvant = await p.locator('[data-relance][data-statut="faite"]').count();
+  await p.click('[data-relance][data-statut="faite"]');
+  await p.waitForFunction((n) => document.querySelectorAll('[data-relance][data-statut="faite"]').length === n - 1, nbAvant);
+  await p.click('[data-mois="1"]');
+  await p.waitForSelector('.cal-tete h2:has-text("décembre")');
+  await p.click('[data-action="apercu"]');
+  await p.waitForSelector('dialog iframe.apercu-email');
+  await p.waitForTimeout(500);
+  await p.screenshot({ path: path.join(sortie, 'pc-apercu-email.png') });
+  await p.click('dialog.dialogue--large [data-fermer]');
+  await p.click('[data-action="envoyer"]');
+  await p.waitForFunction(() => /E-mail envoyé|Pas d'envoi/.test(document.querySelector('#toast').textContent));
+  assert.strictEqual(A.MailApp.envois.length, 1, 'e-mail non envoyé');
+  fs.writeFileSync(path.join(sortie, 'email-matin.html'), A.MailApp.envois[0].htmlBody);
+
   // Petit portable (1280 px) : pas de débordement de la page
   await p.setViewportSize({ width: 1280, height: 800 });
-  for (const ecran of ['#accueil', '#veille', '#affaires', '#parametres']) {
+  for (const ecran of ['#accueil', '#veille', '#affaires', '#echeancier', '#parametres']) {
     await p.click(`nav a[href="${ecran}"]`);
     await p.waitForTimeout(300);
     const deborde = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);

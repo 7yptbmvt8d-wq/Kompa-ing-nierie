@@ -134,7 +134,7 @@ function creerEnvironnement(options = {}) {
       getActiveUser: () => ({ getEmail: () => options.visiteur || email })
     },
     Utilities: { getUuid: () => crypto.randomUUID(), formatDate, sleep: () => {} },
-    MailApp: { getRemainingDailyQuota: () => 100 },
+    MailApp: { envois: [], getRemainingDailyQuota: () => 100, sendEmail: (m) => { gas.MailApp.envois.push(m); } },
     // API BOAMP simulée : options.boamp = réponse JSON ; options.echecsHttp = nb de coupures avant succès
     UrlFetchApp: {
       appels: [],
@@ -158,6 +158,7 @@ function creerEnvironnement(options = {}) {
     },
     ScriptApp: {
       WeekDay: { MONDAY: 'MONDAY' },
+      getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/TEST/exec' }),
       getProjectTriggers: () => declencheurs.slice(),
       deleteTrigger: (t) => { declencheurs.splice(declencheurs.indexOf(t), 1); },
       newTrigger: (fn) => {

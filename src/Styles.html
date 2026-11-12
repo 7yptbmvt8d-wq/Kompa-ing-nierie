@@ -224,6 +224,31 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
 .score--moyen { background: var(--kompa-brume); color: var(--kompa-ardoise); }
 .score--bas { background: var(--kompa-blanc); color: var(--kompa-gris); box-shadow: inset 0 0 0 1px var(--kompa-filet); }
 
+/* Échéancier */
+.cal-tete { display: flex; justify-content: space-between; align-items: center; margin-top: var(--kompa-s6); }
+.cal-tete h2 { margin: 0; text-transform: capitalize; }
+.cal { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius-sm); margin-top: var(--kompa-s3); overflow: hidden; }
+.cal-entete, .cal-grille { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-entete div { background: var(--kompa-brume); color: var(--kompa-ardoise); font-weight: 600; font-size: 13px; padding: var(--kompa-s1) var(--kompa-s2); }
+.cal-jour { min-height: 92px; border-top: var(--kompa-filet-fin); border-left: var(--kompa-filet-fin); padding: var(--kompa-s1); display: flex; flex-direction: column; gap: 2px; }
+.cal-jour:nth-child(7n+1) { border-left: 0; }
+.cal-jour--hors { background: var(--kompa-papier); }
+.cal-jour--hors .cal-jour__num { color: var(--kompa-gris); }
+.cal-jour--auj { box-shadow: inset 0 0 0 2px var(--kompa-ardoise); }
+.cal-jour__num { font-size: 12px; color: var(--kompa-ardoise); }
+.ech { display: block; font-size: 12px; line-height: 1.35; padding: 1px var(--kompa-s1); border-radius: 3px; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cle-cal .ech { display: inline-block; margin-right: var(--kompa-s2); }
+.ech--remise { background: var(--kompa-ardoise); color: var(--kompa-texte-inverse); }
+.ech--secondaire { background: var(--kompa-brume); color: var(--kompa-ardoise); }
+.ech--attente { background: var(--kompa-blanc); color: var(--kompa-gris); box-shadow: inset 0 0 0 1px var(--kompa-filet); }
+.ech--argent { background: var(--app-statut-gagnee-fond); color: var(--app-statut-gagnee); }
+.ech--depassee { background: var(--app-statut-perdue-fond); color: var(--app-statut-perdue); }
+.liste-suivi { list-style: none; padding: 0; margin: 0; font-size: var(--kompa-fs-small); }
+.liste-suivi li { padding: var(--kompa-s2) 0; border-bottom: var(--kompa-filet-fin); }
+.dialogue--large { width: min(860px, calc(100vw - 32px)); }
+textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-fs-small); line-height: 1.5; }
+.apercu-email { width: 100%; height: 60vh; border: var(--kompa-filet-fin); border-radius: var(--kompa-radius-sm); background: var(--kompa-brume); }
+
 /* Boîte de dialogue */
 .dialogue { border: 0; border-radius: var(--kompa-radius); padding: var(--kompa-s5); width: min(640px, calc(100vw - 32px)); color: var(--kompa-encre); }
 .dialogue::backdrop { background: rgba(11, 18, 32, 0.45); }
