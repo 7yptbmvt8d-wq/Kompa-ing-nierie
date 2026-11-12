@@ -1823,6 +1823,7 @@ var GROUPES_PARAMETRES = [
   ['seuil', 'Seuils de CA'],
   ['echeance', 'Échéances et relances'],
   ['email', 'E-mail du matin'],
+  ['courrier', 'Courriers'],
   ['liste', 'Listes de valeurs'],
   ['sauvegarde', 'Sauvegarde'],
   ['app', 'Application']
