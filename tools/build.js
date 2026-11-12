@@ -17,9 +17,11 @@ fs.mkdirSync(DIST, { recursive: true });
 const version = (fs.readFileSync(path.join(SRC, 'Config.js'), 'utf8').match(/VERSION: '([^']+)'/) || [])[1];
 const entete = `Kompa Affaires ${version} — fichier généré par tools/build.js depuis src/. Ne pas modifier ici.`;
 
+// Setup.js en tête : « installer » est ainsi la fonction sélectionnée par défaut
+// dans la liste « Exécuter » de l'éditeur Apps Script.
 const code = fs.readdirSync(SRC)
   .filter((f) => f.endsWith('.js'))
-  .sort()
+  .sort((a, b) => (a === 'Setup.js' ? -1 : b === 'Setup.js' ? 1 : a.localeCompare(b)))
   .map((f) => `// ════════ ${f} ════════\n\n` + fs.readFileSync(path.join(SRC, f), 'utf8').trim())
   .join('\n\n\n');
 fs.writeFileSync(path.join(DIST, 'Code.gs'), `/* ${entete} */\n\n${code}\n`);
