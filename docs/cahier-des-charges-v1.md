@@ -80,6 +80,25 @@ Chaque affaire suit un cycle de statuts datés ; chaque changement de statut est
 
 Une affaire déposée finit gagnée, perdue ou sans suite ; seule une affaire gagnée passe en exécution puis soldée.
 
+**Statuts retenus** (validés le 12/11/2026) :
+
+```
+En étude → Go → Déposée → Gagnée → Soldée
+    ↘ No-go  ↘ Abandonnée   ↘ Perdue
+                            ↘ Sans suite
+```
+
+| Statut | Sens |
+|---|---|
+| En étude | Avis retenu, DCE en cours de lecture |
+| Go / No-go | Décision de répondre ou non (motif obligatoire si No-go) |
+| Abandonnée | Renoncement à déposer après un Go |
+| Déposée | Offre remise |
+| Gagnée | Marché notifié, mission en cours d'exécution |
+| Perdue | Offre non retenue |
+| Sans suite | Procédure déclarée sans suite ou infructueuse par l'acheteur |
+| Soldée | Montant notifié entièrement encaissé (ou clôture manuelle) |
+
 ### 4.1 Règles de passage
 
 - **No-go** : motif obligatoire, choisi dans une liste (hors zone, hors compétence, références insuffisantes, délai trop court, charge, autre).

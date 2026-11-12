@@ -153,7 +153,7 @@ test('compteur CA : encaissé, engagé, jalons et alertes', () => {
     { id_affaire: 'KA-2025-009', numero: 'F0', date: '01/12/2025', montant: 5000, date_encaissement: '05/01/2025', montant_encaisse: 5000 } // autre année
   ]);
   env.ctx.Db_insererPlusieurs(T.AFFAIRES, [
-    { id: 'KA-2026-002', statut: 'En exécution', montant_notifie: 12000, date_notification: '01/09/2026' },
+    { id: 'KA-2026-002', statut: 'Gagnée', montant_notifie: 12000, date_notification: '01/09/2026' },
     { id: 'KA-2026-003', statut: 'Perdue', montant_notifie: '' }
   ]);
   const ca = brut(env.ctx.Compteur_ca(2026));

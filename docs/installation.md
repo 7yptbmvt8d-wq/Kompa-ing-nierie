@@ -1,8 +1,16 @@
 # Installer Kompa Affaires dans le compte Google Kompa
 
-Durée : 15 minutes, sur PC. Aucun logiciel à installer : on colle trois fichiers dans l'éditeur Apps Script de Google.
+Durée : 15 minutes, sur ordinateur **Windows, macOS ou ChromeOS**. Tout se fait dans le navigateur (Chrome, Edge, Safari ou Firefox) : aucun logiciel à installer, on colle trois fichiers dans l'éditeur Apps Script de Google.
 
-**Prérequis** : le compte Google Kompa (adresse Gmail dédiée, § 11 du cahier des charges) existe. Toutes les étapes se font **connecté avec ce compte** (pas votre compte personnel).
+Raccourcis clavier : **Ctrl** sur Windows et ChromeOS, **⌘ Cmd** sur Mac.
+
+## 0. Créer le compte Google Kompa (une fois)
+
+1. <https://accounts.google.com/signup> → créer un compte gratuit avec une **nouvelle adresse @gmail.com** (Gmail, Drive et Sheets inclus, pas d'abonnement).
+2. Activer la validation en deux étapes : <https://myaccount.google.com/security>.
+3. Pour recevoir aussi les messages sur votre adresse habituelle : Gmail → Paramètres → **Transfert et POP/IMAP** → ajouter votre adresse.
+
+Toutes les étapes suivantes se font **connecté avec ce compte**, pas avec votre compte personnel.
 
 Les trois fichiers à coller sont dans le dossier `dist/` du dépôt :
 
@@ -24,10 +32,10 @@ Sur GitHub, ouvrir le fichier puis cliquer l'icône **Copier le fichier brut** (
 
 Revenir à l'**Éditeur** (icône `< >` à gauche).
 
-4. Fichier **appsscript.json** : tout sélectionner (Ctrl+A), coller le contenu de `dist/appsscript.json`.
+4. Fichier **appsscript.json** : tout sélectionner (Ctrl+A / ⌘+A), coller le contenu de `dist/appsscript.json`.
 5. Fichier **Code.gs** : tout sélectionner, coller le contenu de `dist/Code.gs`.
 6. Bouton **+** à côté de « Fichiers » → **HTML** → nommer **Index** (sans `.html`, majuscule comprise) → tout sélectionner, coller le contenu de `dist/Index.html`.
-7. **Ctrl+S** pour enregistrer.
+7. **Ctrl+S** (⌘+S sur Mac) pour enregistrer.
 
 ## C. Créer le classeur
 
@@ -45,14 +53,23 @@ Revenir à l'**Éditeur** (icône `< >` à gauche).
     - Qui a accès : **Moi uniquement**
 13. **Déployer** → copier l'**URL de l'application Web** (elle se termine par `/exec`). C'est l'adresse de l'app : la mettre en favori.
 
-## E. Ouvrir sur PC et téléphone
+## E. Ouvrir l'app
 
-14. PC : ouvrir l'URL dans le navigateur connecté au compte Kompa.
-15. Téléphone : se connecter au compte Kompa dans Safari ou Chrome, ouvrir l'URL, puis
-    - iPhone : bouton Partager → **Sur l'écran d'accueil** ;
-    - Android : menu ⋮ → **Ajouter à l'écran d'accueil**.
+L'app s'ouvre dans n'importe quel navigateur récent, connecté au compte Kompa. Pour l'avoir comme une application (icône, fenêtre à part) :
+
+| Appareil | Navigateur | Raccourci |
+|---|---|---|
+| Windows, macOS, ChromeOS | Chrome | Menu ⋮ → **Caster, enregistrer et partager** → **Créer un raccourci…** → cocher **Ouvrir dans une fenêtre** → Créer |
+| Windows, macOS | Edge | Menu ··· → **Applications** → **Installer ce site en tant qu'application** |
+| macOS | Safari | Menu **Fichier** → **Ajouter au Dock** |
+| iPhone | Safari | Bouton Partager → **Sur l'écran d'accueil** |
+| Android | Chrome | Menu ⋮ → **Ajouter à l'écran d'accueil** |
+
+Sur ChromeOS, le raccourci apparaît dans le lanceur et peut être épinglé à l'étagère. Sur Windows, il apparaît dans le menu Démarrer ; sur Mac, dans le Dock ou le Launchpad.
 
 L'icône du raccourci est celle de Google Apps Script, pas le logo Kompa : Google ne permet pas de la changer pour ce type d'app.
+
+Si plusieurs comptes Google sont ouverts dans le navigateur, Google peut afficher une erreur d'accès : ouvrir l'app dans un **profil de navigateur** réservé au compte Kompa (Chrome : icône de profil en haut à droite → Ajouter).
 
 ## Mettre à jour après une nouvelle livraison
 

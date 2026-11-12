@@ -83,8 +83,8 @@ var PARAMETRES_DEFAUT = [
   ['email.recap_lundi', 'oui', 'Envoi le lundi même si toutes les rubriques sont vides'],
 
   // Listes de valeurs (§ 4, 9)
-  ['liste.statuts_affaire', 'En étude;Go;No-go;Déposée;Gagnée;Perdue;Sans suite;En exécution;Soldée',
-    'Cycle des statuts d\'une affaire — à confirmer au lot 2'],
+  ['liste.statuts_affaire', 'En étude;Go;No-go;Abandonnée;Déposée;Gagnée;Perdue;Sans suite;Soldée',
+    'Cycle des statuts d\'une affaire (Gagnée = notifiée et en exécution)'],
   ['liste.statuts_avis', 'nouveau;étudié;ignoré;archivé', 'Statuts d\'un avis'],
   ['liste.motifs_nogo', 'hors zone;hors compétence;références insuffisantes;délai trop court;charge;autre',
     'Motifs de No-go'],

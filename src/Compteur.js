@@ -9,8 +9,8 @@
  *   dépasser un seuil.
  */
 
-/** Statuts d'affaire dont le montant notifié compte dans le CA engagé. */
-var STATUTS_CA_ENGAGE = ['Gagnée', 'En exécution'];
+/** Statuts d'affaire dont le montant notifié compte dans le CA engagé (Gagnée = notifiée et en exécution). */
+var STATUTS_CA_ENGAGE = ['Gagnée'];
 
 function Compteur_ca(annee) {
   var aujourdhui = new Date();

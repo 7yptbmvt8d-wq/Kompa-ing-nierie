@@ -40,6 +40,6 @@ Le quota d'e-mails restant du jour est affiché sur l'accueil de l'app (carte «
 
 ## Points ouverts pour les lots suivants
 
-- **Cycle des statuts** (§ 4) : à valider avant le lot 2 (`liste.statuts_affaire`).
+- **Cycle des statuts** (§ 4), validé le 12/11/2026 : En étude → Go / No-go → Déposée (ou Abandonnée après un Go) → Gagnée / Perdue / Sans suite → Soldée. « Gagnée » couvre la notification et l'exécution.
 - **Capacité par mission** : `capacite.montant_max_mission` facultatif ; sinon le critère Montant du pré-score (lot 3) compare le montant estimé au reste disponible sous le plafond visé.
 - **Seuils légaux** : 37 500 € / 41 250 € (TVA) et 83 600 € (micro) sont des paramètres, à vérifier chaque 1er janvier.

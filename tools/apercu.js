@@ -47,7 +47,7 @@ function assembler() {
     { id_affaire: 'KA-2026-001', numero: 'F-02', date: '02/05/2026', montant: 13000, date_encaissement: '01/06/2026', montant_encaisse: 13000 },
     { id_affaire: 'KA-2026-002', numero: 'F-03', date: '01/10/2026', montant: 4000 }
   ]);
-  env.ctx.Db_inserer(T.AFFAIRES, { id: 'KA-2026-002', statut: 'En exécution', montant_notifie: 12000, date_notification: '01/09/2026' });
+  env.ctx.Db_inserer(T.AFFAIRES, { id: 'KA-2026-002', statut: 'Gagnée', montant_notifie: 12000, date_notification: '01/09/2026' });
   const html = assembler();
   fs.writeFileSync(path.join(sortie, 'index.html'), html);
 
