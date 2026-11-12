@@ -84,3 +84,52 @@ function creerAffaireExerciceMouthe() {
   console.log('Affaire d\'exercice créée : ' + id);
   return id;
 }
+
+/**
+ * Recette du lot 5 : trois affaires fictives [TEST] dont les indicateurs se recalculent
+ * à la main (docs/recette-lot-5.md). À lancer depuis l'éditeur : creerAffairesTestIndicateurs ;
+ * puis supprimerAffairesTest pour tout effacer (affaires, historique, critères, factures, relances).
+ */
+var MARQUE_TEST = '[TEST]';
+
+function creerAffairesTestIndicateurs() {
+  if (Affaires_lister().some(function (a) { return String(a.acheteur).indexOf(MARQUE_TEST) === 0; })) {
+    console.log('Affaires [TEST] déjà présentes.');
+    return Affaires_lister().filter(function (a) { return String(a.acheteur).indexOf(MARQUE_TEST) === 0; }).map(function (a) { return a.id; });
+  }
+  // T1 — gagnée : Go, déposée 20 000 € (4 j), notifiée 20 000 €, rang 1 ; facture 10 000 € encaissée
+  var t1 = Affaires_creer({ acheteur: MARQUE_TEST + ' Commune A', type_acheteur: 'Commune', departement: '83', objet: MARQUE_TEST + ' Faisabilité école', procedure: 'MAPA' }, { date: '2026-05-20' }).id;
+  Affaires_changerStatut(t1, STATUTS.GO, {}, { date: '2026-06-02' });
+  Affaires_changerStatut(t1, STATUTS.DEPOSEE, { montant_ht: 20000, jours_reponse: 4, date_depot: '2026-06-20' }, { date: '2026-06-20' });
+  Affaires_changerStatut(t1, STATUTS.GAGNEE, { date_notification: '2026-07-15', montant_notifie: 20000, rang: 1 }, { date: '2026-07-15' });
+  Affaires_maj(t1, { rang: 1 });
+  Factures_ajouter(t1, { numero: 'TEST-01', date: '2026-08-31', montant: 10000, date_encaissement: '2026-09-30', montant_encaisse: 10000 });
+
+  // T2 — perdue : Go, déposée 15 000 € (3 j), attributaire 12 000 €, rang 3 ; technique 40 / 48 ; pièce : prix
+  var t2 = Affaires_creer({ acheteur: MARQUE_TEST + ' EPCI B', type_acheteur: 'EPCI', departement: '13', objet: MARQUE_TEST + ' Programmation gymnase', procedure: 'MAPA' }, { date: '2026-06-25' }).id;
+  Affaires_changerStatut(t2, STATUTS.GO, {}, { date: '2026-07-01' });
+  Affaires_changerStatut(t2, STATUTS.DEPOSEE, { montant_ht: 15000, jours_reponse: 3, date_depot: '2026-07-20' }, { date: '2026-07-20' });
+  Affaires_changerStatut(t2, STATUTS.PERDUE, { date_resultat: '2026-09-10', attributaire: MARQUE_TEST + ' Concurrent', prix_attributaire: 12000, rang: 3 }, { date: '2026-09-10' });
+  Affaires_maj(t2, { motifs_rejet: 'Prix', piece_type: 'prix' });
+  Criteres_enregistrer(t2, [
+    { critere: 'Valeur technique', ponderation: 60, note_kompa: 40, note_attributaire: 48 },
+    { critere: 'Prix', ponderation: 40, note_kompa: 32, note_attributaire: 40 }
+  ]);
+
+  // T3 — No-go : motif « charge »
+  var t3 = Affaires_creer({ acheteur: MARQUE_TEST + ' Commune C', type_acheteur: 'Commune', departement: '04', objet: MARQUE_TEST + ' Étude préalable', procedure: 'MAPA' }, { date: '2026-08-01' }).id;
+  Affaires_changerStatut(t3, STATUTS.NOGO, { motif_decision: 'charge' }, { date: '2026-08-05' });
+
+  console.log('Affaires [TEST] créées : ' + [t1, t2, t3].join(', '));
+  return [t1, t2, t3];
+}
+
+function supprimerAffairesTest() {
+  var ids = Affaires_lister().filter(function (a) { return String(a.acheteur).indexOf(MARQUE_TEST) === 0; }).map(function (a) { return String(a.id); });
+  if (!ids.length) { console.log('Aucune affaire [TEST].'); return 0; }
+  var lie = function (l) { return ids.indexOf(String(l.id_affaire)) >= 0; };
+  [TABLES.HISTORIQUE, TABLES.CRITERES, TABLES.FACTURES, TABLES.RELANCES].forEach(function (t) { Db_supprimerSi(t, lie); });
+  Db_supprimerSi(TABLES.AFFAIRES, function (a) { return ids.indexOf(String(a.id)) >= 0; });
+  console.log('Affaires [TEST] supprimées : ' + ids.join(', '));
+  return ids.length;
+}

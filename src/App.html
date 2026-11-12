@@ -54,37 +54,23 @@
     return '<div class="titre-ecran"><h1>' + esc(t) + '</h1>' + (sousTitre ? '<p>' + esc(sousTitre) + '</p>' : '') + '</div>';
   }
 
-  function carteAttente(t, lot, texte) {
-    return '<section class="carte carte--attente"><div class="carte__lot">' + esc(lot) + '</div>' +
-      '<h2>' + esc(t) + '</h2><p>' + esc(texte) + '</p></section>';
-  }
-
   // ——— Écrans ———
   var ECRANS = {
     accueil: { titre: 'Accueil', rendu: ecranAccueil },
-    enseignements: { titre: 'Enseignements', rendu: ecranAttente('Enseignements', 'Lot 5', [
-      ['Offres perdues', 'Écarts de prix et de note avec l\'attributaire, motifs, actions correctives.']
-    ]) },
     parametres: { titre: 'Paramètres', rendu: ecranParametres }
   };
 
-  function ecranAttente(nom, lot, cartes) {
-    return function (el) {
-      el.innerHTML = titre(nom, 'Disponible au ' + lot.toLowerCase()) +
-        '<div class="grille">' + cartes.map(function (c) { return carteAttente(c[0], lot, c[1]); }).join('') + '</div>';
-    };
-  }
-
   function ecranAccueil(el) {
     el.innerHTML = titre('Accueil', '') +
+      '<section id="tableau-de-bord"><h2>Tableau de bord</h2><div class="chargement">Calcul des indicateurs…</div></section>' +
       '<div class="grille">' +
         '<section class="carte carte--large" id="carte-ca"><h2>Chiffre d\'affaires</h2><div class="chargement">Calcul du CA…</div></section>' +
-        '<section class="carte" id="carte-etat"><h2>État du socle</h2><div class="chargement">Lecture du classeur…</div></section>' +
-        carteAttente('Tableau de bord', 'Lot 5', 'Affaires par statut, taux de Go et d\'attribution, écarts avec les attributaires.') +
         '<section class="carte" id="carte-echeances"><h2>Échéances à 7 jours</h2><div class="chargement">Calcul…</div></section>' +
         '<section class="carte" id="carte-relances"><h2>Relances à faire</h2><div class="chargement">Calcul…</div></section>' +
+        '<section class="carte" id="carte-etat"><h2>État du socle</h2><div class="chargement">Lecture du classeur…</div></section>' +
       '</div>';
 
+    if (window.KA && window.KA.tableauAccueil) window.KA.tableauAccueil($('#tableau-de-bord'));
     if (window.KA && window.KA.suiviAccueil) window.KA.suiviAccueil($('#carte-echeances'), $('#carte-relances'));
 
     appel('apiCompteurCA').then(function (ca) {
@@ -169,7 +155,7 @@
         }).join('') +
       '</tbody></table></div>' +
       '<p class="legende">Engagé = encaissé + factures non payées (' + euros(ca.aEncaisser) + ') + reste à facturer sur les affaires gagnées (' + euros(ca.resteAFacturer) + '). ' +
-      'Factures et encaissements : onglet Factures du classeur (écran de saisie au lot 4).</p>';
+      'Factures et encaissements : onglet Exécution de chaque fiche affaire.</p>';
   }
 
   function ecranParametres(el) {

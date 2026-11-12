@@ -43,6 +43,7 @@ function assembler() {
   // Données FICTIVES (aperçu uniquement) : exercice Mouthe + affaires de démonstration.
   console.log = () => {};
   env.ctx.creerAffaireExerciceMouthe();
+  env.ctx.creerAffairesTestIndicateurs();
   const A = env.ctx;
   const cree = (d, quand) => A.Affaires_creer(d, { date: quand }).id;
   const e1 = cree({ acheteur: 'Commune de Digne-les-Bains', type_acheteur: 'Commune', departement: '04', objet: 'Étude de faisabilité — réhabilitation du gymnase municipal', procedure: 'MAPA', date_limite_remise: '2026-11-14', pre_score: 85 }, '2026-11-02');
@@ -219,9 +220,20 @@ function assembler() {
   assert.strictEqual(A.MailApp.envois.length, 1, 'e-mail non envoyé');
   fs.writeFileSync(path.join(sortie, 'email-matin.html'), A.MailApp.envois[0].htmlBody);
 
+  // ——— Lot 5 : tableau de bord et enseignements ———
+  await p.click('nav a[href="#accueil"]');
+  await p.waitForSelector('#tableau-de-bord .tuile');
+  await p.waitForSelector('#carte-ca table');
+  await p.screenshot({ path: path.join(sortie, 'pc-tableau-de-bord.png'), fullPage: true });
+  const tauxGo = await p.locator('.tuile', { hasText: 'Taux de Go' }).locator('.tuile__valeur').textContent();
+  assert.match(tauxGo, /%$/);
+  await p.click('nav a[href="#enseignements"]');
+  await p.waitForSelector('.table-enseignements tbody tr');
+  await p.screenshot({ path: path.join(sortie, 'pc-enseignements.png'), fullPage: true });
+
   // Petit portable (1280 px) : pas de débordement de la page
   await p.setViewportSize({ width: 1280, height: 800 });
-  for (const ecran of ['#accueil', '#veille', '#affaires', '#echeancier', '#parametres']) {
+  for (const ecran of ['#accueil', '#veille', '#affaires', '#echeancier', '#enseignements', '#parametres']) {
     await p.click(`nav a[href="${ecran}"]`);
     await p.waitForTimeout(300);
     const deborde = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);

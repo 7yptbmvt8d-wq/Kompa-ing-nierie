@@ -249,6 +249,29 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
 textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-fs-small); line-height: 1.5; }
 .apercu-email { width: 100%; height: 60vh; border: var(--kompa-filet-fin); border-radius: var(--kompa-radius-sm); background: var(--kompa-brume); }
 
+/* Tableau de bord */
+#tableau-de-bord { margin-bottom: var(--kompa-s5); }
+.tableau-tete { display: flex; justify-content: space-between; align-items: baseline; gap: var(--kompa-s4); }
+.tuiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--kompa-s3); margin-bottom: var(--kompa-s4); }
+.tuiles--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tuile { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius); padding: var(--kompa-s3) var(--kompa-s4); background: var(--kompa-blanc); }
+.tuile__libelle { font-size: 13px; font-weight: 600; color: var(--kompa-gris); }
+.tuile__valeur { font-size: var(--kompa-fs-h2); color: var(--kompa-ardoise); line-height: 1.2; margin: var(--kompa-s1) 0; }
+.tuile__detail { font-size: 13px; color: var(--kompa-gris); }
+.grille--tableau { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.barres { display: flex; flex-direction: column; gap: var(--kompa-s2); }
+.barre { display: grid; grid-template-columns: 150px 1fr 32px; align-items: center; gap: var(--kompa-s3); font-size: var(--kompa-fs-small); }
+.barre__libelle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barre__piste { height: 10px; }
+.barre__valeur-trait { display: block; height: 10px; min-width: 2px; background: var(--kompa-ardoise); border-radius: 0 4px 4px 0; }
+.barre__nombre { text-align: right; color: var(--kompa-encre); }
+.barre:hover .barre__libelle { color: var(--kompa-ardoise); font-weight: 600; }
+.table-enseignements td { font-size: var(--kompa-fs-small); }
+.table-enseignements .legende, td.mono .legende { font-family: var(--kompa-font-sans); font-weight: 400; }
+.table-enseignements .enseignement { min-width: 320px; }
+.table-enseignements .enseignement div + div { margin-top: var(--kompa-s1); }
+.sous-titre { margin-top: var(--kompa-s6); }
+
 /* Boîte de dialogue */
 .dialogue { border: 0; border-radius: var(--kompa-radius); padding: var(--kompa-s5); width: min(640px, calc(100vw - 32px)); color: var(--kompa-encre); }
 .dialogue::backdrop { background: rgba(11, 18, 32, 0.45); }

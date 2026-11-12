@@ -673,6 +673,82 @@ test('API échéancier : grille du mois, prochaines échéances, relances', () =
   assert.ok(ap.ok && /<html/.test(ap.data.html));
 });
 
+// ——— Lot 5 : tableau de bord et enseignements ———
+
+const jeuIndicateurs = () => {
+  const env = creerEnvironnement();
+  const L = console.log; console.log = () => {};
+  env.ctx.installer(); // avec l'exercice Mouthe
+  env.ctx.creerAffairesTestIndicateurs();
+  console.log = L;
+  return env;
+};
+const proche = (x, y, msg) => assert.ok(Math.abs(x - y) < 1e-9, (msg || '') + ' : ' + x + ' ≠ ' + y);
+
+test('recette lot 5 : indicateurs = calcul à la main (Mouthe + 3 affaires [TEST], au 20/11/2026)', () => {
+  const env = jeuIndicateurs();
+  const t = brut(env.ctx.Indicateurs_tableau(new Date(2026, 10, 20)));
+  assert.strictEqual(t.go.go, 3);
+  assert.strictEqual(t.go.nogo, 1);
+  proche(t.go.taux, 0.75, 'taux de Go');
+  assert.strictEqual(t.attribution.gagnees, 1);
+  assert.strictEqual(t.attribution.perdues, 2);
+  proche(t.attribution.taux, 1 / 3, 'attribution nombre');
+  assert.strictEqual(t.attribution.montantGagne, 20000);
+  assert.strictEqual(t.attribution.montantJuge, 54800);
+  proche(t.attribution.tauxMontant, 20000 / 54800, 'attribution montant');
+  proche(t.rangMoyen, 2, 'rang moyen');
+  proche(t.ecartPrixMoyen, (0.25 + 0.125) / 2, 'écart de prix moyen');
+  proche(t.ecartNoteMoyen, -7, 'écart de note technique');
+  assert.strictEqual(t.cout.jours, 10);
+  assert.strictEqual(t.cout.montantNotifie, 20000);
+  proche(t.cout.joursPour10k, 5, 'coût de la réponse');
+  assert.strictEqual(t.ca.signe, 20000);
+  assert.strictEqual(t.ca.facture, 10000);
+  assert.strictEqual(t.ca.encaisse, 10000);
+  assert.strictEqual(t.enCours, 1);
+  assert.strictEqual(t.parStatut.find((x) => x.statut === 'Gagnée').nombre, 1);
+  assert.deepStrictEqual(t.motifsNogo, [{ motif: 'charge', nombre: 1 }]);
+  assert.deepStrictEqual(t.motifsRejet, [{ motif: 'note méthodologique', nombre: 1 }, { motif: 'prix', nombre: 1 }]);
+});
+
+test('indicateurs : fenêtre de 12 mois glissants (au 20/11/2027, plus rien)', () => {
+  const env = jeuIndicateurs();
+  const t = brut(env.ctx.Indicateurs_tableau(new Date(2027, 10, 20)));
+  assert.strictEqual(t.go.taux, null);
+  assert.strictEqual(t.attribution.taux, null);
+  assert.strictEqual(t.rangMoyen, null);
+  assert.strictEqual(t.cout.joursPour10k, null);
+});
+
+test('enseignements : affaires perdues avec écarts, les plus récentes d\'abord', () => {
+  const env = jeuIndicateurs();
+  const e = brut(env.ctx.Indicateurs_enseignements());
+  assert.deepStrictEqual(e.map((x) => x.id), ['KA-2026-001', 'KA-2026-003']);
+  proche(e[0].ecartPrix, 0.125, 'Mouthe');
+  assert.strictEqual(e[0].ecartNote, -6);
+  assert.strictEqual(e[0].noteKompa, 44);
+  proche(e[1].ecartPrix, 0.25, 'T2');
+  assert.strictEqual(e[1].ecartNote, -8);
+  const api = brut(env.ctx.apiEnseignements());
+  assert.ok(api.ok, api.erreur);
+  assert.strictEqual(api.data.lignes.length, 2);
+  assert.ok(brut(env.ctx.apiTableau()).ok);
+});
+
+test('affaires [TEST] : création idempotente puis suppression complète', () => {
+  const env = jeuIndicateurs();
+  assert.strictEqual(env.ctx.creerAffairesTestIndicateurs().length, 3);
+  assert.strictEqual(env.ctx.Affaires_lister().length, 4);
+  assert.strictEqual(env.ctx.supprimerAffairesTest(), 3);
+  assert.strictEqual(env.ctx.Affaires_lister().length, 1); // Mouthe reste
+  const T = env.ctx.TABLES;
+  assert.ok(env.ctx.Db_lire(T.HISTORIQUE).every((h) => h.id_affaire === 'KA-2026-001'));
+  assert.strictEqual(env.ctx.Db_lire(T.FACTURES).length, 0);
+  assert.strictEqual(env.ctx.Db_lire(T.CRITERES).filter((c) => c.id_affaire !== 'KA-2026-001').length, 0);
+  assert.strictEqual(brut(env.ctx.Compteur_ca(2026)).encaisse, 0);
+});
+
 let echecs = 0;
 tests.forEach(({ nom, fn }) => {
   try {

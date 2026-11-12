@@ -135,3 +135,21 @@ function Db_verrou_(fn) {
     verrou.releaseLock();
   }
 }
+
+/** Supprime les lignes pour lesquelles garder(ligne) est vrai. Renvoie le nombre supprimé. */
+function Db_supprimerSi(table, critere) {
+  return Db_verrou_(function () {
+    var onglet = Db_onglet_(table);
+    var entetes = Db_entetes_(onglet);
+    var n = onglet.getLastRow() - 1;
+    if (n < 1) return 0;
+    var valeurs = onglet.getRange(2, 1, n, entetes.length).getValues();
+    var supprimees = 0;
+    for (var i = valeurs.length - 1; i >= 0; i--) {
+      var obj = {};
+      entetes.forEach(function (nom, j) { if (nom) obj[nom] = valeurs[i][j]; });
+      if (critere(obj)) { onglet.deleteRow(i + 2); supprimees++; }
+    }
+    return supprimees;
+  });
+}

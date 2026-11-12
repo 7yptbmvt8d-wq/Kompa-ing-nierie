@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Kompa Affaires 1.0.0-lot4 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
+<!-- Kompa Affaires 1.0.0-lot5 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
 <html lang="fr">
 <head>
   <base target="_top">
@@ -317,6 +317,29 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
 textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-fs-small); line-height: 1.5; }
 .apercu-email { width: 100%; height: 60vh; border: var(--kompa-filet-fin); border-radius: var(--kompa-radius-sm); background: var(--kompa-brume); }
 
+/* Tableau de bord */
+#tableau-de-bord { margin-bottom: var(--kompa-s5); }
+.tableau-tete { display: flex; justify-content: space-between; align-items: baseline; gap: var(--kompa-s4); }
+.tuiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--kompa-s3); margin-bottom: var(--kompa-s4); }
+.tuiles--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tuile { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius); padding: var(--kompa-s3) var(--kompa-s4); background: var(--kompa-blanc); }
+.tuile__libelle { font-size: 13px; font-weight: 600; color: var(--kompa-gris); }
+.tuile__valeur { font-size: var(--kompa-fs-h2); color: var(--kompa-ardoise); line-height: 1.2; margin: var(--kompa-s1) 0; }
+.tuile__detail { font-size: 13px; color: var(--kompa-gris); }
+.grille--tableau { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.barres { display: flex; flex-direction: column; gap: var(--kompa-s2); }
+.barre { display: grid; grid-template-columns: 150px 1fr 32px; align-items: center; gap: var(--kompa-s3); font-size: var(--kompa-fs-small); }
+.barre__libelle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barre__piste { height: 10px; }
+.barre__valeur-trait { display: block; height: 10px; min-width: 2px; background: var(--kompa-ardoise); border-radius: 0 4px 4px 0; }
+.barre__nombre { text-align: right; color: var(--kompa-encre); }
+.barre:hover .barre__libelle { color: var(--kompa-ardoise); font-weight: 600; }
+.table-enseignements td { font-size: var(--kompa-fs-small); }
+.table-enseignements .legende, td.mono .legende { font-family: var(--kompa-font-sans); font-weight: 400; }
+.table-enseignements .enseignement { min-width: 320px; }
+.table-enseignements .enseignement div + div { margin-top: var(--kompa-s1); }
+.sous-titre { margin-top: var(--kompa-s6); }
+
 /* Boîte de dialogue */
 .dialogue { border: 0; border-radius: var(--kompa-radius); padding: var(--kompa-s5); width: min(640px, calc(100vw - 32px)); color: var(--kompa-encre); }
 .dialogue::backdrop { background: rgba(11, 18, 32, 0.45); }
@@ -406,37 +429,23 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
     return '<div class="titre-ecran"><h1>' + esc(t) + '</h1>' + (sousTitre ? '<p>' + esc(sousTitre) + '</p>' : '') + '</div>';
   }
 
-  function carteAttente(t, lot, texte) {
-    return '<section class="carte carte--attente"><div class="carte__lot">' + esc(lot) + '</div>' +
-      '<h2>' + esc(t) + '</h2><p>' + esc(texte) + '</p></section>';
-  }
-
   // ——— Écrans ———
   var ECRANS = {
     accueil: { titre: 'Accueil', rendu: ecranAccueil },
-    enseignements: { titre: 'Enseignements', rendu: ecranAttente('Enseignements', 'Lot 5', [
-      ['Offres perdues', 'Écarts de prix et de note avec l\'attributaire, motifs, actions correctives.']
-    ]) },
     parametres: { titre: 'Paramètres', rendu: ecranParametres }
   };
 
-  function ecranAttente(nom, lot, cartes) {
-    return function (el) {
-      el.innerHTML = titre(nom, 'Disponible au ' + lot.toLowerCase()) +
-        '<div class="grille">' + cartes.map(function (c) { return carteAttente(c[0], lot, c[1]); }).join('') + '</div>';
-    };
-  }
-
   function ecranAccueil(el) {
     el.innerHTML = titre('Accueil', '') +
+      '<section id="tableau-de-bord"><h2>Tableau de bord</h2><div class="chargement">Calcul des indicateurs…</div></section>' +
       '<div class="grille">' +
         '<section class="carte carte--large" id="carte-ca"><h2>Chiffre d\'affaires</h2><div class="chargement">Calcul du CA…</div></section>' +
-        '<section class="carte" id="carte-etat"><h2>État du socle</h2><div class="chargement">Lecture du classeur…</div></section>' +
-        carteAttente('Tableau de bord', 'Lot 5', 'Affaires par statut, taux de Go et d\'attribution, écarts avec les attributaires.') +
         '<section class="carte" id="carte-echeances"><h2>Échéances à 7 jours</h2><div class="chargement">Calcul…</div></section>' +
         '<section class="carte" id="carte-relances"><h2>Relances à faire</h2><div class="chargement">Calcul…</div></section>' +
+        '<section class="carte" id="carte-etat"><h2>État du socle</h2><div class="chargement">Lecture du classeur…</div></section>' +
       '</div>';
 
+    if (window.KA && window.KA.tableauAccueil) window.KA.tableauAccueil($('#tableau-de-bord'));
     if (window.KA && window.KA.suiviAccueil) window.KA.suiviAccueil($('#carte-echeances'), $('#carte-relances'));
 
     appel('apiCompteurCA').then(function (ca) {
@@ -521,7 +530,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
         }).join('') +
       '</tbody></table></div>' +
       '<p class="legende">Engagé = encaissé + factures non payées (' + euros(ca.aEncaisser) + ') + reste à facturer sur les affaires gagnées (' + euros(ca.resteAFacturer) + '). ' +
-      'Factures et encaissements : onglet Factures du classeur (écran de saisie au lot 4).</p>';
+      'Factures et encaissements : onglet Exécution de chaque fiche affaire.</p>';
   }
 
   function ecranParametres(el) {
@@ -1463,6 +1472,104 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
   };
 
   K.ecrans.echeancier = { titre: 'Échéancier', rendu: ecranEcheancier };
+})();
+</script>
+  <script>
+/* Kompa Affaires — lot 5 : tableau de bord (accueil) et écran Enseignements. */
+(function () {
+  'use strict';
+  var K = window.KA;
+  var esc = K.esc, $ = K.$;
+
+  var pct = function (x, d) { return x === null || x === undefined ? '—' : (x * 100).toFixed(d === undefined ? 0 : d).replace('.', ',') + ' %'; };
+  var pctSigne = function (x) { return x === null || x === undefined ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x * 100).toFixed(1).replace('.', ',') + ' %'; };
+  var nb = function (x, d) { return x === null || x === undefined ? '—' : Number(x).toFixed(d || 0).replace('.', ','); };
+  var signe = function (x, d) { return x === null || x === undefined ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + nb(Math.abs(x), d); };
+  function jour(iso) { var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; }
+
+  function tuile(libelle, valeur, detail, info) {
+    return '<div class="tuile" title="' + esc(info || '') + '"><div class="tuile__libelle">' + esc(libelle) + '</div>' +
+      '<div class="tuile__valeur mono">' + valeur + '</div><div class="tuile__detail">' + detail + '</div></div>';
+  }
+
+  /** Barres horizontales d'une seule teinte (grandeur), valeur en texte, info-bulle au survol. */
+  function barres(lignes, vide) {
+    if (!lignes.length) return '<p class="vide">' + esc(vide) + '</p>';
+    var max = Math.max.apply(null, lignes.map(function (l) { return l.valeur; }).concat([1]));
+    return '<div class="barres" role="list">' + lignes.map(function (l) {
+      return '<div class="barre" role="listitem" title="' + esc(l.libelle + ' : ' + l.valeur) + '">' +
+        '<span class="barre__libelle">' + esc(l.libelle) + '</span>' +
+        '<span class="barre__piste"><span class="barre__valeur-trait" style="width:' + (l.valeur / max * 100).toFixed(1) + '%"></span></span>' +
+        '<span class="barre__nombre mono">' + l.valeur + '</span></div>';
+    }).join('') + '</div>';
+  }
+
+  // ——— Tableau de bord (accueil) ———
+  K.tableauAccueil = function (el) {
+    K.appel('apiTableau').then(function (t) {
+      var a = t.attribution;
+      var tuiles = '<div class="tuiles">' +
+        tuile('Affaires en cours', nb(t.enCours), t.parStatut.filter(function (s) { return s.actif && s.nombre; }).map(function (s) { return esc(s.statut) + ' ' + s.nombre; }).join(' · ') || 'aucune', 'En étude, Go, Déposée, Gagnée') +
+        tuile('Taux de Go', pct(t.go.taux), t.go.go + ' Go / ' + (t.go.go + t.go.nogo) + ' décisions', 'Go / (Go + No-go), 12 mois glissants') +
+        tuile('Taux d\'attribution', pct(a.taux), a.gagnees + ' gagnée(s) / ' + (a.gagnees + a.perdues) + ' · en montant ' + pct(a.tauxMontant), 'Gagnées / (gagnées + perdues) ; en montant : montant gagné / montant des offres jugées ; 12 mois glissants') +
+        tuile('Rang moyen', nb(t.rangMoyen, 1), t.rangsConnus + ' rang(s) connu(s)', 'Moyenne des rangs renseignés, 12 mois glissants') +
+        tuile('Écart de prix', pctSigne(t.ecartPrixMoyen), 'moyenne sur ' + t.perduesAnalysees + ' perdue(s) · + = plus cher', '(votre prix − prix attributaire) / prix attributaire, affaires perdues') +
+        tuile('Écart de note technique', signe(t.ecartNoteMoyen, 1), 'points, moyenne des perdues · − = en dessous', 'Votre note technique − note de l\'attributaire') +
+        tuile('Coût de la réponse ' + t.annee, t.cout.joursPour10k === null ? '—' : nb(t.cout.joursPour10k, 1) + ' j', 'pour 10 000 € gagnés (' + nb(t.cout.jours) + ' j de réponse)', 'Jours passés à répondre / montants notifiés, année civile') +
+        tuile('CA ' + t.annee, K.euros(t.ca.encaisse), 'encaissé · signé ' + K.euros(t.ca.signe) + ' · facturé ' + K.euros(t.ca.facture), 'CA signé, facturé, encaissé : année civile') +
+        '</div>';
+      var statuts = barres(t.parStatut.filter(function (s) { return s.actif; }).map(function (s) { return { libelle: s.statut, valeur: s.nombre }; }), '');
+      var clotures = t.parStatut.filter(function (s) { return !s.actif && s.nombre; });
+      var motifs = '<h3>No-go</h3>' + barres(t.motifsNogo.map(function (m) { return { libelle: m.motif, valeur: m.nombre }; }), 'Aucun No-go sur 12 mois.') +
+        '<h3>Rejets (pièce à améliorer)</h3>' + barres(t.motifsRejet.map(function (m) { return { libelle: m.motif, valeur: m.nombre }; }), 'Aucune offre perdue sur 12 mois.');
+      el.innerHTML = '<div class="tableau-tete"><h2>Tableau de bord</h2><span class="legende">12 mois glissants : du ' + jour(t.fenetre.debut) + ' au ' + jour(t.fenetre.fin) + '</span></div>' + tuiles +
+        '<div class="grille grille--tableau">' +
+          '<section class="carte"><h2>Affaires en cours par statut</h2>' + statuts +
+            (clotures.length ? '<p class="legende">Clôturées sur 12 mois : ' + clotures.map(function (s) { return esc(s.statut) + ' ' + s.nombre; }).join(' · ') + '</p>' : '') + '</section>' +
+          '<section class="carte"><h2>Motifs, 12 mois</h2>' + motifs + '<p><a href="#enseignements">Voir les enseignements</a></p></section>' +
+        '</div>';
+    }).catch(function (e) { el.innerHTML = '<h2>Tableau de bord</h2>' + K.bandeauErreur(e); });
+  };
+
+  // ——— Écran Enseignements ———
+  function ecranEnseignements(el) {
+    el.innerHTML = K.titre('Enseignements', '') + '<div class="chargement">Lecture des affaires perdues…</div>';
+    K.appel('apiEnseignements').then(function (r) {
+      var l = r.lignes;
+      var tuiles = '<div class="tuiles tuiles--3">' +
+        tuile('Écart de prix moyen', pctSigne(r.moyennes.ecartPrix), '12 mois glissants · + = plus cher que l\'attributaire', '') +
+        tuile('Écart de note technique moyen', signe(r.moyennes.ecartNote, 1), 'points · − = en dessous de l\'attributaire', '') +
+        tuile('Rang moyen', nb(r.moyennes.rang, 1), 'résultats des 12 derniers mois', '') + '</div>';
+      var table = l.length ? '<div class="tableau-conteneur"><table class="table-enseignements"><thead><tr>' +
+        '<th scope="col">Affaire</th><th scope="col">Résultat</th><th scope="col" class="num">Votre prix</th><th scope="col" class="num">Attributaire</th>' +
+        '<th scope="col" class="num">Écart prix</th><th scope="col" class="num">Note tech.</th><th scope="col" class="num">Écart</th><th scope="col" class="num">Rang</th>' +
+        '<th scope="col">Motifs et enseignements</th></tr></thead><tbody>' +
+        l.map(function (x) {
+          return '<tr><td><a href="#affaire/' + esc(x.id) + '" class="mono">' + esc(x.id) + '</a><div><strong>' + esc(x.acheteur) + '</strong></div><div class="legende">' + esc(x.objet) + '</div></td>' +
+            '<td class="mono">' + jour(x.date_resultat) + '</td>' +
+            '<td class="num mono">' + (x.montant_ht ? K.euros(x.montant_ht) : '—') + '</td>' +
+            '<td class="num mono">' + (x.prix_attributaire ? K.euros(x.prix_attributaire) : '—') + '<div class="legende">' + esc(x.attributaire) + '</div></td>' +
+            '<td class="num mono">' + pctSigne(x.ecartPrix) + '</td>' +
+            '<td class="num mono">' + (x.noteKompa === null ? '—' : nb(x.noteKompa, 1) + ' / ' + nb(x.noteAttributaire, 1)) + '</td>' +
+            '<td class="num mono">' + signe(x.ecartNote, 1) + '</td>' +
+            '<td class="num mono">' + nb(x.rang) + '</td>' +
+            '<td class="enseignement">' +
+              (x.motifs_rejet ? '<div><span class="legende">Motifs :</span> ' + esc(x.motifs_rejet) + '</div>' : '<div class="vide">Motifs non reçus</div>') +
+              (x.points_faibles ? '<div><span class="legende">Points faibles :</span> ' + esc(x.points_faibles) + '</div>' : '') +
+              (x.action_corrective ? '<div><span class="legende">Action :</span> ' + esc(x.action_corrective) + '</div>' : '') +
+              (x.piece_type ? '<div><span class="statut statut--neutre">' + esc(x.piece_type) + '</span></div>' : '') +
+            '</td></tr>';
+        }).join('') + '</tbody></table></div>'
+        : '<div class="bandeau">Aucune offre perdue pour l\'instant.</div>';
+      var motifs = '<div class="grille"><section class="carte"><h2>Pièces à améliorer (12 mois)</h2>' +
+        barres(r.motifsRejet.map(function (m) { return { libelle: m.motif, valeur: m.nombre }; }), 'Aucune offre perdue sur 12 mois.') + '</section>' +
+        '<section class="carte"><h2>Motifs de No-go (12 mois)</h2>' +
+        barres(r.motifsNogo.map(function (m) { return { libelle: m.motif, valeur: m.nombre }; }), 'Aucun No-go sur 12 mois.') + '</section></div>';
+      el.innerHTML = K.titre('Enseignements', l.length + ' offre' + (l.length > 1 ? 's' : '') + ' perdue' + (l.length > 1 ? 's' : '')) + tuiles + table + '<h2 class="sous-titre">Répartition</h2>' + motifs;
+    }).catch(function (e) { el.innerHTML = K.titre('Enseignements', '') + K.bandeauErreur(e); });
+  }
+
+  K.ecrans.enseignements = { titre: 'Enseignements', rendu: ecranEnseignements };
 })();
 </script>
 </body>

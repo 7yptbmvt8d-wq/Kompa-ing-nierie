@@ -7,7 +7,7 @@
 
 var APP = {
   NOM: 'Kompa Affaires',
-  VERSION: '1.0.0-lot4',
+  VERSION: '1.0.0-lot5',
   CLASSEUR: 'Kompa Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
