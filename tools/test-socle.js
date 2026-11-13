@@ -80,7 +80,7 @@ test('recette lot 1 : l\'app lit puis écrit un paramètre dans le classeur', ()
 test('les départements gardent leur zéro initial (format texte)', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });
-  assert.deepStrictEqual(brut(env.ctx.Params_liste('zone.departements_paca')), ['04', '05', '06', '13', '83', '84']);
+  assert.deepStrictEqual(brut(env.ctx.Params_liste('zone.departements_paca')), ['04', '05', '06', '13', '83', '84', '2A', '2B']);
   env.ctx.apiParametreEnregistrer('zone.departements_paca', '04 ; 05;06;;13');
   env.ctx.Params_cache_ = null;
   assert.strictEqual(env.ctx.Params_texte('zone.departements_paca'), '04;05;06;13');
@@ -359,9 +359,13 @@ test('API affaires : liste, création, mise à jour, statut et note', () => {
 // ——— Lot 3 : Veille ———
 
 const ECHANTILLON = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'boamp-echantillon.json'), 'utf8'));
+// Tests historiques sur un échantillon national : zone élargie et domaine bâtiment non exigé
 const veilleEnv = (opts = {}) => {
   const env = creerEnvironnement(Object.assign({ boamp: ECHANTILLON }, opts));
   env.ctx.installer({ exercice: false });
+  env.ctx.Params_enregistrer('veille.hors_zone', 'oui');
+  env.ctx.Params_enregistrer('veille.batiment_requis', 'non');
+  env.ctx.Params_cache_ = null;
   return env;
 };
 const rec = (idweb) => ECHANTILLON.results.find((r) => r.idweb === idweb);
@@ -379,7 +383,7 @@ test('veille : requête BOAMP (services, appels d\'offres, CPV, mots-clés)', ()
   const env = veilleEnv();
   const ctx = env.ctx.Veille_contexte_();
   const w = env.ctx.Veille_requeteBoamp_(ctx, '2026-11-09');
-  assert.match(w, /^dateparution>=date'2026-11-09' and nature='APPEL_OFFRE' and type_marche='SERVICES' and \(/);
+  assert.match(w, /^dateparution>=date'2026-11-09' and nature='APPEL_OFFRE' and type_marche='SERVICES' and \(/); // hors zone = oui : pas de filtre départements
   assert.match(w, /donnees like '%71241000%'/);
   assert.match(w, /search\(objet,"assistance à maîtrise d'ouvrage"\)/);
   assert.match(w, /descripteur_libelle="Assistance à maîtrise d'ouvrage"/);
@@ -422,7 +426,7 @@ test('veille : pré-score § 3.4 et classement', () => {
   const a = env.ctx.Veille_scorer_({ objet: 'AMO programmation d\'une école', departement: '04', departements: ['04'], type_acheteur: 'Commune', date_limite: loin }, ctx);
   assert.strictEqual(a.pre_score, 25 + 30 + 15 + 15 + 8);
   assert.strictEqual(a.classement, 'à étudier');
-  assert.strictEqual(a.zone, 'PACA');
+  assert.strictEqual(a.zone, 'PACA-Corse');
   assert.strictEqual(a.statut, 'nouveau');
   const b = env.ctx.Veille_scorer_({ objet: 'AMO exploitation maintenance', departement: '59', departements: ['59'], type_acheteur: 'Établissement public', date_limite: proche, montant_estime: 300000 }, ctx);
   assert.strictEqual(b.pre_score, 10 + 15 + 0 + 10 + 0);
@@ -441,7 +445,7 @@ test('veille : collecte complète, journal moteur, aucun doublon au 2e passage',
   assert.strictEqual(boamp.lus, 40);
   assert.strictEqual(boamp.erreurs, '');
   assert.strictEqual(boamp.retenus + boamp.exclus + boamp.doublons, 40);
-  assert.ok(boamp.retenus >= 25, 'retenus : ' + boamp.retenus);
+  assert.ok(boamp.retenus >= 15, 'retenus : ' + boamp.retenus); // exclusions élargies (eau, déchets, mobilité…)
   assert.ok(boamp.exclus >= 4, 'exclus : ' + boamp.exclus);
   // Deux avis EHPAD Marguerite de Flandre (26-107459 et 26-107551) : même acheteur, même date, même objet → 1 seul
   const avis = env.ctx.Db_lire(env.ctx.TABLES.AVIS);
@@ -450,7 +454,7 @@ test('veille : collecte complète, journal moteur, aucun doublon au 2e passage',
   assert.strictEqual(ehpad.length, 1);
   assert.match(String(ehpad[0].liens_autres), /26-107/);
   assert.ok(avis.every((a) => a.pre_score > 0 && a.zone && a.classement && a.statut));
-  assert.ok(avis.some((a) => a.zone === 'PACA'));
+  assert.ok(avis.some((a) => a.zone === 'PACA-Corse'));
   const b2 = brut(env.ctx.collecteQuotidienne());
   assert.strictEqual(b2.find((x) => x.source === 'BOAMP').retenus, 0);
   assert.strictEqual(env.ctx.Db_lire(env.ctx.TABLES.AVIS).length, avis.length);
@@ -474,7 +478,7 @@ test('veille : alerte e-mail, dédoublonnée avec l\'avis BOAMP (liens fusionné
   assert.ok(lurs, 'alerte e-mail non retenue');
   assert.strictEqual(lurs.acheteur, 'Commune de Lurs');
   assert.strictEqual(lurs.departement, '04');
-  assert.strictEqual(lurs.zone, 'PACA');
+  assert.strictEqual(lurs.zone, 'PACA-Corse');
   assert.match(lurs.lien, /achatpublic\.com/);
   assert.strictEqual(env.ctx.jourIso_(lurs.date_limite), '2026-12-20');
   // Message déjà traité : ignoré au passage suivant
@@ -620,16 +624,16 @@ test('modèles de courriers : motifs (CCP R. 2181), décision, relance de paieme
 
 test('e-mail du matin : rubriques, objet, pas d\'envoi le week-end, récap du lundi', () => {
   const { A, env } = jeuEcheances();
-  A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'x1', acheteur: 'Commune de Lurs', objet: 'Faisabilité salle', zone: 'PACA', departement: '04', pre_score: 88, classement: 'à étudier', statut: 'nouveau', lien: 'https://www.boamp.fr/x1', date_limite: J(20) });
+  A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'x1', acheteur: 'Commune de Lurs', objet: 'Faisabilité salle', zone: 'PACA-Corse', departement: '04', pre_score: 88, classement: 'à étudier', statut: 'nouveau', lien: 'https://www.boamp.fr/x1', date_limite: J(20) });
   A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'x2', acheteur: 'Ville de Lyon', objet: 'AMO', zone: 'France — présentiel à vérifier', departement: '69', pre_score: 62, classement: 'à étudier', statut: 'nouveau', lien: 'https://www.boamp.fr/x2' });
   A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'x4', acheteur: 'Ville de Lille', objet: 'AMO', zone: 'France — présentiel à vérifier', departement: '59', pre_score: 50, classement: 'possible', statut: 'nouveau', lien: 'https://www.boamp.fr/x4' });
-  A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'x3', acheteur: 'Ignoré', objet: 'AMO', zone: 'PACA', pre_score: 70, statut: 'ignoré', lien: 'https://www.boamp.fr/x3' });
+  A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'x3', acheteur: 'Ignoré', objet: 'AMO', zone: 'PACA-Corse', pre_score: 70, statut: 'ignoré', lien: 'https://www.boamp.fr/x3' });
   const m = brut(A.Email_construire(new Date()));
   assert.deepStrictEqual(m.nombres, { avisPaca: 1, avisFrance: 2, echeances: 3, relances: 1 }); // relance « motifs » créée au passage en Perdue
   assert.match(m.sujet, /^Kompa Affaires — \d{2}\/\d{2}\/\d{4} — 3 nouveaux avis · 3 échéances$/);
-  assert.match(m.html, /\+ 1 autre avis « possible » hors PACA/);
+  assert.match(m.html, /\+ 1 autre avis « possible » hors PACA-Corse/);
   assert.doesNotMatch(m.html, /Ville de Lille/);
-  assert.match(m.html, /Nouveaux avis PACA/);
+  assert.match(m.html, /Nouveaux avis PACA-Corse/);
   assert.match(m.html, /présentiel à vérifier/);
   assert.match(m.html, /#veille/);
   assert.match(m.html, /Indicateurs/);
@@ -975,6 +979,77 @@ test('page : titre « Kompa Affaires » et icône Kompa dans l\'onglet', () => {
   assert.match(o.favicon, /kompa-icone-192\.png$/);
   env.ctx.Params_enregistrer('app.favicon_url', 'https://exemple.fr/icone.png'); env.ctx.Params_cache_ = null;
   assert.strictEqual(env.ctx.doGet().favicon, 'https://exemple.fr/icone.png');
+});
+
+// ——— Filtres PACA-Corse et domaine bâtiment (échantillon réel de 137 avis, juil.-nov. 2026) ———
+
+const PACA = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'boamp-paca-corse.json'), 'utf8'));
+
+test('filtres PACA-Corse : 29 avis du domaine bâtiment gardés sur 137', () => {
+  const env = creerEnvironnement({ boamp: PACA });
+  env.ctx.installer({ exercice: false });
+  const ctx = env.ctx.Veille_contexte_();
+  const garde = (idObjet) => {
+    const r = PACA.results.find((x) => x.objet.indexOf(idObjet) >= 0);
+    return env.ctx.Veille_filtrer_(env.ctx.Veille_depuisBoamp_(r, ctx), ctx).garde;
+  };
+  const gardes = PACA.results.filter((r) => env.ctx.Veille_filtrer_(env.ctx.Veille_depuisBoamp_(r, ctx), ctx).garde);
+  assert.strictEqual(gardes.length, 29);
+  // Gardés : AMO bâtiment des communes et collectivités
+  ['programmation d\'une nouvelle cantine', 'groupe scolaire et la cuisine centrale', 'RÉNOVATION DE LA PISCINE JEAN MARET',
+    'réalisation d\'une cuisine centrale', 'accompagnement foncier pour un projet de collège', 'MUSEE D’ART ET D’HISTOIRE',
+    'PLAN DE RENOVATION DES BÂTIMENTS DÉPARTEMENTAUX'].forEach((o) => assert.ok(garde(o), 'devrait être gardé : ' + o));
+  // Exclus : eau, DSP, amiante, jeux d'enfants, PLU, programmation culturelle, maîtrise d'œuvre
+  ['SCHEMA DIRECTEUR D\'ALIMENTATION EN EAU POTABLE', 'contrats de DSP eau potable', 'diagnostics amiante et plomb',
+    'jeux d\'enfants', 'révision du Plan Local d’Urbanisme', 'PRESTATIONS ARTISTIQUES CULTURELLES', 'Maitrise d\'oeuvre pour le projet de rénovation énergétique',
+    'lutte contre les termites'].forEach((o) => assert.ok(!garde(o), 'devrait être exclu : ' + o));
+});
+
+test('filtres : hors zone exclu ; Corse (2A, 2B, code postal 20) gardée', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const ctx = env.ctx.Veille_contexte_();
+  const f = (deps) => env.ctx.Veille_filtrer_({ objet: 'AMO programmation d\'une école', departement: deps[0], departements: deps }, ctx);
+  assert.strictEqual(f(['59']).garde, false);
+  assert.strictEqual(f(['59']).motif, 'hors zone');
+  assert.strictEqual(f(['2A']).garde, true);
+  assert.strictEqual(f(['2B']).garde, true);
+  assert.strictEqual(f(['75', '13']).garde, true);
+  assert.strictEqual(env.ctx.Veille_depuisBoamp_({ idweb: 'x', objet: 'AMO', nomacheteur: 'Commune d\'Ajaccio', code_departement: ['2a'] }, ctx).departement, '2A');
+  assert.match(env.ctx.Veille_requeteBoamp_(ctx, '2026-11-10'), /code_departement in \('04','4',.*'2A','20','2B'\)/);
+});
+
+test('filtres : mot entier et début de mot (graphique ≠ muséographique, plu ≠ plus)', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const m = env.ctx.Veille_contientMot_;
+  assert.strictEqual(m('etude museographique', ['graphique']), '');
+  assert.strictEqual(m('services graphiques', ['graphique']), 'graphique');
+  assert.strictEqual(m('revision du plu', ['plu ']), 'plu');
+  assert.strictEqual(m('plus de surfaces', ['plu ']), '');
+});
+
+test('migration : anciennes valeurs par défaut mises à jour, valeurs modifiées respectées ; avis re-filtrés', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  A.Db_maj(A.TABLES.PARAMETRES, 'zone.departements_paca', { valeur: '04;05;06;13;83;84' });
+  A.Db_maj(A.TABLES.PARAMETRES, 'zone.libelle_paca', { valeur: 'PACA' });
+  A.Db_maj(A.TABLES.PARAMETRES, 'veille.exclusions', { valeur: 'mes exclusions à moi' });
+  A.Db_insererPlusieurs(A.TABLES.AVIS, [
+    { source: 'BOAMP', id_source: 'm1', acheteur: 'Commune', objet: 'AMO programmation d\'une école', zone: 'PACA', departement: '13', statut: 'nouveau', classement: 'à étudier' },
+    { source: 'BOAMP', id_source: 'm2', acheteur: 'Syndicat', objet: 'AMO schéma directeur eau potable', zone: 'PACA', departement: '83', statut: 'nouveau', classement: 'à étudier' }
+  ]);
+  A.Params_cache_ = null;
+  const r = brut(A.installer({ exercice: false }));
+  assert.deepStrictEqual(r.parametresMisAJour, ['zone.departements_paca', 'zone.libelle_paca']);
+  assert.strictEqual(A.Params_texte('veille.exclusions'), 'mes exclusions à moi');
+  const avis = A.Db_lire(A.TABLES.AVIS);
+  assert.ok(avis.every((a) => a.zone === 'PACA-Corse'));
+  assert.strictEqual(avis.find((a) => a.id_source === 'm1').statut, 'nouveau');
+  const m2 = avis.find((a) => a.id_source === 'm2');
+  assert.strictEqual(m2.statut, 'archivé'); // re-filtré : hors domaine bâtiment
+  assert.match(m2.score_detail, /Exclu par les nouveaux filtres : hors domaine bâtiment/);
 });
 
 let echecs = 0;

@@ -32,8 +32,13 @@ var PARAMETRES_DEFAUT = [
     'Mots-clés retenus dans l\'objet — à valider'],
   ['veille.mots_cles_coeur', 'faisabilité;programmation;conduite d\'opération',
     'Mots-clés « cœur de mission » (30 pts au critère Mission)'],
-  ['veille.exclusions', 'marché de travaux;AMO juridique;AMO financière;assurances',
+  ['veille.exclusions', 'marché de travaux;AMO juridique;AMO financière;assurance;eau potable;assainissement;adduction;délégation de service public;délégations de service public;dsp ;concession;comptab;budget;plan local d\'urbanisme;plu ;déchet;collecte;rivière;ruisseau;hydraul;inondation;bassin versant;copropriété;géomètre;topograph;amiante;termite;xylophage;jeux d\'enfants;scénographie;services graphiques;multimédia;recrutement;ressources humaines;effectifs;communication;informatique;systèmes d\'information;tourisme;touristique;routier;routière;voirie;portuaire;nettoyage;restauration collective;approvisionnement;illumination;pyrotechni;cartographie;sensibilisation;biodiversité;renaturation;écolog;notation;émetteur;contentieux;enquête publique;enquêtes publiques;décence;logistique;ordonnancement;opc ;géotechni;éclairage public;incendie;chaufferie;réseau de chaleur;très haut débit;fourniture;location;prestations artistiques;événementiel;évènementiel;assistance technique générale',
     'Avis écartés si l\'objet contient l\'un de ces termes — à valider'],
+  ['veille.exclusions_souples', 'foncier;financ;juridique;mobilité;déplacement;transport', 'Exclusions levées si l\'objet cite un équipement (ex. « accompagnement foncier pour un projet de collège »)'],
+  ['veille.batiment_requis', 'oui', 'Ne garder que les avis dont l\'objet relève du bâtiment : oui ou non'],
+  ['veille.mots_batiment', 'bâtiment;construction;réhabilitation;rénovation;restructuration;extension;patrimoine;immobili;équipement;locaux;programmation;faisabilité;conduite d\'opération;études préalables;école;groupe scolaire;scolaire;collège;lycée;crèche;cantine;cuisine;restaurant;gymnase;piscine;stade;salle;médiathèque;bibliothèque;musée;mairie;hôtel de ville;marché couvert;halle;théâtre;cinéma;maison;centre;pôle;équipement;caserne;gendarmerie;police;ehpad;foyer;résidence;logement;église;chapelle;château;couvent;bâtiment;locaux;bureaux', 'Mots du domaine bâtiment (au moins un requis si veille.batiment_requis = oui)'],
+  ['veille.equipements', 'école;groupe scolaire;scolaire;collège;lycée;crèche;cantine;cuisine;restaurant;gymnase;piscine;stade;salle;médiathèque;bibliothèque;musée;mairie;hôtel de ville;marché couvert;halle;théâtre;cinéma;maison;centre;pôle;équipement;caserne;gendarmerie;police;ehpad;foyer;résidence;logement;église;chapelle;château;couvent;bâtiment;locaux;bureaux', 'Types d\'équipements (lèvent les exclusions souples)'],
+  ['veille.hors_zone', 'non', 'Collecter aussi les avis hors zone (hors PACA-Corse) : oui ou non'],
   ['veille.exclusion_moe', 'mission de maîtrise d\'œuvre',
     'Écarté si l\'objet contient ce terme…'],
   ['veille.exception_moe', 'assistance à maîtrise d\'ouvrage',
@@ -46,8 +51,8 @@ var PARAMETRES_DEFAUT = [
     'Domaines des plateformes : sert à repérer le lien de la consultation dans les alertes e-mail'],
 
   // Zones (§ 3.2)
-  ['zone.departements_paca', '04;05;06;13;83;84', 'Départements classés « PACA »'],
-  ['zone.libelle_paca', 'PACA', 'Libellé de zone pour ces départements'],
+  ['zone.departements_paca', '04;05;06;13;83;84;2A;2B', 'Départements de la zone (PACA + Corse)'],
+  ['zone.libelle_paca', 'PACA-Corse', 'Libellé de zone pour ces départements'],
   ['zone.libelle_france', 'France — présentiel à vérifier', 'Libellé de zone pour les autres'],
 
   // Pré-score (§ 3.4)
@@ -171,6 +176,35 @@ function Params_enregistrer(cle, valeur) {
   var ligne = Db_maj(TABLES.PARAMETRES, cle, { valeur: v });
   Params_cache_ = null;
   return ligne;
+}
+
+/**
+ * Nouvelles valeurs par défaut appliquées aux classeurs déjà installés, seulement si la valeur
+ * actuelle est encore l'ancienne valeur par défaut (une valeur modifiée à la main est respectée).
+ * [clé, ancienne valeur par défaut, nouvelle]
+ */
+var MIGRATIONS_PARAMETRES = [
+  ['zone.departements_paca', '04;05;06;13;83;84', null],
+  ['zone.libelle_paca', 'PACA', null],
+  ['veille.exclusions', 'marché de travaux;AMO juridique;AMO financière;assurances', null]
+];
+
+function Params_migrer_() {
+  var defauts = {};
+  PARAMETRES_DEFAUT.forEach(function (p) { defauts[p[0]] = p[1]; });
+  var faites = [];
+  MIGRATIONS_PARAMETRES.forEach(function (m) {
+    var ligne = Db_trouver(TABLES.PARAMETRES, m[0]);
+    var nouvelle = m[2] === null ? defauts[m[0]] : m[2];
+    if (ligne && String(ligne.valeur) === m[1] && nouvelle !== m[1]) {
+      Db_maj(TABLES.PARAMETRES, m[0], { valeur: nouvelle });
+      faites.push(m[0]);
+    }
+  });
+  Params_cache_ = null;
+  // Changement de libellé de zone : les avis déjà collectés suivent
+  if (faites.indexOf('zone.libelle_paca') >= 0) Db_remplacerValeur_(TABLES.AVIS, 'zone', 'PACA', Params_texte('zone.libelle_paca', 'PACA'));
+  return faites;
 }
 
 /** Ajoute les paramètres par défaut absents. Renvoie le nombre de clés ajoutées. */

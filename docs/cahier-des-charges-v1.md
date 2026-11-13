@@ -56,6 +56,13 @@ Champs de l'API BOAMP confirmés au lot 3 (12/11/2026) : `idweb`, `objet`, `noma
 - **Exclusions** : marché de travaux ; objet contenant « mission de maîtrise d'œuvre » sans « assistance à maîtrise d'ouvrage » ; AMO juridique, financière ou assurances.
 - **Zones** : départements 04, 05, 06, 13, 83, 84 → « PACA » ; autres → « France — présentiel à vérifier ».
 
+**Révision du 13/11/2026 (champ de compétence)** — essai sur 137 avis BOAMP réels de PACA et de Corse (juillet–novembre 2026) : 29 gardés, tous du domaine bâtiment.
+- **Zone** : PACA + Corse (04, 05, 06, 13, 83, 84, 2A, 2B) ; avis hors zone non collectés (`veille.hors_zone` = non).
+- **Domaine bâtiment exigé** : l'objet doit citer un bâtiment, un équipement ou une mission cœur (`veille.mots_batiment`).
+- **Exclusions élargies** : eau potable, assainissement, DSP / concession, déchets, rivières, PLU, mobilité, amiante, termites, jeux d'enfants, scénographie, maîtrise d'œuvre, OPC… (`veille.exclusions`), comparées en début de mot.
+- **Exclusions souples** (foncier, financier, juridique, mobilité, transport) : levées si l'objet cite un équipement (« accompagnement foncier pour un projet de collège »).
+- **Pas de filtre « MAPA seulement »** : 9 avis sur 137 sont des MAPA au BOAMP ; les MAPA des communes sous 90 000 € HT sont sur les profils acheteurs (alertes e-mail des plateformes). Les communes et EPCI restent favorisés par le pré-score.
+
 ### 3.3 Dédoublonnage
 
 Un même avis peut arriver par le BOAMP et par une alerte. Clé de dédoublonnage : référence de l'acheteur, sinon acheteur + date limite + objet proche. Les doublons sont fusionnés en gardant tous les liens.

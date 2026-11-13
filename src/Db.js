@@ -177,6 +177,23 @@ function Db_supprimerSi(table, critere) {
   });
 }
 
+/** Remplace une valeur dans toute une colonne (une seule écriture). Renvoie le nombre de cellules modifiées. */
+function Db_remplacerValeur_(table, colonne, ancienne, nouvelle) {
+  return Db_verrou_(function () {
+    var onglet = Db_onglet_(table);
+    var j = Db_entetesTable_(table, onglet).indexOf(colonne);
+    var n = onglet.getLastRow() - 1;
+    if (j < 0 || n < 1) return 0;
+    var plage = onglet.getRange(2, j + 1, n, 1);
+    var valeurs = plage.getValues();
+    var modifiees = 0;
+    valeurs.forEach(function (l) { if (String(l[0]) === String(ancienne)) { l[0] = nouvelle; modifiees++; } });
+    if (modifiees) plage.setValues(valeurs);
+    Db_viderCache_lignes_(table);
+    return modifiees;
+  });
+}
+
 function Db_viderCache_lignes_(table) {
   delete Db_cache_.lignes[table.onglet];
 }

@@ -24,6 +24,8 @@ function installer(options) {
   Setup_supprimerFeuilleVide_(classeur);
 
   rapport.parametresAjoutes = Params_initialiser_();
+  rapport.parametresMisAJour = Params_migrer_();
+  try { rapport.avisRefiltres = Veille_refiltrer_(); } catch (e) { rapport.avisRefiltres = 'erreur : ' + e.message; }
   // Affaire d'exercice Mouthe (§ 11) : créée si absente
   if (!(options && options.exercice === false)) {
     try { rapport.exerciceMouthe = creerAffaireExerciceMouthe(); } catch (e) { rapport.exerciceMouthe = 'erreur : ' + e.message; }
@@ -1412,6 +1414,23 @@ function Db_supprimerSi(table, critere) {
   });
 }
 
+/** Remplace une valeur dans toute une colonne (une seule écriture). Renvoie le nombre de cellules modifiées. */
+function Db_remplacerValeur_(table, colonne, ancienne, nouvelle) {
+  return Db_verrou_(function () {
+    var onglet = Db_onglet_(table);
+    var j = Db_entetesTable_(table, onglet).indexOf(colonne);
+    var n = onglet.getLastRow() - 1;
+    if (j < 0 || n < 1) return 0;
+    var plage = onglet.getRange(2, j + 1, n, 1);
+    var valeurs = plage.getValues();
+    var modifiees = 0;
+    valeurs.forEach(function (l) { if (String(l[0]) === String(ancienne)) { l[0] = nouvelle; modifiees++; } });
+    if (modifiees) plage.setValues(valeurs);
+    Db_viderCache_lignes_(table);
+    return modifiees;
+  });
+}
+
 function Db_viderCache_lignes_(table) {
   delete Db_cache_.lignes[table.onglet];
 }
@@ -2369,8 +2388,13 @@ var PARAMETRES_DEFAUT = [
     'Mots-clés retenus dans l\'objet — à valider'],
   ['veille.mots_cles_coeur', 'faisabilité;programmation;conduite d\'opération',
     'Mots-clés « cœur de mission » (30 pts au critère Mission)'],
-  ['veille.exclusions', 'marché de travaux;AMO juridique;AMO financière;assurances',
+  ['veille.exclusions', 'marché de travaux;AMO juridique;AMO financière;assurance;eau potable;assainissement;adduction;délégation de service public;délégations de service public;dsp ;concession;comptab;budget;plan local d\'urbanisme;plu ;déchet;collecte;rivière;ruisseau;hydraul;inondation;bassin versant;copropriété;géomètre;topograph;amiante;termite;xylophage;jeux d\'enfants;scénographie;services graphiques;multimédia;recrutement;ressources humaines;effectifs;communication;informatique;systèmes d\'information;tourisme;touristique;routier;routière;voirie;portuaire;nettoyage;restauration collective;approvisionnement;illumination;pyrotechni;cartographie;sensibilisation;biodiversité;renaturation;écolog;notation;émetteur;contentieux;enquête publique;enquêtes publiques;décence;logistique;ordonnancement;opc ;géotechni;éclairage public;incendie;chaufferie;réseau de chaleur;très haut débit;fourniture;location;prestations artistiques;événementiel;évènementiel;assistance technique générale',
     'Avis écartés si l\'objet contient l\'un de ces termes — à valider'],
+  ['veille.exclusions_souples', 'foncier;financ;juridique;mobilité;déplacement;transport', 'Exclusions levées si l\'objet cite un équipement (ex. « accompagnement foncier pour un projet de collège »)'],
+  ['veille.batiment_requis', 'oui', 'Ne garder que les avis dont l\'objet relève du bâtiment : oui ou non'],
+  ['veille.mots_batiment', 'bâtiment;construction;réhabilitation;rénovation;restructuration;extension;patrimoine;immobili;équipement;locaux;programmation;faisabilité;conduite d\'opération;études préalables;école;groupe scolaire;scolaire;collège;lycée;crèche;cantine;cuisine;restaurant;gymnase;piscine;stade;salle;médiathèque;bibliothèque;musée;mairie;hôtel de ville;marché couvert;halle;théâtre;cinéma;maison;centre;pôle;équipement;caserne;gendarmerie;police;ehpad;foyer;résidence;logement;église;chapelle;château;couvent;bâtiment;locaux;bureaux', 'Mots du domaine bâtiment (au moins un requis si veille.batiment_requis = oui)'],
+  ['veille.equipements', 'école;groupe scolaire;scolaire;collège;lycée;crèche;cantine;cuisine;restaurant;gymnase;piscine;stade;salle;médiathèque;bibliothèque;musée;mairie;hôtel de ville;marché couvert;halle;théâtre;cinéma;maison;centre;pôle;équipement;caserne;gendarmerie;police;ehpad;foyer;résidence;logement;église;chapelle;château;couvent;bâtiment;locaux;bureaux', 'Types d\'équipements (lèvent les exclusions souples)'],
+  ['veille.hors_zone', 'non', 'Collecter aussi les avis hors zone (hors PACA-Corse) : oui ou non'],
   ['veille.exclusion_moe', 'mission de maîtrise d\'œuvre',
     'Écarté si l\'objet contient ce terme…'],
   ['veille.exception_moe', 'assistance à maîtrise d\'ouvrage',
@@ -2383,8 +2407,8 @@ var PARAMETRES_DEFAUT = [
     'Domaines des plateformes : sert à repérer le lien de la consultation dans les alertes e-mail'],
 
   // Zones (§ 3.2)
-  ['zone.departements_paca', '04;05;06;13;83;84', 'Départements classés « PACA »'],
-  ['zone.libelle_paca', 'PACA', 'Libellé de zone pour ces départements'],
+  ['zone.departements_paca', '04;05;06;13;83;84;2A;2B', 'Départements de la zone (PACA + Corse)'],
+  ['zone.libelle_paca', 'PACA-Corse', 'Libellé de zone pour ces départements'],
   ['zone.libelle_france', 'France — présentiel à vérifier', 'Libellé de zone pour les autres'],
 
   // Pré-score (§ 3.4)
@@ -2510,6 +2534,35 @@ function Params_enregistrer(cle, valeur) {
   return ligne;
 }
 
+/**
+ * Nouvelles valeurs par défaut appliquées aux classeurs déjà installés, seulement si la valeur
+ * actuelle est encore l'ancienne valeur par défaut (une valeur modifiée à la main est respectée).
+ * [clé, ancienne valeur par défaut, nouvelle]
+ */
+var MIGRATIONS_PARAMETRES = [
+  ['zone.departements_paca', '04;05;06;13;83;84', null],
+  ['zone.libelle_paca', 'PACA', null],
+  ['veille.exclusions', 'marché de travaux;AMO juridique;AMO financière;assurances', null]
+];
+
+function Params_migrer_() {
+  var defauts = {};
+  PARAMETRES_DEFAUT.forEach(function (p) { defauts[p[0]] = p[1]; });
+  var faites = [];
+  MIGRATIONS_PARAMETRES.forEach(function (m) {
+    var ligne = Db_trouver(TABLES.PARAMETRES, m[0]);
+    var nouvelle = m[2] === null ? defauts[m[0]] : m[2];
+    if (ligne && String(ligne.valeur) === m[1] && nouvelle !== m[1]) {
+      Db_maj(TABLES.PARAMETRES, m[0], { valeur: nouvelle });
+      faites.push(m[0]);
+    }
+  });
+  Params_cache_ = null;
+  // Changement de libellé de zone : les avis déjà collectés suivent
+  if (faites.indexOf('zone.libelle_paca') >= 0) Db_remplacerValeur_(TABLES.AVIS, 'zone', 'PACA', Params_texte('zone.libelle_paca', 'PACA'));
+  return faites;
+}
+
 /** Ajoute les paramètres par défaut absents. Renvoie le nombre de clés ajoutées. */
 function Params_initialiser_() {
   var existants = {};
@@ -2571,6 +2624,11 @@ function Veille_contexte_() {
     motsCles: Params_liste('veille.mots_cles').map(Veille_norm_),
     motsCoeur: Params_liste('veille.mots_cles_coeur').map(Veille_norm_),
     exclusions: Params_liste('veille.exclusions').map(Veille_norm_),
+    exclusionsSouples: Params_liste('veille.exclusions_souples').map(Veille_norm_),
+    motsBatiment: Params_liste('veille.mots_batiment').map(Veille_norm_),
+    equipements: Params_liste('veille.equipements').map(Veille_norm_),
+    batimentRequis: Params_texte('veille.batiment_requis', 'oui').toLowerCase() === 'oui',
+    horsZone: Params_texte('veille.hors_zone', 'non').toLowerCase() === 'oui',
     exclusionMoe: Veille_norm_(Params_texte('veille.exclusion_moe', '')),
     exceptionMoe: Veille_norm_(Params_texte('veille.exception_moe', '')),
     paca: Params_liste('zone.departements_paca'),
@@ -2630,7 +2688,13 @@ function Veille_requeteBoamp_(ctx, depuis) {
   var conditions = ['descripteur_libelle=' + q('Assistance à maîtrise d\'ouvrage')]
     .concat(ctx.cpv.map(function (c) { return 'donnees like \'%' + c.replace(/\D/g, '') + '%\''; }))
     .concat(Params_liste('veille.mots_cles').map(function (m) { return 'search(objet,' + q(m) + ')'; }));
-  return 'dateparution>=date\'' + depuis + '\' and nature=\'APPEL_OFFRE\' and type_marche=\'SERVICES\' and (' +
+  var zone = '';
+  if (!ctx.horsZone && ctx.paca.length) {
+    var codes = [];
+    ctx.paca.forEach(function (d) { codes.push(d); if (/^0\d$/.test(d)) codes.push(d.slice(1)); if (/^2[AB]$/i.test(d) && codes.indexOf('20') < 0) codes.push('20'); });
+    zone = ' and code_departement in (' + codes.map(function (c) { return '\'' + c + '\''; }).join(',') + ')';
+  }
+  return 'dateparution>=date\'' + depuis + '\' and nature=\'APPEL_OFFRE\' and type_marche=\'SERVICES\'' + zone + ' and (' +
     conditions.join(' or ') + ')';
 }
 
@@ -2778,8 +2842,16 @@ function Veille_depuisEmail_(id, sujet, de, corps, quand, ctx) {
 function Veille_filtrer_(a, ctx) {
   var objet = Veille_norm_(a.objet);
   var texte = objet + ' ' + Veille_norm_(a.texte || '');
-  var excl = ctx.exclusions.filter(function (e) { return e && objet.indexOf(e) >= 0; })[0];
+  // Zone : départements connus et tous hors zone → exclu (sauf veille.hors_zone = oui)
+  var deps = (a.departements || [a.departement]).filter(Boolean);
+  if (!ctx.horsZone && deps.length && !deps.some(function (d) { return ctx.paca.indexOf(d) >= 0; })) {
+    return { garde: false, motif: 'hors zone' };
+  }
+  var equipement = Veille_contientMot_(objet, ctx.equipements);
+  var excl = Veille_contientMot_(objet, ctx.exclusions);
   if (excl) return { garde: false, motif: 'exclusion : ' + excl };
+  var souple = Veille_contientMot_(objet, ctx.exclusionsSouples);
+  if (souple && !equipement) return { garde: false, motif: 'exclusion : ' + souple };
   if (ctx.exclusionMoe && objet.indexOf(ctx.exclusionMoe) >= 0 && objet.indexOf(ctx.exceptionMoe) < 0) {
     return { garde: false, motif: 'mission de maîtrise d\'œuvre' };
   }
@@ -2793,7 +2865,43 @@ function Veille_filtrer_(a, ctx) {
     return m.length <= 4 ? new RegExp('\\b' + m + '\\b').test(texte) : texte.indexOf(m) >= 0;
   });
   if (!(cpvOk || descOk || motOk)) return { garde: false, motif: 'hors CPV et mots-clés' };
+  if (ctx.batimentRequis && !Veille_contientMot_(objet, ctx.motsBatiment)) return { garde: false, motif: 'hors domaine bâtiment' };
   return { garde: true };
+}
+
+/**
+ * Premier terme de la liste présent dans le texte, comparé en début de mot
+ * (« graphique » ne correspond pas à « muséographique »). Un terme qui finit par une espace
+ * doit être un mot entier (« plu » ≠ « plus »).
+ */
+function Veille_contientMot_(texte, termes) {
+  var t = ' ' + texte + ' ';
+  for (var i = 0; i < termes.length; i++) {
+    var m = termes[i];
+    if (!m) continue;
+    var echap = m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ $/, '(?![a-z0-9])');
+    if (new RegExp('(^|[^a-z0-9])' + echap).test(t)) return m.trim();
+  }
+  return '';
+}
+
+/**
+ * Applique les filtres actuels aux avis « nouveaux » déjà collectés : ceux qui ne passent plus
+ * sont archivés (statut et classement « archivé », motif dans le détail du score).
+ */
+function Veille_refiltrer_() {
+  var ctx = Veille_contexte_();
+  var n = 0;
+  Db_lire(TABLES.AVIS).forEach(function (a) {
+    if (a.statut !== 'nouveau') return;
+    var f = Veille_filtrer_({ objet: a.objet, cpv: a.cpv, descripteurs: '', departement: a.departement, departements: [a.departement], texte: '' }, ctx);
+    // Les avis collectés avant ce filtre ont passé le contrôle CPV / mots-clés : seul le nouveau tri s'applique
+    if (!f.garde && f.motif !== 'hors CPV et mots-clés') {
+      Db_maj(TABLES.AVIS, a.id, { statut: 'archivé', classement: 'archivé', score_detail: 'Exclu par les nouveaux filtres : ' + f.motif + ' · ' + (a.score_detail || '') });
+      n++;
+    }
+  });
+  return n;
 }
 
 // ——— Dédoublonnage (§ 3.3) ———

@@ -20,6 +20,8 @@ function installer(options) {
   Setup_supprimerFeuilleVide_(classeur);
 
   rapport.parametresAjoutes = Params_initialiser_();
+  rapport.parametresMisAJour = Params_migrer_();
+  try { rapport.avisRefiltres = Veille_refiltrer_(); } catch (e) { rapport.avisRefiltres = 'erreur : ' + e.message; }
   // Affaire d'exercice Mouthe (§ 11) : créée si absente
   if (!(options && options.exercice === false)) {
     try { rapport.exerciceMouthe = creerAffaireExerciceMouthe(); } catch (e) { rapport.exerciceMouthe = 'erreur : ' + e.message; }
