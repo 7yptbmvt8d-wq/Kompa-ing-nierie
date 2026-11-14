@@ -1014,6 +1014,23 @@ test('Pièces : fichier trop lourd refusé ; dossier créé au premier dépôt s
   assert.match(brut(A.apiPieceDeposer(id, '01 DCE', { nom: 'gros.zip', donnees: Buffer.from('abc').toString('base64') })).erreur, /dépasse .* Mo/);
 });
 
+test('plateformes : nouveaux domaines ajoutés à une liste existante, même modifiée ; lien reconnu dans l\'alerte', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  A.Db_maj(A.TABLES.PARAMETRES, 'veille.plateformes_domaines', { valeur: 'achatpublic.com;mon-site.fr' });
+  A.Params_cache_ = null;
+  const r = brut(A.installer({ exercice: false }));
+  assert.ok(r.parametresMisAJour.indexOf('veille.plateformes_domaines') >= 0);
+  assert.deepStrictEqual(brut(A.Params_liste('veille.plateformes_domaines')),
+    ['achatpublic.com', 'mon-site.fr', 'ampmetropole.fr', 'safetender.com', 'ville-gap.fr', 'maregionsud.fr', 'departement13.fr', 'laprovencemarchespublics.com']);
+  assert.deepStrictEqual(brut(A.installer({ exercice: false })).parametresMisAJour, []); // rien de plus au 2e passage
+  const ctx = A.Veille_contexte_();
+  const a = A.Veille_depuisEmail_('m1', 'Nouvelle consultation', 'Métropole <alerte@x.fr>',
+    'Voir https://www.exemple.fr/pub puis https://marchespublics.ampmetropole.fr/entreprise/consultation/123 — 13001 Marseille', new Date(), ctx);
+  assert.strictEqual(a.lien, 'https://marchespublics.ampmetropole.fr/entreprise/consultation/123');
+});
+
 test('page : titre « Kompa Affaires » et icône Kompa dans l\'onglet', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });

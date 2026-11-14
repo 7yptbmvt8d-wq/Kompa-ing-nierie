@@ -1,4 +1,4 @@
-/* Kompa Affaires 1.2.0 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
+/* Kompa Affaires 1.2.1 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
 
 // ════════ Setup.js ════════
 
@@ -951,7 +951,7 @@ function arrondi_(n) {
 
 var APP = {
   NOM: 'Kompa Affaires',
-  VERSION: '1.2.0',
+  VERSION: '1.2.1',
   CLASSEUR: 'Kompa Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
@@ -2505,7 +2505,7 @@ var PARAMETRES_DEFAUT = [
   ['veille.heure_collecte', '6', 'Heure de la collecte quotidienne (0-23)'],
   ['veille.archivage_jours', '60', 'Avis échus depuis plus de N jours déplacés dans l\'onglet « Avis archivés » (allège l\'écran Veille)'],
   ['veille.fenetre_jours', '3', 'Avis BOAMP et alertes des N derniers jours (le dédoublonnage évite les reprises)'],
-  ['veille.plateformes_domaines', 'marches-publics.gouv.fr;marches-publics.info;achatpublic.com;marches-securises.fr;e-marchespublics.com;marchesonline.com;francemarches.com;klekoon.com;maximilien.fr;demat-ampa.fr;awsolutions.fr;boamp.fr',
+  ['veille.plateformes_domaines', 'marches-publics.gouv.fr;marches-publics.info;achatpublic.com;marches-securises.fr;e-marchespublics.com;marchesonline.com;francemarches.com;klekoon.com;maximilien.fr;demat-ampa.fr;awsolutions.fr;boamp.fr;ampmetropole.fr;safetender.com;ville-gap.fr;maregionsud.fr;departement13.fr;laprovencemarchespublics.com',
     'Domaines des plateformes : sert à repérer le lien de la consultation dans les alertes e-mail'],
 
   // Zones (§ 3.2)
@@ -2647,6 +2647,11 @@ var MIGRATIONS_PARAMETRES = [
   ['veille.exclusions', 'marché de travaux;AMO juridique;AMO financière;assurances', null]
 ];
 
+/** Valeurs ajoutées aux listes existantes, même modifiées (sans doublon, sans retirer les vôtres). */
+var AJOUTS_PARAMETRES = [
+  ['veille.plateformes_domaines', 'ampmetropole.fr;safetender.com;ville-gap.fr;maregionsud.fr;departement13.fr;laprovencemarchespublics.com']
+];
+
 function Params_migrer_() {
   var defauts = {};
   PARAMETRES_DEFAUT.forEach(function (p) { defauts[p[0]] = p[1]; });
@@ -2658,6 +2663,15 @@ function Params_migrer_() {
       Db_maj(TABLES.PARAMETRES, m[0], { valeur: nouvelle });
       faites.push(m[0]);
     }
+  });
+  AJOUTS_PARAMETRES.forEach(function (m) {
+    var ligne = Db_trouver(TABLES.PARAMETRES, m[0]);
+    if (!ligne) return;
+    var actuels = String(ligne.valeur).split(';').map(function (x) { return x.trim(); }).filter(String);
+    var manquants = m[1].split(';').filter(function (x) { return actuels.indexOf(x) < 0; });
+    if (!manquants.length) return;
+    Db_maj(TABLES.PARAMETRES, m[0], { valeur: actuels.concat(manquants).join(';') });
+    if (faites.indexOf(m[0]) < 0) faites.push(m[0]);
   });
   Params_cache_ = null;
   // Changement de libellé de zone : les avis déjà collectés suivent
