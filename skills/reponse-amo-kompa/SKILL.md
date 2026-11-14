@@ -21,7 +21,7 @@ Lis `references/app-kompa.md` avant la première action sur une affaire : il dé
 ## Repérer l'affaire
 
 L'utilisateur parle d'une affaire par son n° (`KA-2026-004`), son acheteur ou son objet. Retrouve :
-1. La ligne de l'affaire dans le classeur **« Kompa Affaires — données »**, onglet **Affaires** (connecteur Google Drive : lecture du fichier) : statut, pré-score, acheteur, objet, lien de l'avis, dates. Si le classeur n'est pas accessible, demande les informations utiles à l'utilisateur.
+1. La ligne de l'affaire dans le classeur **« Kompa Affaires — données »**, onglet **Affaires** (connecteur Google Drive : lecture du fichier) : statut, pré-score, acheteur, objet, lien de l'avis, dates. La lecture du classeur peut n'afficher que les premières lignes : si l'affaire n'y figure pas, pars du nom de son dossier Drive (n° — acheteur — objet) et retrouve l'avis par l'API BOAMP (recherche sur l'acheteur et la date de parution), ou demande le pré-score à l'utilisateur. Ne l'invente pas.
 2. Le dossier Drive de l'affaire et ses sous-dossiers (voir « Dépôt dans Drive » ci-dessous).
 
 ## Étapes et livrables
@@ -44,6 +44,8 @@ Les modèles JSON sont dans `modeles/source/` : pars toujours du modèle de l'é
 C'est l'étape la plus fréquente : la veille de l'app a donné un **pré-score** sur 100 à partir de l'avis seul ; l'utilisateur a cliqué « Étudier », l'affaire est « En étude ». Ton travail : confirmer ou corriger ce pré-score avec le DCE complet et rendre un avis Go / No-go.
 
 1. Lis les pièces du DCE présentes dans `01 DCE` (RC d'abord, puis CCTP, CCAP, AE, BPU). Si le dossier est vide, travaille sur l'avis (lien de l'avis) et dis clairement que le score est provisoire, faute de DCE.
+   - Le connecteur Drive lit les PDF, Word et Excel, **pas les archives .zip** (et un DCE zippé pèse souvent plusieurs Mo) : ne tente pas de télécharger l'archive ; demande à l'utilisateur de la décompresser et de déposer RC, CCTP et CCAP en PDF dans `01 DCE` (onglet Pièces de l'app), et travaille sur l'avis en attendant.
+   - Les pages boamp.fr ne s'affichent pas sans navigateur : lis l'avis par l'API BOAMP (`https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/records?where=idweb="26-106663"`), dont le champ `donnees` contient la description, les tranches, la durée, la validité et l'adresse du DCE. Le n° `idweb` est à la fin du lien de l'avis.
 2. Recalcule le score sur **le même barème que l'app** (détail dans `references/app-kompa.md`) : zone, mission, délai avant remise, type d'acheteur, montant. Le score final est donc comparable au pré-score : explique tout écart de plus de 10 points.
 3. Ajoute les **points bloquants** que le barème ne voit pas ; chacun peut justifier un No-go même avec un bon score :
    - mission hors compétence (maîtrise d'œuvre, AMO juridique ou financière, programmation culturelle, domaine non bâtiment) ;
