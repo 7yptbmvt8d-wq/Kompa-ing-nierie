@@ -1,0 +1,124 @@
+{
+ "reference": "[KA-AAAA-NNN]",
+ "indice": "A",
+ "date": "[JJ/MM/AAAA]",
+ "redacteur": "Sébastien De Raedt",
+ "surtitre": "RETOUR D'EXPÉRIENCE · DOCUMENT INTERNE",
+ "entete_titre": "Analyse du résultat",
+ "sous_titre": "[Acheteur] — [Objet] — décision du [JJ/MM/AAAA]",
+ "blocs": [
+  {
+   "consigne": "Établi à partir de la lettre de rejet et des motifs obtenus (courrier « motifs du rejet » de l'app). Rangé dans « 06 Résultat »."
+  },
+  {
+   "h1": "Résultat"
+  },
+  {
+   "table": {
+    "largeurs_mm": [
+     60,
+     110
+    ],
+    "lignes": [
+     [
+      "**Attributaire**",
+      "[ ]"
+     ],
+     [
+      "**Prix de l'attributaire HT**",
+      "[ ]"
+     ],
+     [
+      "**Notre prix HT**",
+      "[ ]"
+     ],
+     [
+      "**Rang**",
+      "[ ]"
+     ]
+    ]
+   }
+  },
+  {
+   "h1": "Notes par critère"
+  },
+  {
+   "table": {
+    "entetes": [
+     "Critère",
+     "Pondération",
+     "Note Kompa",
+     "Note attributaire",
+     "Écart"
+    ],
+    "largeurs_mm": [
+     50,
+     28,
+     30,
+     34,
+     28
+    ],
+    "droite": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "mono": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "lignes": [
+     [
+      "[Valeur technique]",
+      "[60]",
+      "[ ]",
+      "[ ]",
+      "[ ]"
+     ],
+     [
+      "[Prix]",
+      "[40]",
+      "[ ]",
+      "[ ]",
+      "[ ]"
+     ]
+    ],
+    "total": [
+     "Total",
+     "[100]",
+     "[ ]",
+     "[ ]",
+     "[ ]"
+    ]
+   }
+  },
+  {
+   "h1": "Points faibles constatés"
+  },
+  {
+   "puces": [
+    "[D'après les motifs : ce qui a coûté des points]"
+   ]
+  },
+  {
+   "h1": "Action corrective"
+  },
+  {
+   "puces": [
+    "[Ce qui change à la prochaine réponse]"
+   ]
+  },
+  {
+   "h1": "À reporter dans l'app Kompa Affaires"
+  },
+  {
+   "puces": [
+    "Onglet **Résultat** : attributaire, prix de l'attributaire, rang, motifs du rejet, notes par critère",
+    "Onglet **Enseignements** : points faibles, action corrective, pièce-type à améliorer (note méthodologique, CV, références ou prix)"
+   ]
+  }
+ ]
+}

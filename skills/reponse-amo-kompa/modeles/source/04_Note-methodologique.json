@@ -1,0 +1,228 @@
+{
+ "reference": "[KA-AAAA-NNN]",
+ "indice": "A",
+ "date": "[JJ/MM/AAAA]",
+ "redacteur": "Sébastien De Raedt",
+ "couverture": {
+  "surtitre": "NOTE MÉTHODOLOGIQUE · OFFRE",
+  "titre": "[Intitulé de la consultation]",
+  "acheteur": "[Acheteur]",
+  "consultation": "Consultation [référence acheteur] — [procédure]"
+ },
+ "blocs": [
+  {
+   "consigne": "Le plan suit l'ordre des sous-critères de la valeur technique du règlement de consultation. Si le RC impose un cadre de mémoire, il remplace ce plan. Supprimer les consignes avant l'export PDF."
+  },
+  {
+   "h1": "Compréhension du besoin"
+  },
+  {
+   "h2": "Contexte de l'opération"
+  },
+  {
+   "p": "[Le maître d'ouvrage, le site, l'équipement existant, les enjeux : effectifs, état du bâti, réglementation, budget, calendrier.]"
+  },
+  {
+   "h2": "Objectifs de la mission"
+  },
+  {
+   "puces": [
+    "[Objectif 1 tiré du CCTP]",
+    "[Objectif 2]"
+   ]
+  },
+  {
+   "h2": "Points d'attention relevés"
+  },
+  {
+   "puces": [
+    "[Contrainte de site, occupation pendant les études, financement, concertation…]"
+   ]
+  },
+  {
+   "h1": "Organisation et interlocuteur"
+  },
+  {
+   "p": "Sébastien De Raedt, ingénieur, est votre interlocuteur unique pendant toute la mission : il conduit les études, anime les réunions et rédige les livrables."
+  },
+  {
+   "table": {
+    "entetes": [
+     "Intervenant",
+     "Rôle",
+     "Temps dédié"
+    ],
+    "largeurs_mm": [
+     55,
+     85,
+     30
+    ],
+    "droite": [
+     2
+    ],
+    "mono": [
+     2
+    ],
+    "lignes": [
+     [
+      "Sébastien De Raedt — Kompa Ingénierie",
+      "[Chef de mission, rédaction, réunions]",
+      "[100 %]"
+     ],
+     [
+      "[Cotraitant éventuel]",
+      "[Rôle]",
+      "[ ]"
+     ]
+    ]
+   }
+  },
+  {
+   "h1": "Méthodologie par tranche"
+  },
+  {
+   "h2": "[Tranche ferme — intitulé]"
+  },
+  {
+   "table": {
+    "entetes": [
+     "Étape",
+     "Contenu",
+     "Livrable",
+     "Jours"
+    ],
+    "largeurs_mm": [
+     30,
+     75,
+     45,
+     20
+    ],
+    "droite": [
+     3
+    ],
+    "mono": [
+     3
+    ],
+    "lignes": [
+     [
+      "[Lancement]",
+      "[Réunion de cadrage, recueil des données]",
+      "[Compte rendu]",
+      "[1]"
+     ],
+     [
+      "[Diagnostic]",
+      "[Visite, analyse de l'existant]",
+      "[Rapport de diagnostic]",
+      "[2]"
+     ]
+    ],
+    "total": [
+     "Total tranche",
+     "",
+     "",
+     "[ ]"
+    ]
+   }
+  },
+  {
+   "h2": "[Tranche optionnelle 1 — intitulé]"
+  },
+  {
+   "table": {
+    "entetes": [
+     "Étape",
+     "Contenu",
+     "Livrable",
+     "Jours"
+    ],
+    "largeurs_mm": [
+     30,
+     75,
+     45,
+     20
+    ],
+    "droite": [
+     3
+    ],
+    "mono": [
+     3
+    ],
+    "lignes": [
+     [
+      "[…]",
+      "[…]",
+      "[…]",
+      "[ ]"
+     ]
+    ],
+    "total": [
+     "Total tranche",
+     "",
+     "",
+     "[ ]"
+    ]
+   }
+  },
+  {
+   "legende": "Les jours sont ceux du chiffrage (fichier « Chiffrage » de l'offre)."
+  },
+  {
+   "h1": "Planning"
+  },
+  {
+   "table": {
+    "entetes": [
+     "Étape",
+     "Début",
+     "Fin",
+     "Validation du maître d'ouvrage"
+    ],
+    "largeurs_mm": [
+     60,
+     30,
+     30,
+     50
+    ],
+    "mono": [
+     1,
+     2
+    ],
+    "lignes": [
+     [
+      "[Lancement]",
+      "[S1]",
+      "[S1]",
+      "[Compte rendu validé]"
+     ]
+    ]
+   }
+  },
+  {
+   "h1": "Moyens et outils"
+  },
+  {
+   "puces": [
+    "[Outils de dessin, d'estimation, de suivi]",
+    "[Déplacements : base, temps d'accès au site]",
+    "[Échanges : visio, plateforme de partage]"
+   ]
+  },
+  {
+   "h1": "Engagements"
+  },
+  {
+   "puces": [
+    "Délais de remise des livrables : [ ] jours après chaque réunion",
+    "Comptes rendus diffusés sous [48 h]",
+    "Disponibilité : [ ]"
+   ]
+  },
+  {
+   "h1": "Références"
+  },
+  {
+   "p": "Voir le document « Références » joint à l'offre."
+  }
+ ]
+}

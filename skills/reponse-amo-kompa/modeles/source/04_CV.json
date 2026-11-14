@@ -1,0 +1,96 @@
+{
+ "reference": "[KA-AAAA-NNN]",
+ "indice": "A",
+ "date": "[JJ/MM/AAAA]",
+ "redacteur": "Sébastien De Raedt",
+ "surtitre": "CURRICULUM VITAE",
+ "entete_titre": "Sébastien De Raedt",
+ "sous_titre": "Ingénieur — assistance à maîtrise d'ouvrage technique · Kompa Ingénierie",
+ "blocs": [
+  {
+   "consigne": "Adapter l'ordre des expériences à la mission demandée : les plus proches d'abord. Aucune expérience, date ou chiffre inventé."
+  },
+  {
+   "table": {
+    "largeurs_mm": [
+     45,
+     125
+    ],
+    "mono": [],
+    "lignes": [
+     [
+      "**Contact**",
+      "[téléphone] · kompa.ingenierie@gmail.com"
+     ],
+     [
+      "**Implantation**",
+      "[ville, département]"
+     ],
+     [
+      "**Formation**",
+      "[diplôme, école, année]"
+     ]
+    ]
+   }
+  },
+  {
+   "h1": "Compétences"
+  },
+  {
+   "puces": [
+    "[Études de faisabilité et programmation]",
+    "[Conduite d'opération, suivi des études de maîtrise d'œuvre]",
+    "[Rédaction de CCTP et DPGF, analyse des offres]",
+    "[Suivi de chantier et réception]"
+   ]
+  },
+  {
+   "h1": "Expérience professionnelle"
+  },
+  {
+   "table": {
+    "entetes": [
+     "Période",
+     "Employeur / structure",
+     "Fonctions et opérations"
+    ],
+    "largeurs_mm": [
+     30,
+     50,
+     90
+    ],
+    "mono": [
+     0
+    ],
+    "lignes": [
+     [
+      "[AAAA – AAAA]",
+      "[Structure]",
+      "[Fonction ; opérations suivies, montants de travaux]"
+     ],
+     [
+      "[AAAA – AAAA]",
+      "[…]",
+      "[…]"
+     ]
+    ]
+   }
+  },
+  {
+   "h1": "Missions en lien avec la consultation"
+  },
+  {
+   "puces": [
+    "[Opération — maître d'ouvrage — mission — année]"
+   ]
+  },
+  {
+   "h1": "Formations complémentaires"
+  },
+  {
+   "puces": [
+    "[Intitulé — organisme — année]"
+   ]
+  }
+ ]
+}

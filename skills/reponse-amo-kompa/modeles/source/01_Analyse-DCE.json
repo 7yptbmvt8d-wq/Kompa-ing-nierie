@@ -1,0 +1,321 @@
+{
+ "reference": "[KA-AAAA-NNN]",
+ "indice": "A",
+ "date": "[JJ/MM/AAAA]",
+ "redacteur": "Sébastien De Raedt",
+ "surtitre": "ANALYSE DU DCE · DOCUMENT INTERNE",
+ "entete_titre": "Analyse du DCE",
+ "sous_titre": "[Acheteur] — [Objet de la consultation]",
+ "blocs": [
+  {
+   "consigne": "Document interne, non transmis à l'acheteur. Rangé dans « 01 DCE ». Chaque information est tirée d'une pièce du DCE, citée entre parenthèses (RC art. 5.2, CCTP § 3…)."
+  },
+  {
+   "h1": "Identification"
+  },
+  {
+   "table": {
+    "entetes": [
+     "Champ de l'app",
+     "Valeur",
+     "Source"
+    ],
+    "largeurs_mm": [
+     50,
+     85,
+     35
+    ],
+    "mono": [
+     2
+    ],
+    "lignes": [
+     [
+      "Acheteur",
+      "[Commune de …]",
+      "AE"
+     ],
+     [
+      "Type d'acheteur",
+      "[Commune / EPCI / …]",
+      ""
+     ],
+     [
+      "Département",
+      "[04]",
+      ""
+     ],
+     [
+      "Objet",
+      "[Intitulé exact]",
+      "RC"
+     ],
+     [
+      "Référence acheteur",
+      "[2026-SERV-012]",
+      "RC"
+     ],
+     [
+      "Procédure",
+      "[MAPA / AO]",
+      "RC"
+     ],
+     [
+      "Plateforme",
+      "[achatpublic.com]",
+      "Avis"
+     ],
+     [
+      "Lien vers l'avis",
+      "[https://…]",
+      ""
+     ]
+    ]
+   }
+  },
+  {
+   "h1": "Échéances"
+  },
+  {
+   "table": {
+    "entetes": [
+     "Champ de l'app",
+     "Date ou valeur",
+     "Source"
+    ],
+    "largeurs_mm": [
+     60,
+     75,
+     35
+    ],
+    "mono": [
+     1,
+     2
+    ],
+    "lignes": [
+     [
+      "Date limite de remise",
+      "[JJ/MM/AAAA HH:MM]",
+      "RC"
+     ],
+     [
+      "Date limite des questions",
+      "[JJ/MM/AAAA]",
+      "RC"
+     ],
+     [
+      "Visite de site",
+      "[JJ/MM/AAAA — obligatoire / facultative / sans objet]",
+      "RC"
+     ],
+     [
+      "Validité de l'offre (jours)",
+      "[120]",
+      "RC"
+     ]
+    ]
+   }
+  },
+  {
+   "h1": "Mission demandée"
+  },
+  {
+   "h2": "Tranches et phases"
+  },
+  {
+   "table": {
+    "entetes": [
+     "Tranche",
+     "Contenu",
+     "Livrables",
+     "Délai"
+    ],
+    "largeurs_mm": [
+     22,
+     70,
+     50,
+     28
+    ],
+    "mono": [
+     0,
+     3
+    ],
+    "lignes": [
+     [
+      "TF",
+      "[Étude de faisabilité …]",
+      "[Rapport de faisabilité]",
+      "[4 mois]"
+     ],
+     [
+      "TO1",
+      "[Programme …]",
+      "[Programme technique détaillé]",
+      "[2 mois]"
+     ]
+    ]
+   }
+  },
+  {
+   "h2": "Exigences particulières"
+  },
+  {
+   "puces": [
+    "[Réunions imposées : nombre, lieu]",
+    "[Compétences exigées : économiste, programmiste…]",
+    "[Assurance, références minimales]"
+   ]
+  },
+  {
+   "h1": "Critères de jugement des offres"
+  },
+  {
+   "table": {
+    "entetes": [
+     "Critère",
+     "Pondération",
+     "Sous-critères",
+     "Ce qu'attend l'acheteur"
+    ],
+    "largeurs_mm": [
+     38,
+     24,
+     50,
+     58
+    ],
+    "droite": [
+     1
+    ],
+    "mono": [
+     1
+    ],
+    "lignes": [
+     [
+      "Valeur technique",
+      "[60 %]",
+      "[Méthodologie 40 %, moyens 20 %]",
+      "[…]"
+     ],
+     [
+      "Prix",
+      "[40 %]",
+      "",
+      "[Formule de notation]"
+     ]
+    ]
+   }
+  },
+  {
+   "h1": "Pièces à remettre"
+  },
+  {
+   "h2": "Candidature"
+  },
+  {
+   "cases": [
+    "[DC1 ou DUME]",
+    "[DC2]",
+    "[Attestation d'assurance responsabilité civile professionnelle]",
+    "[Références]"
+   ]
+  },
+  {
+   "h2": "Offre"
+  },
+  {
+   "cases": [
+    "[Acte d'engagement]",
+    "[BPU / DPGF / décomposition du prix]",
+    "[Note méthodologique / mémoire technique]",
+    "[CV]",
+    "[Planning]"
+   ]
+  },
+  {
+   "h1": "Points de vigilance"
+  },
+  {
+   "puces": [
+    "[Clause inhabituelle, pénalités, délai court, compétence hors périmètre…]"
+   ]
+  },
+  {
+   "h1": "Questions à poser à l'acheteur"
+  },
+  {
+   "numeros": [
+    "[Question précise, avec la référence de la pièce concernée]"
+   ]
+  },
+  {
+   "legende": "À poser avant la date limite des questions, sur la plateforme. Réponses à ranger dans « 02 Questions et visite »."
+  },
+  {
+   "h1": "Go / No-go"
+  },
+  {
+   "table": {
+    "entetes": [
+     "Critère (barème de l'app)",
+     "Situation",
+     "Points"
+    ],
+    "largeurs_mm": [
+     60,
+     85,
+     25
+    ],
+    "droite": [
+     2
+    ],
+    "mono": [
+     2
+    ],
+    "lignes": [
+     [
+      "Zone (PACA-Corse 25 · France 10)",
+      "[…]",
+      "[ ]"
+     ],
+     [
+      "Mission (cœur 30 · autre AMO 15)",
+      "[…]",
+      "[ ]"
+     ],
+     [
+      "Délai avant remise (≥ 15 j 15 · 10 à 14 j 8 · < 10 j 0)",
+      "[…]",
+      "[ ]"
+     ],
+     [
+      "Acheteur (commune ou EPCI 15 · autre 10)",
+      "[…]",
+      "[ ]"
+     ],
+     [
+      "Montant (compatible 15 · inconnu 8 · hors capacité 0)",
+      "[…]",
+      "[ ]"
+     ]
+    ],
+    "total": [
+     "Score final",
+     "",
+     "[ ] / 100"
+    ]
+   }
+  },
+  {
+   "encadre": "**Recommandation : [Go / No-go]** — [motif en une phrase]. Score ≥ 60 : Go conseillé ; 40 à 59 : à arbitrer ; < 40 : No-go."
+  },
+  {
+   "h1": "À reporter dans l'app Kompa Affaires"
+  },
+  {
+   "puces": [
+    "Onglet **Identification** : référence acheteur, procédure, plateforme, lien vers l'avis",
+    "Onglet **Échéances** : les quatre dates et la validité",
+    "Onglet **Décision** : score final, puis bouton **Go** ou **No-go** (motif)"
+   ]
+  }
+ ]
+}

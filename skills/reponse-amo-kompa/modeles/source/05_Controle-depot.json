@@ -1,0 +1,58 @@
+{
+ "reference": "[KA-AAAA-NNN]",
+ "indice": "A",
+ "date": "[JJ/MM/AAAA]",
+ "redacteur": "Sébastien De Raedt",
+ "surtitre": "CONTRÔLE AVANT DÉPÔT · DOCUMENT INTERNE",
+ "entete_titre": "Contrôle avant dépôt",
+ "sous_titre": "[Acheteur] — [Objet] — remise le [JJ/MM/AAAA HH:MM]",
+ "blocs": [
+  {
+   "consigne": "À cocher pièce par pièce le jour du dépôt. La liste reprend l'analyse du DCE (« 01 DCE »). Rangé dans « 05 Dépôt » avec l'accusé de réception."
+  },
+  {
+   "h1": "Candidature"
+  },
+  {
+   "cases": [
+    "[DC1 ou DUME] daté et complet",
+    "[DC2]",
+    "Attestation d'assurance RC professionnelle en cours de validité",
+    "[Pièce exigée par le RC]"
+   ]
+  },
+  {
+   "h1": "Offre"
+  },
+  {
+   "cases": [
+    "Acte d'engagement complété (montant identique au chiffrage)",
+    "[BPU / DPGF / décomposition] : même total que l'acte d'engagement",
+    "Note méthodologique en PDF, plan conforme aux sous-critères",
+    "CV et références",
+    "Mention « TVA non applicable, art. 293 B du CGI » sur les pièces de prix"
+   ]
+  },
+  {
+   "h1": "Forme"
+  },
+  {
+   "cases": [
+    "Noms de fichiers clairs, sans accents ni caractères spéciaux si la plateforme l'exige",
+    "Formats demandés par le RC (PDF, tableur…)",
+    "Signature électronique si le RC l'exige",
+    "Taille totale compatible avec la plateforme"
+   ]
+  },
+  {
+   "h1": "Dépôt"
+  },
+  {
+   "cases": [
+    "Dépôt au moins 24 h avant l'heure limite",
+    "Accusé de réception enregistré dans « 05 Dépôt »",
+    "Dans l'app : passage en **Déposée** (montant HT, jours passés à répondre, date de dépôt)"
+   ]
+  }
+ ]
+}

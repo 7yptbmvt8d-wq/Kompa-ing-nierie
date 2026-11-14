@@ -1,0 +1,38 @@
+{
+ "reference": "[KA-AAAA-NNN]",
+ "indice": "A",
+ "date": "[JJ/MM/AAAA]",
+ "acheteur": "[Acheteur]",
+ "objet": "[Objet de la consultation]",
+ "prix_jour": 400,
+ "taches": [
+  {
+   "tranche": "TF",
+   "intitule_tranche": "[Étude de faisabilité]",
+   "tache": "[Réunion de lancement et recueil des données]",
+   "livrable": "[Compte rendu]",
+   "jours": 1
+  },
+  {
+   "tranche": "TF",
+   "intitule_tranche": "[Étude de faisabilité]",
+   "tache": "[Diagnostic du site et de l'existant]",
+   "livrable": "[Rapport de diagnostic]",
+   "jours": 3
+  },
+  {
+   "tranche": "TF",
+   "intitule_tranche": "[Étude de faisabilité]",
+   "tache": "[Scénarios et estimation]",
+   "livrable": "[Rapport de faisabilité]",
+   "jours": 4
+  },
+  {
+   "tranche": "TO1",
+   "intitule_tranche": "[Programme]",
+   "tache": "[Programme technique détaillé]",
+   "livrable": "[Programme]",
+   "jours": 6
+  }
+ ]
+}

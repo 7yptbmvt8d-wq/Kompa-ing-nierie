@@ -1,0 +1,95 @@
+{
+ "reference": "[KA-AAAA-NNN]",
+ "indice": "A",
+ "date": "[JJ/MM/AAAA]",
+ "redacteur": "Sébastien De Raedt",
+ "surtitre": "RÉFÉRENCES",
+ "entete_titre": "Références",
+ "sous_titre": "Kompa Ingénierie — Sébastien De Raedt EI",
+ "blocs": [
+  {
+   "consigne": "Uniquement des références réelles et vérifiables. Pour une expérience antérieure à Kompa, préciser la structure et le rôle tenu. Contact uniquement avec l'accord du maître d'ouvrage."
+  },
+  {
+   "table": {
+    "entetes": [
+     "Opération",
+     "Maître d'ouvrage",
+     "Mission",
+     "Montant travaux",
+     "Année"
+    ],
+    "largeurs_mm": [
+     48,
+     38,
+     40,
+     26,
+     18
+    ],
+    "droite": [
+     3
+    ],
+    "mono": [
+     3,
+     4
+    ],
+    "lignes": [
+     [
+      "[Réhabilitation de l'école …]",
+      "[Commune de …]",
+      "[Faisabilité, programme]",
+      "[ € HT]",
+      "[AAAA]"
+     ],
+     [
+      "[…]",
+      "[…]",
+      "[…]",
+      "[ ]",
+      "[ ]"
+     ]
+    ]
+   }
+  },
+  {
+   "h1": "Références détaillées"
+  },
+  {
+   "h2": "[Opération]"
+  },
+  {
+   "table": {
+    "largeurs_mm": [
+     45,
+     125
+    ],
+    "lignes": [
+     [
+      "**Maître d'ouvrage**",
+      "[ ]"
+     ],
+     [
+      "**Mission**",
+      "[ ]"
+     ],
+     [
+      "**Rôle tenu**",
+      "[ ]"
+     ],
+     [
+      "**Montant**",
+      "[ ]"
+     ],
+     [
+      "**Période**",
+      "[ ]"
+     ],
+     [
+      "**Contact**",
+      "[nom, fonction, téléphone — avec accord]"
+     ]
+    ]
+   }
+  }
+ ]
+}
