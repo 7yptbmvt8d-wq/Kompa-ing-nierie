@@ -101,3 +101,90 @@ function creerDossiersManquants() {
   console.log(n + ' dossier(s) Drive créé(s).');
   return n;
 }
+
+// ——— Pièces de l'affaire : liste et dépôt depuis la fiche ———
+
+/** Taille maximale d'un fichier déposé depuis l'app (octets). Au-delà : dépôt direct dans Drive. */
+var PIECE_TAILLE_MAX = 20 * 1024 * 1024;
+
+/** Sous-dossier proposé par défaut selon le statut : [groupe de sous-dossiers, rang dans le groupe]. */
+var PIECE_DOSSIER_STATUT = {
+  'En étude': ['etude', 0], 'No-go': ['etude', 0],
+  'Go': ['go', 1], 'Déposée': ['go', 2], 'Abandonnée': ['go', 1],
+  'Perdue': ['resultat', 0], 'Sans suite': ['resultat', 0],
+  'Gagnée': ['gagnee', 0], 'Soldée': ['gagnee', 1]
+};
+
+function Drive_dossierDefaut_(statut) {
+  var r = PIECE_DOSSIER_STATUT[statut] || ['etude', 0];
+  var liste = Params_liste(ETAPES_DRIVE[r[0]]);
+  return liste[r[1]] || liste[liste.length - 1] || '';
+}
+
+/** Dossier de l'affaire, créé s'il manque (lève une erreur si Drive est désactivé). */
+function Drive_dossierAffaireOuCreer_(a) {
+  var d = Drive_dossierAffaire_(a);
+  if (d) return d;
+  if (Params_texte('drive.actif', 'oui').toLowerCase() !== 'oui') throw new Error('Les dossiers Drive sont désactivés (paramètre drive.actif).');
+  Drive_preparerAffaire(a.id);
+  return Drive_dossierAffaire_(Affaires_get_(a.id));
+}
+
+function Drive_fichiers_(dossier) {
+  var liste = [], it = dossier.getFiles();
+  while (it.hasNext()) {
+    var f = it.next();
+    liste.push({ nom: f.getName(), url: f.getUrl(), taille: f.getSize(), date: f.getDateCreated() });
+  }
+  liste.sort(function (x, y) { return y.date - x.date; });
+  return liste.map(function (f) { f.date = Utilities.formatDate(f.date, APP.FUSEAU, 'dd/MM/yyyy'); return f; });
+}
+
+/** Sous-dossiers de l'affaire (par ordre de nom) et leurs fichiers ; fichiers posés à la racine du dossier en tête. */
+function Drive_pieces(idAffaire) {
+  var a = Affaires_get_(idAffaire);
+  var dossier = Drive_dossierAffaire_(a);
+  if (!dossier) return { url: '', dossiers: [], parDefaut: '', tailleMax: PIECE_TAILLE_MAX };
+  var dossiers = [], it = dossier.getFolders();
+  while (it.hasNext()) {
+    var d = it.next();
+    dossiers.push({ nom: d.getName(), url: d.getUrl(), fichiers: Drive_fichiers_(d) });
+  }
+  dossiers.sort(function (x, y) { return x.nom < y.nom ? -1 : x.nom > y.nom ? 1 : 0; });
+  var racine = Drive_fichiers_(dossier);
+  if (racine.length) dossiers.unshift({ nom: '', url: dossier.getUrl(), fichiers: racine });
+  var defaut = Drive_dossierDefaut_(a.statut);
+  if (!dossiers.some(function (d) { return d.nom === defaut; })) defaut = dossiers.length ? dossiers[dossiers.length - 1].nom : '';
+  return { url: dossier.getUrl(), dossiers: dossiers, parDefaut: defaut, tailleMax: PIECE_TAILLE_MAX };
+}
+
+/**
+ * Dépose un fichier (contenu en base64) dans un sous-dossier de l'affaire.
+ * Un fichier de même nom n'est pas écrasé : le nouveau reçoit le suffixe « (2) », « (3) »…
+ */
+function Drive_deposer(idAffaire, sousDossier, fichier) {
+  var a = Affaires_get_(idAffaire);
+  if (!fichier || !fichier.nom || typeof fichier.donnees !== 'string') throw new Error('Fichier vide ou illisible.');
+  var octets = Utilities.base64Decode(fichier.donnees);
+  if (octets.length > PIECE_TAILLE_MAX) {
+    throw new Error('« ' + fichier.nom + ' » dépasse ' + Math.round(PIECE_TAILLE_MAX / 1048576) + ' Mo : déposez-le directement dans le dossier Drive.');
+  }
+  var dossier = Drive_dossierAffaireOuCreer_(a);
+  var nomDossier = String(sousDossier || '').trim();
+  var cible = nomDossier ? Drive_sousDossier_(dossier, nomDossier) : dossier;
+  var nom = Drive_nomLibre_(cible, String(fichier.nom).replace(/[\\/]+/g, ' ').trim());
+  var cree = cible.createFile(Utilities.newBlob(octets, fichier.type || 'application/octet-stream', nom));
+  Affaires_ajouterNote(a.id, 'Pièce déposée : ' + (nomDossier ? nomDossier + ' / ' : '') + nom);
+  return { nom: nom, url: cree.getUrl(), dossier: nomDossier };
+}
+
+function Drive_nomLibre_(dossier, nom) {
+  var existe = function (n) { return dossier.getFilesByName(n).hasNext(); };
+  if (!existe(nom)) return nom;
+  var m = nom.match(/^(.*?)(\.[^.]{1,8})?$/);
+  for (var i = 2; i < 100; i++) {
+    var n = m[1] + ' (' + i + ')' + (m[2] || '');
+    if (!existe(n)) return n;
+  }
+  return nom;
+}

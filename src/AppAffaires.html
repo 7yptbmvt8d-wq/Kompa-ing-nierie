@@ -320,12 +320,15 @@
         '</div>' +
       '</header>';
 
-    var corps = '<div class="onglets" role="tablist">' + meta.blocs.map(function (b) {
+    var blocs = meta.blocs.slice();
+    blocs.splice(1, 0, { id: 'pieces', titre: 'Pièces', champs: [] });
+    var corps = '<div class="onglets" role="tablist">' + blocs.map(function (b) {
         return '<button type="button" role="tab" id="o-' + b.id + '" aria-controls="p-' + b.id + '" aria-selected="' + (b.id === ongletFiche) + '" data-onglet="' + b.id + '">' + esc(b.titre) + '</button>';
       }).join('') + '</div>' +
-      meta.blocs.map(function (b) {
+      blocs.map(function (b) {
         var html;
         if (b.id === 'journal') html = blocJournal(f);
+        else if (b.id === 'pieces') html = '<div data-pieces><div class="chargement">Lecture du dossier Drive…</div></div>';
         else {
           html = '<form class="bloc-form" data-bloc="' + b.id + '" novalidate><div class="form-grille">' +
             b.champs.map(function (c) { return champHtml(c, a[c.nom], meta.listes, b.id); }).join('') + '</div>' +
@@ -337,6 +340,108 @@
       }).join('');
     el.innerHTML = tete + corps;
     brancherFiche(el, f);
+    chargerPieces(el, a);
+  }
+
+  // ——— Pièces : dossier Drive de l'affaire ———
+  function taille(o) {
+    o = Number(o) || 0;
+    return o >= 1048576 ? (o / 1048576).toFixed(1).replace('.', ',') + ' Mo' : Math.max(1, Math.round(o / 1024)) + ' Ko';
+  }
+
+  function chargerPieces(el, a) {
+    var zone = $('[data-pieces]', el);
+    if (!zone) return;
+    K.charger('pieces:' + a.id, 'apiPieces', [a.id], function (p) { rendrePieces(zone, a, p); },
+      function (e) { zone.innerHTML = K.bandeauErreur(e); });
+  }
+
+  function rendrePieces(zone, a, p) {
+    var choixActuel = ($('#piece-dossier', zone) || {}).value;
+    if (!p.url) {
+      zone.innerHTML = '<p class="vide">Pas encore de dossier Drive : il sera créé au premier dépôt.</p>' + formDepot(a, p, choixActuel);
+    } else {
+      var listes = p.dossiers.map(function (d) {
+        return '<section class="pieces__dossier"><h3><a href="' + esc(d.url) + '" target="_blank" rel="noopener" data-externe>' +
+          esc(d.nom || 'Dossier de l\'affaire') + '</a> <span class="legende">' + d.fichiers.length + ' fichier' + (d.fichiers.length > 1 ? 's' : '') + '</span></h3>' +
+          (d.fichiers.length ? '<ul class="pieces__liste">' + d.fichiers.map(function (x) {
+            return '<li><a href="' + esc(x.url) + '" target="_blank" rel="noopener" data-externe>' + esc(x.nom) + '</a>' +
+              ' <span class="legende mono">' + esc(x.date) + ' · ' + taille(x.taille) + '</span></li>';
+          }).join('') + '</ul>' : '') + '</section>';
+      }).join('');
+      zone.innerHTML = formDepot(a, p, choixActuel) + '<div class="pieces">' + listes + '</div>';
+    }
+    brancherDepot(zone, a, p);
+  }
+
+  function formDepot(a, p, choixActuel) {
+    var noms = p.dossiers.map(function (d) { return d.nom; });
+    var choisi = noms.indexOf(choixActuel) >= 0 ? choixActuel : p.parDefaut;
+    var options = noms.length ? p.dossiers.map(function (d) {
+      return '<option value="' + esc(d.nom) + '"' + (d.nom === choisi ? ' selected' : '') + '>' + esc(d.nom || 'Dossier de l\'affaire') + '</option>';
+    }).join('') : '<option value="">Dossier de l\'affaire</option>';
+    return '<div class="depot" data-depot>' +
+      '<div class="depot__ligne"><label for="piece-dossier">Ranger dans</label> <select class="champ" id="piece-dossier">' + options + '</select></div>' +
+      '<label class="depot__zone" for="piece-fichiers"><input type="file" id="piece-fichiers" multiple class="depot__input">' +
+        '<span><strong>Glissez vos fichiers ici</strong> ou <span class="lien">cliquez pour les choisir</span></span>' +
+        '<span class="legende">' + Math.round(p.tailleMax / 1048576) + ' Mo maximum par fichier' + (p.url ? ' · au-delà, <a href="' + esc(p.url) + '" target="_blank" rel="noopener" data-externe>ouvrez le dossier Drive</a>' : '') + '</span></label>' +
+      '<p class="depot__etat legende" aria-live="polite"></p></div>';
+  }
+
+  function brancherDepot(zone, a, p) {
+    var depot = $('[data-depot]', zone);
+    var input = $('#piece-fichiers', zone);
+    var cadre = $('.depot__zone', zone);
+    var etatTxt = $('.depot__etat', zone);
+    var occupe = false;
+    var envoyer = function (liste) {
+      if (occupe || !liste.length) return;
+      var trop = liste.filter(function (f) { return f.size > p.tailleMax; });
+      liste = liste.filter(function (f) { return f.size <= p.tailleMax; });
+      if (trop.length) K.toast(trop.map(function (f) { return f.name; }).join(', ') + ' : plus de ' + Math.round(p.tailleMax / 1048576) + ' Mo, à déposer directement dans le dossier Drive.', true);
+      if (!liste.length) return;
+      occupe = true;
+      depot.classList.add('est-occupe');
+      var dossier = $('#piece-dossier', zone).value;
+      var faits = 0, dernier = null;
+      var suivant = function () {
+        if (!liste.length) {
+          occupe = false;
+          depot.classList.remove('est-occupe');
+          if (faits) K.toast(faits + ' fichier' + (faits > 1 ? 's rangés' : ' rangé') + ' dans « ' + (dossier || 'Dossier de l\'affaire') + ' ».');
+          if (dernier) rendrePieces(zone, a, dernier);
+          else etatTxt.textContent = '';
+          return;
+        }
+        var f = liste.shift();
+        etatTxt.textContent = 'Envoi de « ' + f.name + ' »…';
+        lireBase64(f).then(function (donnees) {
+          return K.appel('apiPieceDeposer', a.id, dossier, { nom: f.name, type: f.type, donnees: donnees });
+        }).then(function (r) { faits++; dernier = r; }, function (e) { K.toast('« ' + f.name + ' » non déposé : ' + e.message, true); })
+          .then(suivant);
+      };
+      suivant();
+    };
+    input.addEventListener('change', function () { envoyer(Array.prototype.slice.call(input.files)); input.value = ''; });
+    ['dragenter', 'dragover'].forEach(function (t) {
+      cadre.addEventListener(t, function (ev) { ev.preventDefault(); cadre.classList.add('est-survolee'); });
+    });
+    ['dragleave', 'drop'].forEach(function (t) {
+      cadre.addEventListener(t, function () { cadre.classList.remove('est-survolee'); });
+    });
+    cadre.addEventListener('drop', function (ev) {
+      ev.preventDefault();
+      envoyer(Array.prototype.slice.call(ev.dataTransfer.files || []));
+    });
+  }
+
+  function lireBase64(fichier) {
+    return new Promise(function (ok, ko) {
+      var r = new FileReader();
+      r.onload = function () { ok(String(r.result).replace(/^data:[^,]*,/, '')); };
+      r.onerror = function () { ko(new Error('lecture du fichier impossible')); };
+      r.readAsDataURL(fichier);
+    });
   }
 
   function blocJournal(f) {

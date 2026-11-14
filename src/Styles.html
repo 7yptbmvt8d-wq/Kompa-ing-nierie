@@ -279,4 +279,22 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .dialogue h2 { margin-top: 0; }
 .dialogue__actions { display: flex; justify-content: flex-end; gap: var(--kompa-s2); margin-top: var(--kompa-s5); }
 .dialogue__erreur { margin-top: var(--kompa-s3); color: var(--app-statut-perdue); background: var(--app-statut-perdue-fond); padding: var(--kompa-s2) var(--kompa-s3); border-radius: var(--kompa-radius-sm); font-size: var(--kompa-fs-small); }
+
+/* Pièces de l'affaire */
+.depot { margin-bottom: var(--kompa-s5); }
+.depot__ligne { display: flex; align-items: center; gap: var(--kompa-s3); margin-bottom: var(--kompa-s3); flex-wrap: wrap; }
+.depot__ligne .champ { width: auto; min-width: 14rem; }
+.depot__zone { display: flex; flex-direction: column; align-items: center; gap: var(--kompa-s1); padding: var(--kompa-s5) var(--kompa-s4);
+  border: 2px dashed var(--kompa-filet); border-radius: var(--kompa-radius); background: var(--kompa-blanc); cursor: pointer; text-align: center; position: relative; }
+.depot__zone:hover, .depot__zone.est-survolee, .depot__zone:focus-within { border-color: var(--kompa-rouille); background: var(--kompa-brume); }
+.depot__zone .lien { color: var(--kompa-rouille); text-decoration: underline; }
+.depot__input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.depot.est-occupe .depot__zone { opacity: .6; pointer-events: none; }
+.depot__etat { min-height: 1.5em; margin-top: var(--kompa-s2); }
+.pieces { display: grid; gap: var(--kompa-s4); }
+.pieces { gap: var(--kompa-s3); }
+.pieces__dossier h3 { margin: 0 0 var(--kompa-s1); font-size: var(--kompa-fs-body); font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--kompa-ardoise); }
+.pieces__dossier h3 .legende { font-weight: 400; margin-left: var(--kompa-s1); }
+.pieces__liste { list-style: none; margin: 0; padding: 0; border-top: var(--kompa-filet-fin); }
+.pieces__liste li { padding: var(--kompa-s2) 0; border-bottom: var(--kompa-filet-fin); overflow-wrap: anywhere; }
 </style>

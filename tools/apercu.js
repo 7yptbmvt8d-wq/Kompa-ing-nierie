@@ -138,6 +138,15 @@ function assembler() {
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-mouthe-resultat.png'), fullPage: true });
   await p.click('[data-onglet="journal"]');
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-mouthe-journal.png'), fullPage: true });
+  // Onglet Pièces : dépôt de deux fichiers dans le dossier proposé
+  await p.click('[data-onglet="pieces"]');
+  await p.waitForSelector('[data-depot]');
+  await p.setInputFiles('#piece-fichiers', [
+    { name: 'Rapport de programmation.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(184000, 1) },
+    { name: 'Notes de visite.docx', mimeType: 'application/octet-stream', buffer: Buffer.alloc(23000, 1) }
+  ]);
+  await p.waitForSelector('.pieces__liste li >> text=Notes de visite.docx');
+  await p.screenshot({ path: path.join(sortie, 'pc-fiche-pieces.png'), fullPage: true });
   // Nouvelle affaire → fiche → No-go avec motif obligatoire
   await p.click('a[href="#affaires"]');
   await p.click('[data-action="nouvelle"]');

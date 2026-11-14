@@ -38,3 +38,13 @@ Kompa Affaires — Dossiers/
 1. Recoller **Code.gs** et **Index** depuis `dist/`, **Ctrl+S**.
 2. Exécuter **installer** : crée l'onglet « Avis archivés », les paramètres `drive.*`, le dossier racine, le dossier 2026 et les dossiers des affaires existantes (dont l'exercice Mouthe).
 3. Publier une nouvelle version.
+
+## Onglet « Pièces » de la fiche (ajout du 14/11/2026, v1.2.0)
+
+- Liste des fichiers de chaque sous-dossier (plus récents en tête), avec lien direct vers le fichier ou le sous-dossier.
+- Dépôt : glisser-déposer ou « cliquez pour les choisir », plusieurs fichiers à la fois, dans le sous-dossier choisi.
+- Sous-dossier proposé selon le statut : En étude / No-go → 01 DCE ; Go / Abandonnée → 04 Offre ; Déposée → 05 Dépôt ; Perdue / Sans suite → 06 Résultat ; Gagnée → 07 Exécution ; Soldée → 08 Facturation.
+- Un fichier de même nom n'est jamais écrasé : le nouveau devient « nom (2).pdf ».
+- Chaque dépôt est noté dans le journal de l'affaire (« Pièce déposée : 01 DCE / RC.pdf »).
+- 20 Mo maximum par fichier ; au-delà, déposer directement dans le dossier Drive (lien affiché).
+- Si l'affaire n'a pas encore de dossier, il est créé au premier dépôt.

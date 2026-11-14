@@ -971,6 +971,49 @@ test('Drive : installer() crée le dossier de l\'exercice Mouthe', () => {
   assert.match(env.ctx.Affaires_get_('KA-2026-001').lien_dce, /folders/);
 });
 
+test('Pièces : dépôt depuis la fiche, rangement dans le sous-dossier, nom non écrasé, liste et journal', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const id = A.Affaires_creer({ acheteur: 'Commune de Gap', objet: 'AMO programmation école' }).id;
+  const b64 = (t) => Buffer.from(t).toString('base64');
+  // En étude : 01 DCE proposé par défaut
+  let p = brut(A.apiPieces(id));
+  assert.ok(p.ok);
+  assert.strictEqual(p.data.parDefaut, '01 DCE');
+  assert.deepStrictEqual(p.data.dossiers.map((d) => d.nom), ['01 DCE', '02 Questions et visite']);
+  // Dépôt de deux fichiers de même nom : le second est renommé
+  let r = brut(A.apiPieceDeposer(id, '01 DCE', { nom: 'RC.pdf', type: 'application/pdf', donnees: b64('règlement') }));
+  assert.ok(r.ok, r.erreur);
+  r = brut(A.apiPieceDeposer(id, '01 DCE', { nom: 'RC.pdf', type: 'application/pdf', donnees: b64('règlement v2') }));
+  assert.strictEqual(r.data.depose.nom, 'RC (2).pdf');
+  const dce = r.data.dossiers.find((d) => d.nom === '01 DCE');
+  assert.deepStrictEqual(dce.fichiers.map((f) => f.nom), ['RC (2).pdf', 'RC.pdf']); // plus récent en tête
+  assert.strictEqual(dce.fichiers[1].taille, Buffer.from('règlement').length);
+  assert.match(dce.fichiers[0].url, /drive\.google\.com\/file/);
+  assert.match(A.Affaires_get_(id).notes, /Pièce déposée : 01 DCE \/ RC\.pdf/);
+  // Go : 04 Offre par défaut ; Déposée : 05 Dépôt
+  A.Affaires_changerStatut(id, 'Go', {});
+  assert.strictEqual(brut(A.apiPieces(id)).data.parDefaut, '04 Offre');
+  A.Affaires_changerStatut(id, 'Déposée', { montant_ht: 1000, jours_reponse: 1 });
+  assert.strictEqual(brut(A.apiPieces(id)).data.parDefaut, '05 Dépôt');
+});
+
+test('Pièces : fichier trop lourd refusé ; dossier créé au premier dépôt s\'il manque', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  A.Params_enregistrer('drive.actif', 'non'); A.Params_cache_ = null;
+  const id = A.Affaires_creer({ acheteur: 'X', objet: 'Y' }).id;
+  assert.strictEqual(brut(A.apiPieces(id)).data.url, '');
+  assert.match(brut(A.apiPieceDeposer(id, '01 DCE', { nom: 'a.txt', donnees: 'YQ==' })).erreur, /désactivés/);
+  A.Params_enregistrer('drive.actif', 'oui'); A.Params_cache_ = null;
+  assert.ok(brut(A.apiPieceDeposer(id, '01 DCE', { nom: 'a.txt', donnees: 'YQ==' })).ok);
+  assert.match(A.Affaires_get_(id).lien_dce, /folders/);
+  A.PIECE_TAILLE_MAX = 2;
+  assert.match(brut(A.apiPieceDeposer(id, '01 DCE', { nom: 'gros.zip', donnees: Buffer.from('abc').toString('base64') })).erreur, /dépasse .* Mo/);
+});
+
 test('page : titre « Kompa Affaires » et icône Kompa dans l\'onglet', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });

@@ -133,7 +133,11 @@ function creerEnvironnement(options = {}) {
       getEffectiveUser: () => ({ getEmail: () => email }),
       getActiveUser: () => ({ getEmail: () => options.visiteur || email })
     },
-    Utilities: { getUuid: () => crypto.randomUUID(), formatDate, sleep: () => {} },
+    Utilities: {
+      getUuid: () => crypto.randomUUID(), formatDate, sleep: () => {},
+      base64Decode: (t) => Array.from(Buffer.from(t, 'base64')),
+      newBlob: (octets, type, nom) => ({ octets, type, nom })
+    },
     MailApp: { envois: [], getRemainingDailyQuota: () => 100, sendEmail: (m) => { gas.MailApp.envois.push(m); } },
     // API BOAMP simulée : options.boamp = réponse JSON ; options.echecsHttp = nb de coupures avant succès
     UrlFetchApp: {
@@ -186,6 +190,26 @@ function creerEnvironnement(options = {}) {
             const liste = fichiersDrive.filter((f) => f.dossier === d && !f.corbeille);
             let i = 0;
             return { hasNext: () => i < liste.length, next: () => liste[i++] };
+          },
+          getFilesByName: (n) => {
+            const liste = fichiersDrive.filter((f) => f.dossier === d && !f.corbeille && f.nom === n);
+            let i = 0;
+            return { hasNext: () => i < liste.length, next: () => liste[i++] };
+          },
+          getFolders: () => {
+            const liste = Object.values(gas.DriveApp._dossiers).filter((x) => x.parent === d && !x.corbeille);
+            let i = 0;
+            return { hasNext: () => i < liste.length, next: () => liste[i++] };
+          },
+          createFile: (blob) => {
+            const f = {
+              id: 'FIC' + fichiersDrive.length, nom: blob.nom, dossier: d, corbeille: false, octets: blob.octets, type: blob.type,
+              cree: new Date(Date.now() + fichiersDrive.length * 1000),
+              getName: () => f.nom, getUrl: () => 'https://drive.google.com/file/d/' + f.id + '/view', getSize: () => f.octets.length,
+              getDateCreated: () => f.cree, setTrashed: (v) => { f.corbeille = v; }
+            };
+            fichiersDrive.push(f);
+            return f;
           }
         };
         gas.DriveApp._dossiers[d.id] = d;

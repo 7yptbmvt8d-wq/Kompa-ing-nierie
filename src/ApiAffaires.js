@@ -97,3 +97,18 @@ function apiFactureAjouter(id, facture) {
 function apiFactureMaj(idAffaire, idFacture, champs) {
   return repondre_(function () { Factures_maj(idFacture, champs); Relances_synchroniser(); return ficheClient_(idAffaire); });
 }
+
+/** Pièces du dossier Drive de l'affaire (lecture). */
+function apiPieces(id) {
+  return repondre_(function () { return Drive_pieces(id); });
+}
+
+/** Dépôt d'un fichier depuis la fiche : { nom, type, donnees (base64) } → liste des pièces à jour. */
+function apiPieceDeposer(id, sousDossier, fichier) {
+  return repondre_(function () {
+    var r = Drive_deposer(id, sousDossier, fichier);
+    var p = Drive_pieces(id);
+    p.depose = r;
+    return p;
+  });
+}

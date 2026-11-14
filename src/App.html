@@ -6,7 +6,7 @@
   // ——— Appels serveur ———
   /** Appels en lecture seule : tous les autres modifient les données et vident la mémoire d'affichage. */
   var LECTURES = ['apiEtat', 'apiParametres', 'apiCompteurCA', 'apiAccueil', 'apiAffaires', 'apiAffaire', 'apiVeille',
-    'apiEcheancier', 'apiSuivi', 'apiCourrier', 'apiEmailApercu', 'apiTableau', 'apiEnseignements', 'apiFiscal'];
+    'apiEcheancier', 'apiSuivi', 'apiCourrier', 'apiEmailApercu', 'apiTableau', 'apiEnseignements', 'apiFiscal', 'apiPieces'];
 
   function appel(nom) {
     var args = Array.prototype.slice.call(arguments, 1);
