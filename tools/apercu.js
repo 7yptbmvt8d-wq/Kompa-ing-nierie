@@ -138,6 +138,9 @@ function assembler() {
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-mouthe-resultat.png'), fullPage: true });
   await p.click('[data-onglet="journal"]');
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-mouthe-journal.png'), fullPage: true });
+  // Onglet Offre : aides sous les champs
+  await p.click('[data-onglet="offre"]');
+  await p.screenshot({ path: path.join(sortie, 'pc-fiche-aides-offre.png'), fullPage: true });
   // Onglet Pièces : dépôt de deux fichiers dans le dossier proposé
   await p.click('[data-onglet="pieces"]');
   await p.waitForSelector('[data-depot]');

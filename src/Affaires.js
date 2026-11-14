@@ -133,6 +133,59 @@ var FICHE_BLOCS = [
   { id: 'journal', titre: 'Journal', champs: [] }
 ];
 
+/**
+ * Aide affichée sous chaque champ (fiche, nouvelle affaire, changement de statut) : [explication, exemple].
+ * L'exemple s'affiche en grisé dans le champ vide.
+ */
+var AIDES_CHAMPS = {
+  id: ['Attribué automatiquement : KA-année-numéro.'],
+  acheteur: ['Nom de l\'acheteur tel qu\'il figure sur l\'avis.', 'Commune de Digne-les-Bains'],
+  type_acheteur: ['Sert aux indicateurs : taux de réussite par type d\'acheteur.'],
+  departement: ['Département du lieu de la mission, en chiffres.', '04'],
+  objet: ['Intitulé de la consultation, repris de l\'avis.', 'AMO — programmation d\'une cantine scolaire'],
+  reference_acheteur: ['Numéro de la consultation chez l\'acheteur (avis ou règlement de consultation). À rappeler au dépôt et dans les courriers.', '2026-SERV-012'],
+  procedure: ['MAPA : procédure adaptée (la plupart des communes). AO : appel d\'offres. Consultation directe : l\'acheteur vous sollicite sans publicité.'],
+  plateforme: ['Site où se trouve le DCE et où vous déposerez l\'offre.', 'achatpublic.com'],
+  lien_avis: ['Adresse de l\'avis ou de la consultation sur la plateforme (copier depuis le navigateur).'],
+  lien_dce: ['Rempli automatiquement à la création du dossier Drive.'],
+
+  date_limite_remise: ['Date limite de réception des offres, dans le règlement de consultation (RC). L\'échéancier vous la rappelle.'],
+  date_limite_questions: ['Dernier jour pour poser vos questions à l\'acheteur (voir le RC, souvent quelques jours avant la remise).'],
+  date_visite: ['Date de la visite de site, si elle est prévue ou obligatoire (voir le RC).'],
+  validite_offre_jours: ['Durée pendant laquelle votre offre vous engage, indiquée dans le RC. Sert à relancer l\'acheteur si la décision tarde.', '120'],
+
+  pre_score: ['Calculé par la veille, sur 100 : zone, type de mission, délai, acheteur, montant.'],
+  score_final: ['Votre propre note sur 100 après lecture du DCE, sur la même échelle que le pré-score. Permet de comparer et d\'ajuster le barème.', '70'],
+  decision: ['Rempli au passage en Go ou No-go.'],
+  motif_decision: ['Raison du No-go. Alimente les enseignements.'],
+  date_decision: ['Rempli au passage en Go ou No-go.'],
+
+  groupement: ['Seul, ou en groupement avec un autre prestataire (cotraitance).'],
+  cotraitant: ['Si groupement : nom du ou des cotraitants et leur rôle.', 'Atelier Durand, architecte (mandataire)'],
+  tranches: ['Découpage de la mission prévu par le marché (acte d\'engagement, CCAP) : tranche ferme, tranches optionnelles ou phases. Une ligne par tranche.',
+    'TF : étude de faisabilité\nTO1 : programme\nTO2 : suivi des études de maîtrise d\'œuvre'],
+  jours_par_tranche: ['Jours que vous prévoyez pour chaque tranche, dans le même ordre. Une ligne par tranche.', 'TF : 6 j\nTO1 : 8 j\nTO2 : 10 j'],
+  prix_jour: ['Votre prix de journée HT, utilisé pour chiffrer l\'offre.', '550'],
+  montant_ht: ['Prix total HT inscrit à l\'acte d\'engagement (toutes tranches demandées).', '13200'],
+  montant_pondere: ['Seulement si l\'acheteur compare les prix sur une simulation (détail quantitatif estimatif, DQE, ou bordereau pondéré) : montant de cette simulation. Sinon, laisser vide.'],
+  jours_reponse: ['Temps passé à préparer l\'offre, en jours (une demi-journée = 0,5). Mesure le coût de vos réponses.', '2,5'],
+  date_depot: ['Date du dépôt sur la plateforme, sur l\'accusé de réception.'],
+
+  statut_final: ['Rempli au passage en Gagnée, Perdue ou Sans suite.'],
+  date_resultat: ['Date de la lettre de notification ou de rejet.'],
+  attributaire: ['Titulaire retenu, indiqué dans la lettre de rejet.', 'Bureau d\'études X'],
+  prix_attributaire: ['Montant HT de l\'offre retenue, s\'il est connu. Sinon, demandez-le avec le courrier « motifs du rejet ».'],
+  rang: ['Votre classement parmi les offres (1 = retenu).', '2'],
+  motifs_rejet: ['Motifs donnés par l\'acheteur, avec vos notes et celles de l\'attributaire si elles sont communiquées.'],
+
+  points_faibles: ['Ce qui vous a coûté des points, d\'après les motifs et les notes.', 'Note méthodologique trop générale sur la phase programme'],
+  action_corrective: ['Ce que vous changerez à la prochaine réponse.', 'Ajouter un planning détaillé et un exemple de programme'],
+  piece_type: ['Pièce de votre dossier-type à retravailler.'],
+
+  date_notification: ['Date de réception du marché signé par l\'acheteur (notification) : point de départ de l\'exécution.'],
+  montant_notifie: ['Montant HT du marché notifié. Compte dans le compteur de CA.']
+};
+
 /** Champs du formulaire court « Nouvelle affaire ». */
 var CHAMPS_CREATION = ['acheteur', 'type_acheteur', 'departement', 'objet', 'procedure',
   'date_limite_remise', 'lien_avis', 'reference_acheteur'];

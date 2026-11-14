@@ -8,7 +8,8 @@ function Affaires_meta_() {
   ['liste.types_acheteur', 'liste.procedures', 'liste.motifs_nogo', 'liste.pieces_types']
     .forEach(function (k) { listes[k] = Params_liste(k); });
   var champ = function (c) {
-    return { nom: c[0], libelle: c[1], type: c[2], obligatoire: !!c[3], defaut: c[4] || '' };
+    var aide = AIDES_CHAMPS[c[0]] || [];
+    return { nom: c[0], libelle: c[1], type: c[2], obligatoire: !!c[3], defaut: c[4] || '', aide: aide[0] || '', exemple: aide[1] || '' };
   };
   var passage = {};
   Object.keys(CHAMPS_PASSAGE).forEach(function (s) { passage[s] = CHAMPS_PASSAGE[s].map(champ); });

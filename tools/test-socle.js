@@ -1031,6 +1031,19 @@ test('plateformes : nouveaux domaines ajoutés à une liste existante, même mod
   assert.strictEqual(a.lien, 'https://marchespublics.ampmetropole.fr/entreprise/consultation/123');
 });
 
+test('fiche : chaque champ saisissable a une aide ; exemples transmis à l\'interface', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const meta = brut(env.ctx.Affaires_meta_());
+  const sansAide = [];
+  meta.blocs.forEach((b) => b.champs.forEach((c) => { if (!c.aide) sansAide.push(c.nom); }));
+  Object.values(meta.passage).forEach((l) => l.forEach((c) => { if (!c.aide) sansAide.push(c.nom); }));
+  assert.deepStrictEqual(sansAide, []);
+  const tranches = meta.blocs.find((b) => b.id === 'offre').champs.find((c) => c.nom === 'tranches');
+  assert.match(tranches.aide, /tranche ferme/);
+  assert.match(tranches.exemple, /^TF : /);
+});
+
 test('page : titre « Kompa Affaires » et icône Kompa dans l\'onglet', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });

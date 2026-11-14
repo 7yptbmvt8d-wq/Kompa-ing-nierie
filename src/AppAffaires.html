@@ -52,8 +52,9 @@
     var req = c.obligatoire ? ' required aria-required="true"' : '';
     var lab = '<label for="' + id + '">' + esc(c.libelle) + (c.obligatoire ? ' <span aria-hidden="true">*</span>' : '') + '</label>';
     var t = c.type, input;
+    var aide = c.aide ? '<p class="champ-aide" id="' + id + '-aide">' + esc(c.aide) + '</p>' : '';
     if (t === 'lecture') {
-      return '<div class="champ-bloc"><span class="champ-libelle">' + esc(c.libelle) + '</span><div class="champ-lecture mono">' + (v ? esc(v) : '<span class="vide">—</span>') + '</div></div>';
+      return '<div class="champ-bloc"><span class="champ-libelle">' + esc(c.libelle) + '</span>' + aide + '<div class="champ-lecture mono">' + (v ? esc(v) : '<span class="vide">—</span>') + '</div></div>';
     } else if (t === 'long') {
       input = '<textarea class="champ" id="' + id + '" data-champ="' + c.nom + '" rows="3"' + req + '>' + esc(v) + '</textarea>';
     } else if (t === 'date') {
@@ -72,7 +73,9 @@
     } else {
       input = '<input class="champ" type="text" id="' + id + '" data-champ="' + c.nom + '" value="' + esc(v) + '"' + req + '>';
     }
-    return '<div class="champ-bloc' + (t === 'long' ? ' champ-bloc--large' : '') + '">' + lab + input + '</div>';
+    var attrs = (c.aide ? 'aria-describedby="' + id + '-aide" ' : '') + (c.exemple && t !== 'lien' ? 'placeholder="' + esc('ex. ' + c.exemple) + '" ' : '');
+    input = input.replace('data-champ="', attrs + 'data-champ="');
+    return '<div class="champ-bloc' + (t === 'long' ? ' champ-bloc--large' : '') + '">' + lab + aide + input + '</div>';
   }
   function lireChamps(racine) {
     var out = {};
@@ -471,7 +474,7 @@
       '<div class="tableau-conteneur"><table><thead><tr><th scope="col">Critère</th><th scope="col" class="num">Pondération</th><th scope="col" class="num">Note Kompa</th><th scope="col" class="num">Note attributaire</th></tr></thead><tbody>' +
       lignes.map(ligne).join('') +
       '<tr class="ligne-total"><td>Total</td><td class="num mono">' + total('ponderation') + '</td><td class="num mono">' + total('note_kompa') + '</td><td class="num mono">' + total('note_attributaire') + '</td></tr>' +
-      '</tbody></table></div><p class="legende">Laisser le nom du critère vide pour supprimer une ligne.</p>' +
+      '</tbody></table></div><p class="legende">Critères et pondérations : ceux du règlement de consultation (ex. valeur technique 60, prix 40). Notes : celles de la lettre de rejet ou du rapport d\'analyse, sur le barème de l\'acheteur. Laisser le nom du critère vide pour supprimer une ligne.</p>' +
       '<div class="bloc-form__actions"><button type="submit" class="bouton">Enregistrer les critères</button></div></form>';
   }
 
