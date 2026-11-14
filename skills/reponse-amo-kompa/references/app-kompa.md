@@ -91,3 +91,5 @@ Interdits : créer un dossier, renommer ou déplacer un dossier de l'app, suppri
 ## 7. Dossier-type
 
 Les pièces réutilisables validées par l'utilisateur (CV, références, note méthodologique type, attestations) sont rangées **hors de l'arborescence de l'app**, dans un dossier Drive à la racine nommé **« Kompa — Dossier-type »**. Le skill y lit ; il n'y dépose que si l'utilisateur le demande. Si ce dossier n'existe pas encore, demande à l'utilisateur de le créer ou de fournir les pièces : ne crée rien de toi-même.
+
+Contenu initial (14/11/2026) : « CV — Sébastien De Raedt — à compléter.docx » et « Références Kompa — à compléter.docx ». Tant qu'un fichier porte « à compléter » dans son nom ou contient encore des crochets, ses informations ne sont pas validées : demande à l'utilisateur de le compléter (ou de te donner les éléments) avant de l'utiliser dans une offre. Lis le .docx en le téléchargeant (contenu du fichier), sans le convertir.
