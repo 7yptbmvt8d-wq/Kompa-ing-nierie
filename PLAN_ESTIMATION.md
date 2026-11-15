@@ -265,7 +265,7 @@ Chaque étape fait l'objet d'un commit, d'une version de l'app (v1.3.0, v1.3.1�
 | Question | Décision | Conséquence sur le plan |
 |---|---|---|
 | Q1 — origine des DPGF | Autorisation de réutilisation confirmée | Import des DPGF de marchés passés retenu |
-| Q4 — indices | Couvrir **l'ensemble** des index BT et TP, BT50 au minimum | Les 50 séries de l'Insee (BT01 à BT53, TP01 à TP14, base 2010) sont chargées. Les séries arrêtées (BT12, TP10a, TP13, TP14) sont conservées pour l'historique mais ne sont jamais proposées pour une actualisation. **BT50 (rénovation-entretien tous corps d'état)** devient l'index par défaut des opérations de réhabilitation ; BT01 reste celui du neuf, TP01 celui de la VRD. |
+| Q4 — indices | Couvrir **l'ensemble** des index BT et TP, BT50 au minimum | Les 57 séries de l'Insee identifiées (36 index BT, de BT01 à BT53, et 21 index TP, de TP01 à TP14, base 2010) sont chargées. Les séries arrêtées (BT12, TP10a, TP13, TP14) sont conservées pour l'historique mais ne sont jamais proposées pour une actualisation. **BT50 (rénovation-entretien tous corps d'état)** devient l'index par défaut des opérations de réhabilitation ; BT01 reste celui du neuf, TP01 celui de la VRD. |
 | Q5 — coefficient K | Méthode à fournir | Moteur K générique livré à l'étape 3 (table de facteurs). Votre méthode sera paramétrée à réception, sans attendre la fin du module. |
 | Q6 — bibliothèque | Pas de bibliothèque commerciale : elle sera constituée à partir des marchés passés | L'import de bibliothèque commerciale est supprimé. **L'import de DPGF alimente à la fois la bibliothèque de prix, les ratios et les quantités types**, et passe en tête du plan, puisque c'est la seule source de données. |
 | Q14 — déploiement | Recommandation demandée | **Copier-coller conservé, en 2 fichiers** (`Code.gs` pour le suivi, `Estimation.gs` pour le module). Chaque fichier porte sa version ; l'app affiche une alerte si les deux versions ne correspondent pas, ce qui détecte un collage oublié. clasp n'est pas retenu : il demande Node.js et un terminal, peu adaptés à un usage sous ChromeOS ou à un poste sans droits d'installation. |
@@ -276,7 +276,7 @@ Chaque étape fait l'objet d'un commit, d'une version de l'app (v1.3.0, v1.3.1�
 |---|---|---|
 | 0. Préparation | `Db.js` multi-classeurs ; `dist/` en 2 fichiers + contrôle des versions ; sauvegarde des 2 classeurs ; service avancé Drive | 1 j |
 | 1. Socle et référentiels | Tables ; écran Estimation ; paramètres (lots, familles, typologies, K, TVA) ; onglet Estimations de la fiche | 1,5 j |
-| 2. Indices Insee | 50 index BT et TP ; historique depuis 2015 ; mise à jour mensuelle et bouton ; gestion de panne | 1,5 j |
+| 2. Indices Insee | 57 index BT et TP ; historique depuis 2015 ; mise à jour mensuelle et bouton ; gestion de panne | 1,5 j |
 | 3. Moteurs de calcul | Actualisation, K générique, médiane / min / max, aléas | 1 j |
 | 4. Import DPGF | Repérage des colonnes, classement par lot et famille, contrôles, **bibliothèque de prix de marché**, observations anonymes, ratios, quantités types, annulation d'un import | 3,5 j |
 | 5. Estimation | Assistant complet : au ratio, détaillée par ouvrages, ou mixte ; phases, indices et duplication | 3 j |
