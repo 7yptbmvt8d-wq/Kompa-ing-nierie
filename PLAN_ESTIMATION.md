@@ -255,3 +255,50 @@ Chaque étape fait l'objet d'un commit, d'une version de l'app (v1.3.0, v1.3.1�
 
 14. **Déploiement** : faut-il garder le copier-coller (en 2 fichiers `.gs` au lieu d'1) ? Ou passer à `clasp`, qui déploie par une commande mais demande d'installer Node.js et d'autoriser clasp une fois sur votre ordinateur ?
 15. **Ordre des étapes** : le plan livre d'abord l'estimation au ratio (étapes 0 à 5), puis la bibliothèque et l'import DPGF. Préférez-vous l'inverse, en commençant par l'alimentation si vous avez déjà des DPGF à importer ?
+
+---
+
+## 5. Décisions du 15/11/2026 et plan révisé
+
+### 5.1 Réponses reçues
+
+| Question | Décision | Conséquence sur le plan |
+|---|---|---|
+| Q1 — origine des DPGF | Autorisation de réutilisation confirmée | Import des DPGF de marchés passés retenu |
+| Q4 — indices | Couvrir **l'ensemble** des index BT et TP, BT50 au minimum | Les 50 séries de l'Insee (BT01 à BT53, TP01 à TP14, base 2010) sont chargées. Les séries arrêtées (BT12, TP10a, TP13, TP14) sont conservées pour l'historique mais ne sont jamais proposées pour une actualisation. **BT50 (rénovation-entretien tous corps d'état)** devient l'index par défaut des opérations de réhabilitation ; BT01 reste celui du neuf, TP01 celui de la VRD. |
+| Q5 — coefficient K | Méthode à fournir | Moteur K générique livré à l'étape 3 (table de facteurs). Votre méthode sera paramétrée à réception, sans attendre la fin du module. |
+| Q6 — bibliothèque | Pas de bibliothèque commerciale : elle sera constituée à partir des marchés passés | L'import de bibliothèque commerciale est supprimé. **L'import de DPGF alimente à la fois la bibliothèque de prix, les ratios et les quantités types**, et passe en tête du plan, puisque c'est la seule source de données. |
+| Q14 — déploiement | Recommandation demandée | **Copier-coller conservé, en 2 fichiers** (`Code.gs` pour le suivi, `Estimation.gs` pour le module). Chaque fichier porte sa version ; l'app affiche une alerte si les deux versions ne correspondent pas, ce qui détecte un collage oublié. clasp n'est pas retenu : il demande Node.js et un terminal, peu adaptés à un usage sous ChromeOS ou à un poste sans droits d'installation. |
+
+### 5.2 Plan révisé
+
+| Étape | Contenu | Effort |
+|---|---|---|
+| 0. Préparation | `Db.js` multi-classeurs ; `dist/` en 2 fichiers + contrôle des versions ; sauvegarde des 2 classeurs ; service avancé Drive | 1 j |
+| 1. Socle et référentiels | Tables ; écran Estimation ; paramètres (lots, familles, typologies, K, TVA) ; onglet Estimations de la fiche | 1,5 j |
+| 2. Indices Insee | 50 index BT et TP ; historique depuis 2015 ; mise à jour mensuelle et bouton ; gestion de panne | 1,5 j |
+| 3. Moteurs de calcul | Actualisation, K générique, médiane / min / max, aléas | 1 j |
+| 4. Import DPGF | Repérage des colonnes, classement par lot et famille, contrôles, **bibliothèque de prix de marché**, observations anonymes, ratios, quantités types, annulation d'un import | 3,5 j |
+| 5. Estimation | Assistant complet : au ratio, détaillée par ouvrages, ou mixte ; phases, indices et duplication | 3 j |
+| 6. Export DPGF .xlsx | Fichier mis en forme, déposé dans Drive sans doublon | 1,5 j |
+| 7. Recette et documentation | Parcours complet sur une affaire réelle | 1 j |
+
+**Total : 14 jours** (contre 15,5). Premier résultat concret dès l'étape 4 : vos premières DPGF importées produisent des ratios consultables.
+
+### 5.3 Questions restantes : valeurs proposées par défaut
+
+Répondez « défauts OK », ou corrigez seulement les points à changer.
+
+| Q | Sujet | Valeur proposée |
+|---|---|---|
+| Q2 | Typologies | École / groupe scolaire, restauration scolaire / cuisine centrale, crèche, gymnase / équipement sportif, bureaux / administratif, logements, équipement culturel, atelier / local technique, bâtiment militaire (hébergement, ateliers) ; chacune en neuf, réhabilitation lourde ou réhabilitation légère |
+| Q3 | Anonymat | Ratio affiché à partir de 3 marchés ; zone enregistrée au niveau du département |
+| Q4 bis | Lots et index | GO → BT06 (ossature béton) ou BT03 (maçonnerie) ; TER → BT02 ; CHARP → BT16b / BT07 ; COUV → BT32 / BT34 ; ETAN → BT53 ; MEN-EXT → BT43 / BT27 ; MEN-INT → BT18a ; SERR → BT42 ; PLAT → BT08 ; REV-SOL → BT09 / BT10 ; PEINT → BT46 ; PLB → BT38 ; CVC → BT40 / BT41 ; ELE → BT47 ; ASC → BT48 ; VRD → TP08, réseaux TP10b ; défaut : BT01 neuf, BT50 réhabilitation, TP01 VRD |
+| Q7 | Projection | Actualisation au dernier index publié, plus projection facultative à la date des travaux (taux annuel paramétrable, 0 % par défaut), affichée séparément |
+| Q8 | Arrondis et aléas | PU à 2 décimales, totaux non arrondis ; ligne d'aléas par phase, paramétrable : programme 15 %, APS 10 %, APD 7 %, DCE 5 % |
+| Q9 | Fiabilité | A : prix de marché de moins de 3 ans et de la même région ; B : prix de marché plus ancien ou d'une autre région ; C : ratio fondé sur moins de 5 marchés ou saisie libre |
+| Q10 | Rangement Drive | Nouveau sous-dossier « 09 Estimations », créé par l'app au premier export |
+| Q11 | DPGF source | Conservée dans un dossier Drive privé « Kompa Estimation — Sources », hors de l'arborescence des affaires, renommée par son n° d'import ; suppression possible depuis le journal des imports |
+| Q12 | TVA | Taux par zone, modifiable par estimation : 20 % par défaut ; 10 % en Corse pour les travaux immobiliers (taux propre à la Corse, à confirmer) |
+| Q13 | Format DPGF | Numérotation `lot.sous-lot.article` (02.03.01) ; mise en page Kompa, identique au chiffrage du skill |
+| Q15 | Ordre | Celui du plan révisé (import DPGF avant l'assistant) |
