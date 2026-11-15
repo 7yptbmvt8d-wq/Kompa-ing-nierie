@@ -9,15 +9,22 @@
 function installer(options) {
   var debut = Date.now();
   Db_viderCache_();
-  var classeur = Setup_classeur_();
-  var rapport = { classeur: classeur.getUrl(), onglets: [], colonnesAjoutees: 0 };
+  var classeur = Setup_classeur_('SUIVI');
+  var classeurEst = Setup_classeur_('EST');
+  var rapport = { classeur: classeur.getUrl(), classeurEstimation: classeurEst.getUrl(), onglets: [], colonnesAjoutees: 0 };
 
-  Object.keys(TABLES).forEach(function (k) {
-    var r = Setup_onglet_(classeur, TABLES[k]);
-    rapport.onglets.push(TABLES[k].onglet + (r.cree ? ' (créé)' : ''));
+  var tables = Tables_toutes_();
+  Object.keys(tables).forEach(function (k) {
+    var t = tables[k];
+    var r = Setup_onglet_(t.classeur === 'EST' ? classeurEst : classeur, t);
+    rapport.onglets.push(t.onglet + (r.cree ? ' (créé)' : ''));
     rapport.colonnesAjoutees += r.colonnesAjoutees;
   });
-  Setup_supprimerFeuilleVide_(classeur);
+  Setup_supprimerFeuilleVide_(classeur, 'SUIVI');
+  Setup_supprimerFeuilleVide_(classeurEst, 'EST');
+  if (typeof Est_installer_ === 'function') {
+    try { rapport.estimation = Est_installer_(); } catch (e) { rapport.estimation = 'erreur : ' + e.message; }
+  }
 
   rapport.parametresAjoutes = Params_initialiser_();
   rapport.parametresMisAJour = Params_migrer_();
@@ -35,26 +42,27 @@ function installer(options) {
   return rapport;
 }
 
-/** Ouvre le classeur enregistré ou en crée un nouveau. */
-function Setup_classeur_() {
+/** Ouvre le classeur enregistré (SUIVI ou EST) ou en crée un nouveau. */
+function Setup_classeur_(cle) {
+  var def = CLASSEURS[cle || 'SUIVI'];
   var props = PropertiesService.getScriptProperties();
-  var id = props.getProperty(APP.PROP_CLASSEUR_ID);
+  var id = props.getProperty(def.prop);
   if (id) {
     try {
       var existant = SpreadsheetApp.openById(id);
-      Db_cache_.classeur = existant;
+      Db_cache_.classeurs[cle || 'SUIVI'] = existant;
       return existant;
     } catch (e) {
       throw new Error('Le classeur ' + id + ' est inaccessible (supprimé ?). ' +
         'Restaurez-le depuis la corbeille Drive, ou supprimez la propriété ' +
-        APP.PROP_CLASSEUR_ID + ' du script pour en créer un nouveau.');
+        def.prop + ' du script pour en créer un nouveau.');
     }
   }
-  var classeur = SpreadsheetApp.create(APP.CLASSEUR);
+  var classeur = SpreadsheetApp.create(def.nom);
   classeur.setSpreadsheetTimeZone(APP.FUSEAU);
   classeur.setSpreadsheetLocale('fr_FR');
-  props.setProperty(APP.PROP_CLASSEUR_ID, classeur.getId());
-  Db_cache_.classeur = classeur;
+  props.setProperty(def.prop, classeur.getId());
+  Db_cache_.classeurs[cle || 'SUIVI'] = classeur;
   return classeur;
 }
 
@@ -97,8 +105,11 @@ function Setup_onglet_(classeur, table) {
 }
 
 /** Supprime la feuille par défaut (« Feuille 1 » / « Sheet1 ») si elle est vide. */
-function Setup_supprimerFeuilleVide_(classeur) {
-  var noms = Object.keys(TABLES).map(function (k) { return TABLES[k].onglet; });
+function Setup_supprimerFeuilleVide_(classeur, cle) {
+  var tables = Tables_toutes_();
+  var noms = Object.keys(tables)
+    .filter(function (k) { return (tables[k].classeur || 'SUIVI') === cle; })
+    .map(function (k) { return tables[k].onglet; });
   classeur.getSheets().forEach(function (f) {
     if (noms.indexOf(f.getName()) < 0 && f.getLastRow() === 0 && classeur.getSheets().length > 1) {
       classeur.deleteSheet(f);
@@ -145,21 +156,29 @@ function Setup_declencheurs_() {
   });
 }
 
-/** Copie datée du classeur dans le dossier Drive des sauvegardes ; conserve les N dernières. */
+/**
+ * Copie datée de chaque classeur (suivi et estimation) dans le dossier Drive des sauvegardes ;
+ * conserve les N dernières copies de chacun.
+ */
 function sauvegardeHebdo() {
-  var classeur = Db_classeur();
   var dossier = Setup_dossierSauvegardes_();
   var horodatage = Utilities.formatDate(new Date(), APP.FUSEAU, 'yyyy-MM-dd');
-  DriveApp.getFileById(classeur.getId()).makeCopy(APP.CLASSEUR + ' — ' + horodatage, dossier);
-
   var aGarder = Params_nombre('sauvegarde.nb_copies', 8);
-  var copies = [];
-  var it = dossier.getFiles();
-  while (it.hasNext()) copies.push(it.next());
-  copies.sort(function (a, b) { return b.getDateCreated() - a.getDateCreated(); });
-  copies.slice(aGarder).forEach(function (f) { f.setTrashed(true); });
-
-  console.log('Sauvegarde ' + horodatage + ' : ' + Math.min(copies.length, aGarder) + ' copie(s) conservée(s).');
+  var props = PropertiesService.getScriptProperties();
+  Object.keys(CLASSEURS).forEach(function (cle) {
+    var def = CLASSEURS[cle];
+    if (!props.getProperty(def.prop)) return; // classeur pas encore créé
+    DriveApp.getFileById(Db_classeur(cle).getId()).makeCopy(def.nom + ' — ' + horodatage, dossier);
+    var copies = [];
+    var it = dossier.getFiles();
+    while (it.hasNext()) {
+      var f = it.next();
+      if (String(f.getName()).indexOf(def.nom + ' — ') === 0) copies.push(f);
+    }
+    copies.sort(function (a, b) { return b.getDateCreated() - a.getDateCreated(); });
+    copies.slice(aGarder).forEach(function (f) { f.setTrashed(true); });
+    console.log('Sauvegarde ' + def.nom + ' ' + horodatage + ' : ' + Math.min(copies.length, aGarder) + ' copie(s) conservée(s).');
+  });
 }
 
 function Setup_dossierSauvegardes_() {

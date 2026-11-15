@@ -1,4 +1,4 @@
-/* Kompa Affaires 1.2.2 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
+/* Kompa Affaires 1.3.0 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
 
 // ════════ Setup.js ════════
 
@@ -13,15 +13,22 @@
 function installer(options) {
   var debut = Date.now();
   Db_viderCache_();
-  var classeur = Setup_classeur_();
-  var rapport = { classeur: classeur.getUrl(), onglets: [], colonnesAjoutees: 0 };
+  var classeur = Setup_classeur_('SUIVI');
+  var classeurEst = Setup_classeur_('EST');
+  var rapport = { classeur: classeur.getUrl(), classeurEstimation: classeurEst.getUrl(), onglets: [], colonnesAjoutees: 0 };
 
-  Object.keys(TABLES).forEach(function (k) {
-    var r = Setup_onglet_(classeur, TABLES[k]);
-    rapport.onglets.push(TABLES[k].onglet + (r.cree ? ' (créé)' : ''));
+  var tables = Tables_toutes_();
+  Object.keys(tables).forEach(function (k) {
+    var t = tables[k];
+    var r = Setup_onglet_(t.classeur === 'EST' ? classeurEst : classeur, t);
+    rapport.onglets.push(t.onglet + (r.cree ? ' (créé)' : ''));
     rapport.colonnesAjoutees += r.colonnesAjoutees;
   });
-  Setup_supprimerFeuilleVide_(classeur);
+  Setup_supprimerFeuilleVide_(classeur, 'SUIVI');
+  Setup_supprimerFeuilleVide_(classeurEst, 'EST');
+  if (typeof Est_installer_ === 'function') {
+    try { rapport.estimation = Est_installer_(); } catch (e) { rapport.estimation = 'erreur : ' + e.message; }
+  }
 
   rapport.parametresAjoutes = Params_initialiser_();
   rapport.parametresMisAJour = Params_migrer_();
@@ -39,26 +46,27 @@ function installer(options) {
   return rapport;
 }
 
-/** Ouvre le classeur enregistré ou en crée un nouveau. */
-function Setup_classeur_() {
+/** Ouvre le classeur enregistré (SUIVI ou EST) ou en crée un nouveau. */
+function Setup_classeur_(cle) {
+  var def = CLASSEURS[cle || 'SUIVI'];
   var props = PropertiesService.getScriptProperties();
-  var id = props.getProperty(APP.PROP_CLASSEUR_ID);
+  var id = props.getProperty(def.prop);
   if (id) {
     try {
       var existant = SpreadsheetApp.openById(id);
-      Db_cache_.classeur = existant;
+      Db_cache_.classeurs[cle || 'SUIVI'] = existant;
       return existant;
     } catch (e) {
       throw new Error('Le classeur ' + id + ' est inaccessible (supprimé ?). ' +
         'Restaurez-le depuis la corbeille Drive, ou supprimez la propriété ' +
-        APP.PROP_CLASSEUR_ID + ' du script pour en créer un nouveau.');
+        def.prop + ' du script pour en créer un nouveau.');
     }
   }
-  var classeur = SpreadsheetApp.create(APP.CLASSEUR);
+  var classeur = SpreadsheetApp.create(def.nom);
   classeur.setSpreadsheetTimeZone(APP.FUSEAU);
   classeur.setSpreadsheetLocale('fr_FR');
-  props.setProperty(APP.PROP_CLASSEUR_ID, classeur.getId());
-  Db_cache_.classeur = classeur;
+  props.setProperty(def.prop, classeur.getId());
+  Db_cache_.classeurs[cle || 'SUIVI'] = classeur;
   return classeur;
 }
 
@@ -101,8 +109,11 @@ function Setup_onglet_(classeur, table) {
 }
 
 /** Supprime la feuille par défaut (« Feuille 1 » / « Sheet1 ») si elle est vide. */
-function Setup_supprimerFeuilleVide_(classeur) {
-  var noms = Object.keys(TABLES).map(function (k) { return TABLES[k].onglet; });
+function Setup_supprimerFeuilleVide_(classeur, cle) {
+  var tables = Tables_toutes_();
+  var noms = Object.keys(tables)
+    .filter(function (k) { return (tables[k].classeur || 'SUIVI') === cle; })
+    .map(function (k) { return tables[k].onglet; });
   classeur.getSheets().forEach(function (f) {
     if (noms.indexOf(f.getName()) < 0 && f.getLastRow() === 0 && classeur.getSheets().length > 1) {
       classeur.deleteSheet(f);
@@ -149,21 +160,29 @@ function Setup_declencheurs_() {
   });
 }
 
-/** Copie datée du classeur dans le dossier Drive des sauvegardes ; conserve les N dernières. */
+/**
+ * Copie datée de chaque classeur (suivi et estimation) dans le dossier Drive des sauvegardes ;
+ * conserve les N dernières copies de chacun.
+ */
 function sauvegardeHebdo() {
-  var classeur = Db_classeur();
   var dossier = Setup_dossierSauvegardes_();
   var horodatage = Utilities.formatDate(new Date(), APP.FUSEAU, 'yyyy-MM-dd');
-  DriveApp.getFileById(classeur.getId()).makeCopy(APP.CLASSEUR + ' — ' + horodatage, dossier);
-
   var aGarder = Params_nombre('sauvegarde.nb_copies', 8);
-  var copies = [];
-  var it = dossier.getFiles();
-  while (it.hasNext()) copies.push(it.next());
-  copies.sort(function (a, b) { return b.getDateCreated() - a.getDateCreated(); });
-  copies.slice(aGarder).forEach(function (f) { f.setTrashed(true); });
-
-  console.log('Sauvegarde ' + horodatage + ' : ' + Math.min(copies.length, aGarder) + ' copie(s) conservée(s).');
+  var props = PropertiesService.getScriptProperties();
+  Object.keys(CLASSEURS).forEach(function (cle) {
+    var def = CLASSEURS[cle];
+    if (!props.getProperty(def.prop)) return; // classeur pas encore créé
+    DriveApp.getFileById(Db_classeur(cle).getId()).makeCopy(def.nom + ' — ' + horodatage, dossier);
+    var copies = [];
+    var it = dossier.getFiles();
+    while (it.hasNext()) {
+      var f = it.next();
+      if (String(f.getName()).indexOf(def.nom + ' — ') === 0) copies.push(f);
+    }
+    copies.sort(function (a, b) { return b.getDateCreated() - a.getDateCreated(); });
+    copies.slice(aGarder).forEach(function (f) { f.setTrashed(true); });
+    console.log('Sauvegarde ' + def.nom + ' ' + horodatage + ' : ' + Math.min(copies.length, aGarder) + ' copie(s) conservée(s).');
+  });
 }
 
 function Setup_dossierSauvegardes_() {
@@ -1005,7 +1024,7 @@ function arrondi_(n) {
 
 var APP = {
   NOM: 'Kompa Affaires',
-  VERSION: '1.2.2',
+  VERSION: '1.3.0',
   CLASSEUR: 'Kompa Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
@@ -1143,6 +1162,26 @@ var TABLES = {
 
 /** Avis archivés (échus depuis longtemps) : mêmes colonnes que les avis. */
 TABLES.AVIS_ARCHIVES = Object.assign({}, TABLES.AVIS, { onglet: 'Avis archivés' });
+
+/**
+ * Classeurs de données. Le module Estimation a son propre classeur (bibliothèque de prix
+ * volumineuse, données anonymisées) : ses tables portent classeur: 'EST'.
+ */
+var CLASSEURS = {
+  SUIVI: { nom: APP.CLASSEUR, prop: APP.PROP_CLASSEUR_ID },
+  EST: { nom: 'Kompa Estimation — données', prop: 'CLASSEUR_EST_ID' }
+};
+
+/**
+ * Toutes les tables : suivi (TABLES, Code.gs) + module Estimation (EST_TABLES, Estimation.gs).
+ * EST_TABLES est lu à l'appel, jamais au chargement : l'ordre des fichiers dans l'éditeur importe peu.
+ */
+function Tables_toutes_() {
+  var t = {};
+  Object.keys(TABLES).forEach(function (k) { t[k] = TABLES[k]; });
+  if (typeof EST_TABLES !== 'undefined') Object.keys(EST_TABLES).forEach(function (k) { t[k] = EST_TABLES[k]; });
+  return t;
+}
 
 /** Colonnes complètes d'une table (métier + dates système). */
 function colonnesTable_(table) {
@@ -1313,32 +1352,44 @@ function Courriers_euros_(n) {
  * Mémoire de l'exécution en cours : chaque onglet n'est lu qu'une fois par appel
  * (google.script.run, déclencheur). Toute écriture dans un onglet vide sa mémoire.
  */
-var Db_cache_ = { classeur: null, lignes: {}, entetes: {} };
+var Db_cache_ = { classeurs: {}, lignes: {}, entetes: {} };
+
+/** Clé de mémoire d'une table : classeur + onglet (deux classeurs peuvent avoir un onglet de même nom). */
+function Db_cle_(table) {
+  return (table.classeur || 'SUIVI') + '|' + table.onglet;
+}
 
 function Db_viderCache_(table) {
-  if (table) { delete Db_cache_.lignes[table.onglet]; delete Db_cache_.entetes[table.onglet]; }
+  if (table) { delete Db_cache_.lignes[Db_cle_(table)]; delete Db_cache_.entetes[Db_cle_(table)]; }
   else { Db_cache_.lignes = {}; Db_cache_.entetes = {}; }
 }
 
 /** En-têtes d'une table (mémorisés pour l'exécution). */
 function Db_entetesTable_(table, onglet) {
-  if (!Db_cache_.entetes[table.onglet]) Db_cache_.entetes[table.onglet] = Db_entetes_(onglet || Db_onglet_(table));
-  return Db_cache_.entetes[table.onglet];
+  var k = Db_cle_(table);
+  if (!Db_cache_.entetes[k]) Db_cache_.entetes[k] = Db_entetes_(onglet || Db_onglet_(table));
+  return Db_cache_.entetes[k];
 }
 
-/** Classeur de données. Lève une erreur claire si installer() n'a pas été lancé. */
-function Db_classeur() {
-  if (Db_cache_.classeur) return Db_cache_.classeur;
-  var id = PropertiesService.getScriptProperties().getProperty(APP.PROP_CLASSEUR_ID);
+/**
+ * Classeur de données : « SUIVI » (par défaut, suivi des affaires) ou « EST » (module Estimation).
+ * Lève une erreur claire si installer() n'a pas été lancé.
+ */
+function Db_classeur(cle) {
+  cle = cle || 'SUIVI';
+  if (Db_cache_.classeurs[cle]) return Db_cache_.classeurs[cle];
+  var def = CLASSEURS[cle];
+  if (!def) throw new Error('Classeur inconnu : ' + cle);
+  var id = PropertiesService.getScriptProperties().getProperty(def.prop);
   if (!id) {
-    throw new Error('Classeur introuvable : lancez la fonction installer() depuis l\'éditeur Apps Script.');
+    throw new Error('Classeur « ' + def.nom + ' » introuvable : lancez la fonction installer() depuis l\'éditeur Apps Script.');
   }
-  Db_cache_.classeur = SpreadsheetApp.openById(id);
-  return Db_cache_.classeur;
+  Db_cache_.classeurs[cle] = SpreadsheetApp.openById(id);
+  return Db_cache_.classeurs[cle];
 }
 
 function Db_onglet_(table) {
-  var onglet = Db_classeur().getSheetByName(table.onglet);
+  var onglet = Db_classeur(table.classeur).getSheetByName(table.onglet);
   if (!onglet) {
     throw new Error('Onglet « ' + table.onglet + ' » absent : relancez installer().');
   }
@@ -1354,7 +1405,8 @@ function Db_entetes_(onglet) {
 
 /** Toutes les lignes d'une table, en objets (copies : modifiables sans effet sur la mémoire). */
 function Db_lire(table) {
-  if (!Db_cache_.lignes[table.onglet]) {
+  var cle = Db_cle_(table);
+  if (!Db_cache_.lignes[cle]) {
     var onglet = Db_onglet_(table);
     var entetes = Db_entetesTable_(table, onglet);
     var nbLignes = onglet.getLastRow() - 1;
@@ -1368,9 +1420,9 @@ function Db_lire(table) {
           return obj;
         });
     }
-    Db_cache_.lignes[table.onglet] = lignes;
+    Db_cache_.lignes[cle] = lignes;
   }
-  return Db_cache_.lignes[table.onglet].map(function (o) { return Object.assign({}, o); });
+  return Db_cache_.lignes[cle].map(function (o) { return Object.assign({}, o); });
 }
 
 /** Ligne dont la clé vaut `valeur`, ou null. */
@@ -1501,7 +1553,7 @@ function Db_remplacerValeur_(table, colonne, ancienne, nouvelle) {
 }
 
 function Db_viderCache_lignes_(table) {
-  delete Db_cache_.lignes[table.onglet];
+  delete Db_cache_.lignes[Db_cle_(table)];
 }
 
 
@@ -3309,13 +3361,16 @@ function apiEtat() {
 function Etat_socle_() {
   return (function () {
     var classeur = Db_classeur();
-    var onglets = Object.keys(TABLES).map(function (k) {
-      var f = classeur.getSheetByName(TABLES[k].onglet);
-      return { nom: TABLES[k].onglet, present: !!f, lignes: f ? Math.max(f.getLastRow() - 1, 0) : 0 };
+    var tables = Tables_toutes_();
+    var onglets = Object.keys(tables).map(function (k) {
+      var f = null;
+      try { f = Db_classeur(tables[k].classeur).getSheetByName(tables[k].onglet); } catch (e) { /* classeur absent */ }
+      return { nom: tables[k].onglet, present: !!f, lignes: f ? Math.max(f.getLastRow() - 1, 0) : 0 };
     });
     return {
       app: APP.NOM,
       version: APP.VERSION,
+      alertes: Etat_alertes_(),
       compte: Session.getEffectiveUser().getEmail(),
       classeur: { nom: classeur.getName(), url: classeur.getUrl() },
       onglets: onglets,
@@ -3324,6 +3379,21 @@ function Etat_socle_() {
       maintenant: new Date()
     };
   })();
+}
+
+/**
+ * Contrôle du déploiement : Code.gs et Estimation.gs doivent être de la même version
+ * (un des deux fichiers oublié lors du copier-coller).
+ */
+function Etat_alertes_() {
+  if (typeof EST_VERSION === 'undefined') {
+    return ['Le fichier Estimation.gs est absent du projet Apps Script : collez-le depuis dist/ (module Estimation indisponible).'];
+  }
+  if (EST_VERSION !== APP.VERSION) {
+    return ['Versions différentes : Code.gs v' + APP.VERSION + ', Estimation.gs v' + EST_VERSION +
+      '. Recollez les deux fichiers depuis dist/, puis relancez installer().'];
+  }
+  return [];
 }
 
 /** Liste des paramètres, groupés pour l'écran Paramètres. */

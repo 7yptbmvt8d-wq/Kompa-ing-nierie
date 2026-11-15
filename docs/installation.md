@@ -12,12 +12,13 @@ Raccourcis clavier : **Ctrl** sur Windows et ChromeOS, **⌘ Cmd** sur Mac.
 
 Toutes les étapes suivantes se font **connecté avec ce compte**, pas avec votre compte personnel.
 
-Les trois fichiers à coller sont dans le dossier `dist/` du dépôt :
+Les quatre fichiers à coller sont dans le dossier `dist/` du dépôt :
 
 | Fichier du dépôt | Contenu |
 |---|---|
 | `dist/appsscript.json` | Réglages du projet (fuseau Paris, accès limité au compte) |
-| `dist/Code.gs` | Le moteur : classeur, paramètres, compteur de CA, sauvegarde |
+| `dist/Code.gs` | Le moteur du suivi des affaires : classeur, paramètres, compteur de CA, sauvegarde |
+| `dist/Estimation.gs` | Le module Estimation des travaux (depuis la v1.3.0) |
 | `dist/Index.html` | L'application (écrans, charte Kompa) |
 
 Sur GitHub, ouvrir le fichier puis cliquer l'icône **Copier le fichier brut** (deux carrés superposés, en haut à droite du contenu).
@@ -28,12 +29,13 @@ Sur GitHub, ouvrir le fichier puis cliquer l'icône **Copier le fichier brut** (
 2. Cliquer sur « Projet sans titre » en haut → renommer **Kompa Affaires**.
 3. Menu de gauche, roue dentée **Paramètres du projet** → cocher **Afficher le fichier manifeste "appsscript.json" dans l'éditeur**.
 
-## B. Coller les trois fichiers
+## B. Coller les quatre fichiers
 
 Revenir à l'**Éditeur** (icône `< >` à gauche).
 
 4. Fichier **appsscript.json** : tout sélectionner (Ctrl+A / ⌘+A), coller le contenu de `dist/appsscript.json`.
 5. Fichier **Code.gs** : tout sélectionner, coller le contenu de `dist/Code.gs`.
+5 bis. Bouton **+** à côté de « Fichiers » → **Script** → nommer **Estimation** (sans `.gs`) → tout sélectionner, coller le contenu de `dist/Estimation.gs`.
 6. Bouton **+** à côté de « Fichiers » → **HTML** → nommer **Index** (sans `.html`, majuscule comprise) → tout sélectionner, coller le contenu de `dist/Index.html`.
 7. **Ctrl+S** (⌘+S sur Mac) pour enregistrer.
 
@@ -42,7 +44,7 @@ Revenir à l'**Éditeur** (icône `< >` à gauche).
 8. En haut de l'éditeur, liste déroulante des fonctions → choisir **installer** → **Exécuter**.
 9. Google demande l'autorisation : **Examiner les autorisations** → choisir le compte Kompa.
    Écran « Google n'a pas validé cette application » : c'est normal, le script est le vôtre. **Paramètres avancés** → **Accéder à Kompa Affaires (non sécurisé)** → **Autoriser**.
-10. Le **journal d'exécution** s'affiche en bas : il donne l'adresse du classeur « Kompa Affaires — données » (aussi visible dans Google Drive).
+10. Le **journal d'exécution** s'affiche en bas : il donne l'adresse des classeurs « Kompa Affaires — données » et « Kompa Estimation — données » (aussi visibles dans Google Drive).
 
 ## D. Publier l'application
 
@@ -83,4 +85,5 @@ L'icône du raccourci est celle de Google Apps Script, pas le logo Kompa : Googl
 | « Impossible d'ouvrir le fichier pour le moment » (Google Drive) | Plusieurs comptes Google connectés dans le navigateur | Profil Chrome réservé au compte Kompa, ou fenêtre privée |
 | « Accès réservé au compte Kompa » / page de connexion Google | Navigateur connecté avec un autre compte | Se connecter avec le compte Kompa |
 | « Script function not found: doGet » | Fichier Code.gs incomplet | Recoller `dist/Code.gs` en entier |
+| Bandeau « Mise à jour incomplète » sur l'accueil | Code.gs et Estimation.gs de versions différentes, ou Estimation.gs absent | Recoller les deux fichiers depuis `dist/`, Ctrl+S, relancer **installer**, publier une nouvelle version |
 | Page blanche | Fichier HTML mal nommé | Le fichier doit s'appeler exactement `Index` |

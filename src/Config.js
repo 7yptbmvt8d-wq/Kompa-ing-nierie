@@ -7,7 +7,7 @@
 
 var APP = {
   NOM: 'Kompa Affaires',
-  VERSION: '1.2.2',
+  VERSION: '1.3.0',
   CLASSEUR: 'Kompa Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
@@ -145,6 +145,26 @@ var TABLES = {
 
 /** Avis archivés (échus depuis longtemps) : mêmes colonnes que les avis. */
 TABLES.AVIS_ARCHIVES = Object.assign({}, TABLES.AVIS, { onglet: 'Avis archivés' });
+
+/**
+ * Classeurs de données. Le module Estimation a son propre classeur (bibliothèque de prix
+ * volumineuse, données anonymisées) : ses tables portent classeur: 'EST'.
+ */
+var CLASSEURS = {
+  SUIVI: { nom: APP.CLASSEUR, prop: APP.PROP_CLASSEUR_ID },
+  EST: { nom: 'Kompa Estimation — données', prop: 'CLASSEUR_EST_ID' }
+};
+
+/**
+ * Toutes les tables : suivi (TABLES, Code.gs) + module Estimation (EST_TABLES, Estimation.gs).
+ * EST_TABLES est lu à l'appel, jamais au chargement : l'ordre des fichiers dans l'éditeur importe peu.
+ */
+function Tables_toutes_() {
+  var t = {};
+  Object.keys(TABLES).forEach(function (k) { t[k] = TABLES[k]; });
+  if (typeof EST_TABLES !== 'undefined') Object.keys(EST_TABLES).forEach(function (k) { t[k] = EST_TABLES[k]; });
+  return t;
+}
 
 /** Colonnes complètes d'une table (métier + dates système). */
 function colonnesTable_(table) {

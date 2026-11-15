@@ -7,32 +7,44 @@
  * Mémoire de l'exécution en cours : chaque onglet n'est lu qu'une fois par appel
  * (google.script.run, déclencheur). Toute écriture dans un onglet vide sa mémoire.
  */
-var Db_cache_ = { classeur: null, lignes: {}, entetes: {} };
+var Db_cache_ = { classeurs: {}, lignes: {}, entetes: {} };
+
+/** Clé de mémoire d'une table : classeur + onglet (deux classeurs peuvent avoir un onglet de même nom). */
+function Db_cle_(table) {
+  return (table.classeur || 'SUIVI') + '|' + table.onglet;
+}
 
 function Db_viderCache_(table) {
-  if (table) { delete Db_cache_.lignes[table.onglet]; delete Db_cache_.entetes[table.onglet]; }
+  if (table) { delete Db_cache_.lignes[Db_cle_(table)]; delete Db_cache_.entetes[Db_cle_(table)]; }
   else { Db_cache_.lignes = {}; Db_cache_.entetes = {}; }
 }
 
 /** En-têtes d'une table (mémorisés pour l'exécution). */
 function Db_entetesTable_(table, onglet) {
-  if (!Db_cache_.entetes[table.onglet]) Db_cache_.entetes[table.onglet] = Db_entetes_(onglet || Db_onglet_(table));
-  return Db_cache_.entetes[table.onglet];
+  var k = Db_cle_(table);
+  if (!Db_cache_.entetes[k]) Db_cache_.entetes[k] = Db_entetes_(onglet || Db_onglet_(table));
+  return Db_cache_.entetes[k];
 }
 
-/** Classeur de données. Lève une erreur claire si installer() n'a pas été lancé. */
-function Db_classeur() {
-  if (Db_cache_.classeur) return Db_cache_.classeur;
-  var id = PropertiesService.getScriptProperties().getProperty(APP.PROP_CLASSEUR_ID);
+/**
+ * Classeur de données : « SUIVI » (par défaut, suivi des affaires) ou « EST » (module Estimation).
+ * Lève une erreur claire si installer() n'a pas été lancé.
+ */
+function Db_classeur(cle) {
+  cle = cle || 'SUIVI';
+  if (Db_cache_.classeurs[cle]) return Db_cache_.classeurs[cle];
+  var def = CLASSEURS[cle];
+  if (!def) throw new Error('Classeur inconnu : ' + cle);
+  var id = PropertiesService.getScriptProperties().getProperty(def.prop);
   if (!id) {
-    throw new Error('Classeur introuvable : lancez la fonction installer() depuis l\'éditeur Apps Script.');
+    throw new Error('Classeur « ' + def.nom + ' » introuvable : lancez la fonction installer() depuis l\'éditeur Apps Script.');
   }
-  Db_cache_.classeur = SpreadsheetApp.openById(id);
-  return Db_cache_.classeur;
+  Db_cache_.classeurs[cle] = SpreadsheetApp.openById(id);
+  return Db_cache_.classeurs[cle];
 }
 
 function Db_onglet_(table) {
-  var onglet = Db_classeur().getSheetByName(table.onglet);
+  var onglet = Db_classeur(table.classeur).getSheetByName(table.onglet);
   if (!onglet) {
     throw new Error('Onglet « ' + table.onglet + ' » absent : relancez installer().');
   }
@@ -48,7 +60,8 @@ function Db_entetes_(onglet) {
 
 /** Toutes les lignes d'une table, en objets (copies : modifiables sans effet sur la mémoire). */
 function Db_lire(table) {
-  if (!Db_cache_.lignes[table.onglet]) {
+  var cle = Db_cle_(table);
+  if (!Db_cache_.lignes[cle]) {
     var onglet = Db_onglet_(table);
     var entetes = Db_entetesTable_(table, onglet);
     var nbLignes = onglet.getLastRow() - 1;
@@ -62,9 +75,9 @@ function Db_lire(table) {
           return obj;
         });
     }
-    Db_cache_.lignes[table.onglet] = lignes;
+    Db_cache_.lignes[cle] = lignes;
   }
-  return Db_cache_.lignes[table.onglet].map(function (o) { return Object.assign({}, o); });
+  return Db_cache_.lignes[cle].map(function (o) { return Object.assign({}, o); });
 }
 
 /** Ligne dont la clé vaut `valeur`, ou null. */
@@ -195,5 +208,5 @@ function Db_remplacerValeur_(table, colonne, ancienne, nouvelle) {
 }
 
 function Db_viderCache_lignes_(table) {
-  delete Db_cache_.lignes[table.onglet];
+  delete Db_cache_.lignes[Db_cle_(table)];
 }

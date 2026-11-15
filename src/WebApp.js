@@ -69,13 +69,16 @@ function apiEtat() {
 function Etat_socle_() {
   return (function () {
     var classeur = Db_classeur();
-    var onglets = Object.keys(TABLES).map(function (k) {
-      var f = classeur.getSheetByName(TABLES[k].onglet);
-      return { nom: TABLES[k].onglet, present: !!f, lignes: f ? Math.max(f.getLastRow() - 1, 0) : 0 };
+    var tables = Tables_toutes_();
+    var onglets = Object.keys(tables).map(function (k) {
+      var f = null;
+      try { f = Db_classeur(tables[k].classeur).getSheetByName(tables[k].onglet); } catch (e) { /* classeur absent */ }
+      return { nom: tables[k].onglet, present: !!f, lignes: f ? Math.max(f.getLastRow() - 1, 0) : 0 };
     });
     return {
       app: APP.NOM,
       version: APP.VERSION,
+      alertes: Etat_alertes_(),
       compte: Session.getEffectiveUser().getEmail(),
       classeur: { nom: classeur.getName(), url: classeur.getUrl() },
       onglets: onglets,
@@ -84,6 +87,21 @@ function Etat_socle_() {
       maintenant: new Date()
     };
   })();
+}
+
+/**
+ * Contrôle du déploiement : Code.gs et Estimation.gs doivent être de la même version
+ * (un des deux fichiers oublié lors du copier-coller).
+ */
+function Etat_alertes_() {
+  if (typeof EST_VERSION === 'undefined') {
+    return ['Le fichier Estimation.gs est absent du projet Apps Script : collez-le depuis dist/ (module Estimation indisponible).'];
+  }
+  if (EST_VERSION !== APP.VERSION) {
+    return ['Versions différentes : Code.gs v' + APP.VERSION + ', Estimation.gs v' + EST_VERSION +
+      '. Recollez les deux fichiers depuis dist/, puis relancez installer().'];
+  }
+  return [];
 }
 
 /** Liste des paramètres, groupés pour l'écran Paramètres. */

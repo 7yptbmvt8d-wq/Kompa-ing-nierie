@@ -125,8 +125,10 @@ test('sauvegarde hebdomadaire : copie datée et rotation des copies', () => {
   env.ctx.Params_enregistrer('sauvegarde.nb_copies', '2');
   for (let i = 0; i < 4; i++) env.ctx.sauvegardeHebdo();
   const actives = env.fichiersDrive.filter((f) => !f.corbeille);
-  assert.strictEqual(actives.length, 2);
-  assert.match(actives[0].nom, /^Kompa Affaires — données — \d{4}-\d{2}-\d{2}$/);
+  // 2 copies conservées par classeur (suivi + estimation)
+  assert.strictEqual(actives.filter((f) => /^Kompa Affaires — données — \d{4}-\d{2}-\d{2}$/.test(f.nom)).length, 2);
+  assert.strictEqual(actives.filter((f) => /^Kompa Estimation — données — \d{4}-\d{2}-\d{2}$/.test(f.nom)).length, 2);
+  assert.strictEqual(actives.length, 4);
 });
 
 test('Db : insertion, recherche et mise à jour avec horodatage', () => {
@@ -185,15 +187,65 @@ test('compteur CA : classeur vide, aucun seuil dépassé', () => {
 test('dist/ est à jour et le Code.gs assemblé fonctionne', () => {
   const fs = require('fs');
   const path = require('path');
-  const avant = fs.readFileSync(path.join(__dirname, '..', 'dist', 'Code.gs'), 'utf8');
+  const lire = (n) => fs.readFileSync(path.join(__dirname, '..', 'dist', n), 'utf8');
+  const avant = ['Code.gs', 'Estimation.gs', 'Index.html'].map(lire);
   require('child_process').execFileSync(process.execPath, [path.join(__dirname, 'build.js')]);
-  const apres = fs.readFileSync(path.join(__dirname, '..', 'dist', 'Code.gs'), 'utf8');
-  assert.strictEqual(avant, apres, 'dist/ n\'était pas à jour : lancer npm run build et committer');
+  const apres = ['Code.gs', 'Estimation.gs', 'Index.html'].map(lire);
+  assert.deepStrictEqual(avant, apres, 'dist/ n\'était pas à jour : lancer npm run build et committer');
+  assert.doesNotMatch(lire('Code.gs'), /════ Est[A-Z]/); // le module n'est que dans Estimation.gs
   const env = creerEnvironnement({ dist: true });
   env.ctx.installer({ exercice: false });
   assert.ok(env.ctx.apiParametreEnregistrer('seuil.plafond_vise', '75000').ok);
   assert.ok(env.ctx.apiCompteurCA().ok);
   assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', 'dist', 'Index.html'), 'utf8'), /<\?/);
+});
+
+// ——— Module Estimation, étape 0 : deux classeurs, deux fichiers ———
+
+test('estimation (étape 0) : installer() crée aussi le classeur « Kompa Estimation — données »', () => {
+  const env = creerEnvironnement();
+  const r = env.ctx.installer({ exercice: false });
+  const noms = Object.values(env.classeurs).map((c) => c.getName());
+  assert.deepStrictEqual(noms, ['Kompa Affaires — données', 'Kompa Estimation — données']);
+  assert.ok(env.proprietes.CLASSEUR_EST_ID);
+  assert.match(r.classeurEstimation, /spreadsheets/);
+  env.ctx.installer({ exercice: false }); // idempotent : pas de 3e classeur
+  assert.strictEqual(Object.values(env.classeurs).length, 2);
+});
+
+test('estimation (étape 0) : une table EST s\'écrit dans son classeur, sans collision de nom d\'onglet', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  // Table de test du module, même nom d'onglet qu'une table du suivi
+  A.EST_TABLES.TEST = { onglet: 'Paramètres', classeur: 'EST', cle: 'cle', colonnes: ['cle', 'valeur'] };
+  A.installer({ exercice: false });
+  A.Db_inserer(A.EST_TABLES.TEST, { cle: 'est.essai', valeur: 'oui' });
+  const [suivi, est] = Object.values(env.classeurs);
+  assert.ok(est.getSheetByName('Paramètres').lignes.some((l) => l[0] === 'est.essai'));
+  assert.ok(!suivi.getSheetByName('Paramètres').lignes.some((l) => l[0] === 'est.essai'));
+  assert.strictEqual(A.Db_trouver(A.EST_TABLES.TEST, 'est.essai').valeur, 'oui');
+  assert.strictEqual(A.Db_trouver(A.TABLES.PARAMETRES, 'est.essai'), null);
+  assert.ok(A.Params_texte('veille.cpv').length > 0); // le suivi lit toujours son propre onglet
+});
+
+test('estimation (étape 0) : contrôle des versions Code.gs / Estimation.gs', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  assert.deepStrictEqual(brut(env.ctx.Etat_alertes_()), []);
+  assert.strictEqual(env.ctx.EST_VERSION, env.ctx.APP.VERSION);
+  env.ctx.EST_VERSION = '1.2.9';
+  assert.match(env.ctx.Etat_alertes_()[0], /Versions différentes : Code\.gs v[\d.]+, Estimation\.gs v1\.2\.9/);
+  // Estimation.gs oublié lors du collage : le suivi fonctionne et l'accueil le signale
+  const sans = creerEnvironnement({ dist: true, sansEstimation: true });
+  sans.ctx.installer({ exercice: false });
+  const etat = sans.ctx.apiEtat();
+  assert.ok(etat.ok, etat.erreur);
+  assert.match(etat.data.alertes[0], /Estimation\.gs est absent/);
+  assert.ok(sans.ctx.apiCompteurCA().ok);
+  // Estimation.gs chargé avant Code.gs dans l'éditeur : aucune erreur au chargement
+  const inverse = creerEnvironnement({ dist: true, ordre: 'estimation-avant' });
+  inverse.ctx.installer({ exercice: false });
+  assert.deepStrictEqual(brut(inverse.ctx.Etat_alertes_()), []);
 });
 
 // ——— Lot 2 : Affaires ———

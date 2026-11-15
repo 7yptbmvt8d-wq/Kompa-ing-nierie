@@ -110,7 +110,7 @@
   };
 
   function ecranAccueil(el) {
-    el.innerHTML = titre('Accueil', '') +
+    el.innerHTML = titre('Accueil', '') + '<div id="alertes-deploiement"></div>' +
       '<section id="tableau-de-bord"><h2>Tableau de bord</h2><div class="chargement">Calcul des indicateurs…</div></section>' +
       '<div class="grille">' +
         '<section class="carte carte--large" id="carte-ca"><h2>Chiffre d\'affaires</h2><div class="chargement">Calcul du CA…</div></section>' +
@@ -146,6 +146,10 @@
         '<dt>Lu à</dt><dd class="mono">' + esc(dateHeure(etat.maintenant)) + '</dd>' +
       '</dl>';
     $('#pied').textContent = etat.app + ' · v' + etat.version;
+    var zone = $('#alertes-deploiement');
+    if (zone) zone.innerHTML = (etat.alertes || []).map(function (a) {
+      return '<p class="bandeau bandeau--erreur" role="alert"><strong>Mise à jour incomplète.</strong> ' + esc(a) + '</p>';
+    }).join('');
   }
 
   var formatEuro = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });

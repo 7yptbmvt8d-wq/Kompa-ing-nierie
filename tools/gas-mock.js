@@ -221,7 +221,7 @@ function creerEnvironnement(options = {}) {
         makeCopy: (nom, dossier) => {
           const f = {
             nom, dossier, corbeille: false, cree: new Date(Date.now() + fichiersDrive.length),
-            getDateCreated: () => f.cree, setTrashed: (v) => { f.corbeille = v; }
+            getName: () => f.nom, getDateCreated: () => f.cree, setTrashed: (v) => { f.corbeille = v; }
           };
           fichiersDrive.push(f);
           return f;
@@ -250,8 +250,11 @@ function creerEnvironnement(options = {}) {
   const contexte = vm.createContext(Object.assign({}, gas));
   if (options.dist) {
     // Version assemblée pour le copier-coller (dist/Code.gs)
-    const f = path.join(__dirname, '..', 'dist', 'Code.gs');
-    vm.runInContext(fs.readFileSync(f, 'utf8'), contexte, { filename: 'Code.gs' });
+    // Ordre de l'éditeur : Estimation.gs peut être chargé avant ou après Code.gs (options.ordre).
+    const fichiers = options.ordre === 'estimation-avant' ? ['Estimation.gs', 'Code.gs'] : ['Code.gs', 'Estimation.gs'];
+    fichiers.filter((n) => !(options.sansEstimation && n === 'Estimation.gs')).forEach((n) => {
+      vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'dist', n), 'utf8'), contexte, { filename: n });
+    });
   } else {
     const dossierSrc = path.join(__dirname, '..', 'src');
     fs.readdirSync(dossierSrc)
