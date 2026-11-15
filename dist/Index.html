@@ -367,6 +367,17 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .pieces__dossier h3 .legende { font-weight: 400; margin-left: var(--kompa-s1); }
 .pieces__liste { list-style: none; margin: 0; padding: 0; border-top: var(--kompa-filet-fin); }
 .pieces__liste li { padding: var(--kompa-s2) 0; border-bottom: var(--kompa-filet-fin); overflow-wrap: anywhere; }
+
+/* Module Estimation */
+.sous-nav { display: flex; gap: var(--kompa-s4); border-bottom: var(--kompa-filet-fin); margin-bottom: var(--kompa-s5); }
+.sous-nav a { padding: var(--kompa-s2) 0; color: var(--kompa-gris); text-decoration: none; font-weight: 500; border-bottom: 3px solid transparent; }
+.sous-nav a[aria-current="page"] { color: var(--kompa-ardoise); border-bottom-color: var(--kompa-rouille); }
+.sous-nav a:hover, .sous-nav a:focus-visible { color: var(--kompa-ardoise); }
+.table-ref td { vertical-align: middle; }
+.table-ref .champ { min-width: 6rem; }
+.table-ref [data-col="libelle"], .table-ref [data-col="valeur"], .table-ref [data-col="mots_cles"], .table-ref [data-col="commentaire"] { min-width: 16rem; }
+.table-ref [data-col="ordre"], .table-ref [data-col="coefficient"] { min-width: 4.5rem; width: 5.5rem; }
+.vide-etat { padding: var(--kompa-s5); background: var(--kompa-brume); border-radius: var(--kompa-radius); }
 </style>
 </head>
 <body>
@@ -383,6 +394,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
         <a href="#affaires">Affaires</a>
         <a href="#echeancier">Échéancier</a>
         <a href="#enseignements">Enseignements</a>
+        <a href="#estimation">Estimation</a>
         <a href="#parametres">Paramètres</a>
       </nav>
     </div>
@@ -402,7 +414,8 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
   // ——— Appels serveur ———
   /** Appels en lecture seule : tous les autres modifient les données et vident la mémoire d'affichage. */
   var LECTURES = ['apiEtat', 'apiParametres', 'apiCompteurCA', 'apiAccueil', 'apiAffaires', 'apiAffaire', 'apiVeille',
-    'apiEcheancier', 'apiSuivi', 'apiCourrier', 'apiEmailApercu', 'apiTableau', 'apiEnseignements', 'apiFiscal', 'apiPieces'];
+    'apiEcheancier', 'apiSuivi', 'apiCourrier', 'apiEmailApercu', 'apiTableau', 'apiEnseignements', 'apiFiscal', 'apiPieces',
+    'apiEstReferentiels', 'apiEstAccueil', 'apiEstAffaire'];
 
   function appel(nom) {
     var args = Array.prototype.slice.call(arguments, 1);
@@ -1063,7 +1076,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
       '</header>';
 
     var blocs = meta.blocs.slice();
-    blocs.splice(1, 0, { id: 'pieces', titre: 'Pièces', champs: [] });
+    blocs.splice(1, 0, { id: 'pieces', titre: 'Pièces', champs: [] }, { id: 'estimations', titre: 'Estimations', champs: [] });
     var corps = '<div class="onglets" role="tablist">' + blocs.map(function (b) {
         return '<button type="button" role="tab" id="o-' + b.id + '" aria-controls="p-' + b.id + '" aria-selected="' + (b.id === ongletFiche) + '" data-onglet="' + b.id + '">' + esc(b.titre) + '</button>';
       }).join('') + '</div>' +
@@ -1071,6 +1084,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
         var html;
         if (b.id === 'journal') html = blocJournal(f);
         else if (b.id === 'pieces') html = '<div data-pieces><div class="chargement">Lecture du dossier Drive…</div></div>';
+        else if (b.id === 'estimations') html = '<div data-estimations><div class="chargement">Lecture des estimations…</div></div>';
         else {
           html = '<form class="bloc-form" data-bloc="' + b.id + '" novalidate><div class="form-grille">' +
             b.champs.map(function (c) { return champHtml(c, a[c.nom], meta.listes, b.id); }).join('') + '</div>' +
@@ -1083,6 +1097,8 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
     el.innerHTML = tete + corps;
     brancherFiche(el, f);
     chargerPieces(el, a);
+    var zoneEst = $('[data-estimations]', el);
+    if (zoneEst && K.estimationsAffaire) K.estimationsAffaire(zoneEst, a.id);
   }
 
   // ——— Pièces : dossier Drive de l'affaire ———
@@ -1849,6 +1865,142 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
   }
 
   K.ecrans.enseignements = { titre: 'Enseignements', rendu: ecranEnseignements };
+})();
+</script>
+  <script>
+/* Kompa Affaires — module Estimation : écran Estimation (liste, référentiels). */
+(function () {
+  'use strict';
+  var K = window.KA;
+  var $ = K.$, $$ = K.$$, esc = K.esc;
+
+  function onglets(actif) {
+    var o = [['', 'Estimations'], ['referentiels', 'Référentiels']];
+    return '<nav class="sous-nav" aria-label="Module Estimation">' + o.map(function (x) {
+      return '<a href="#estimation' + (x[0] ? '/' + x[0] : '') + '"' + (x[0] === actif ? ' aria-current="page"' : '') + '>' + x[1] + '</a>';
+    }).join('') + '</nav>';
+  }
+
+  function ecranEstimation(el, param) {
+    var vue = param === 'referentiels' ? 'referentiels' : '';
+    el.innerHTML = K.titre('Estimation des travaux', 'Estimations reliées aux affaires par le n° KA ; données dans le classeur « Kompa Estimation — données ».') +
+      onglets(vue) + '<div id="est-contenu"><div class="chargement">Lecture…</div></div>';
+    var zone = $('#est-contenu', el);
+    if (vue === 'referentiels') {
+      K.charger('est-ref', 'apiEstReferentiels', [], function (refs) { rendreReferentiels(zone, refs); },
+        function (e) { zone.innerHTML = K.bandeauErreur(e); });
+    } else {
+      K.charger('est-accueil', 'apiEstAccueil', [], function (d) { rendreListe(zone, d); },
+        function (e) { zone.innerHTML = K.bandeauErreur(e); });
+    }
+  }
+
+  // ——— Liste des estimations ———
+  function rendreListe(zone, d) {
+    if (!d.estimations.length) {
+      zone.innerHTML = '<div class="vide-etat"><p><strong>Aucune estimation pour l\'instant.</strong></p>' +
+        '<p class="legende">L\'assistant de création (typologie → surfaces → coefficient K → actualisation → résultat par lot) arrive avec l\'étape 5 du plan. ' +
+        'Vous pouvez déjà vérifier les <a href="#estimation/referentiels">référentiels</a> : lots et index, typologies, coefficient K, paramètres.</p></div>';
+      return;
+    }
+    zone.innerHTML = '<div class="tableau-conteneur"><table><thead><tr><th scope="col">N°</th><th scope="col">Affaire</th><th scope="col">Phase</th>' +
+      '<th scope="col">Typologie</th><th scope="col" class="num">Total HT</th><th scope="col">Statut</th></tr></thead><tbody>' +
+      d.estimations.map(function (e) {
+        return '<tr><td class="mono">' + esc(e.id) + '</td><td><a href="#affaire/' + esc(e.id_affaire) + '">' + esc(e.id_affaire) + '</a> ' +
+          '<span class="legende">' + esc(e.acheteur) + '</span></td><td>' + esc(e.phase) + ' · ind ' + esc(e.indice) + '</td>' +
+          '<td>' + esc(e.typologie) + '</td><td class="num mono">' + (e.total_ht === '' ? '' : K.euros(e.total_ht)) + '</td><td>' + esc(e.statut) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  // ——— Référentiels modifiables ———
+  var ORDRE = ['LOTS', 'TYPOLOGIES', 'K', 'FAMILLES', 'PARAMS'];
+
+  function champ(c, v, prefixe) {
+    var id = prefixe + '-' + c.nom;
+    v = v === null || v === undefined ? '' : String(v);
+    var attrs = ' id="' + id + '" data-col="' + c.nom + '" aria-label="' + esc(c.libelle) + '"';
+    if (c.type === 'lecture') return '<span class="' + (c.nom === 'cle' ? 'mono' : 'legende') + '">' + esc(v) + '</span>';
+    if (c.type === 'oui_non' || c.type.indexOf('choix:') === 0) {
+      var opts = c.type === 'oui_non' ? ['oui', 'non'] : c.type.slice(6).split('|');
+      return '<select class="champ"' + attrs + '>' + opts.map(function (o) { return '<option' + (o === (v || opts[0]) ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
+    }
+    var cls = c.type === 'nombre' ? 'champ mono num' : (c.type === 'code' ? 'champ mono' : 'champ');
+    return '<input class="' + cls + '"' + attrs + ' type="text" value="' + esc(v) + '"' + (c.type === 'nombre' ? ' inputmode="decimal"' : '') + '>';
+  }
+
+  function rendreReferentiels(zone, refs) {
+    zone.innerHTML = ORDRE.filter(function (n) { return refs[n]; }).map(function (nom) {
+      var r = refs[nom];
+      var entetes = r.colonnes.map(function (c) { return '<th scope="col">' + esc(c.libelle) + '</th>'; }).join('');
+      var lignes = r.lignes.map(function (l, i) {
+        return '<tr data-ref="' + nom + '" data-cle="' + esc(l[r.cle]) + '">' + r.colonnes.map(function (c) {
+          var lecture = c.nom === r.cle ? { nom: c.nom, libelle: c.libelle, type: 'lecture' } : c;
+          return '<td>' + champ(lecture, l[c.nom], nom + '-' + i) + '</td>';
+        }).join('') + '<td><button class="bouton" type="button" data-enregistrer disabled>Enregistrer</button></td></tr>';
+      }).join('');
+      var ajout = r.sansAjout ? '' : '<tr class="ligne-ajout" data-ajout="' + nom + '">' + r.colonnes.map(function (c) {
+        return '<td>' + champ(c, '', nom + '-n') + '</td>';
+      }).join('') + '<td><button class="bouton bouton--discret" type="button" data-ajouter>Ajouter</button></td></tr>';
+      return '<section class="groupe-param" id="ref-' + nom + '"><h2>' + esc(r.titre) + '</h2><p class="legende">' + esc(r.aide) + '</p>' +
+        '<div class="tableau-conteneur"><table class="table-ref"><thead><tr>' + entetes + '<th scope="col"><span class="seul-lecteur">Action</span></th></tr></thead><tbody>' +
+        (lignes || '') + ajout + '</tbody></table></div>' +
+        (r.lignes.length ? '' : '<p class="vide">Aucune ligne.</p>') + '</section>';
+    }).join('');
+    brancher(zone);
+  }
+
+  function lire(tr) {
+    var o = {};
+    $$('[data-col]', tr).forEach(function (x) { o[x.getAttribute('data-col')] = x.value; });
+    return o;
+  }
+
+  function brancher(zone) {
+    $$('tr[data-cle]', zone).forEach(function (tr) {
+      var bouton = $('[data-enregistrer]', tr);
+      var initial = JSON.stringify(lire(tr));
+      var maj = function () {
+        var modifie = JSON.stringify(lire(tr)) !== initial;
+        bouton.disabled = !modifie;
+        $$('[data-col]', tr).forEach(function (x) { x.classList.toggle('est-modifie', modifie); });
+      };
+      tr.addEventListener('input', maj);
+      tr.addEventListener('change', maj);
+      bouton.addEventListener('click', function () {
+        bouton.disabled = true;
+        K.appel('apiEstRefModifier', tr.getAttribute('data-ref'), tr.getAttribute('data-cle'), lire(tr)).then(function () {
+          initial = JSON.stringify(lire(tr)); maj();
+          K.toast('Enregistré.');
+        }).catch(function (e) { bouton.disabled = false; K.toast(e.message, true); });
+      });
+    });
+    $$('tr[data-ajout]', zone).forEach(function (tr) {
+      $('[data-ajouter]', tr).addEventListener('click', function () {
+        var nom = tr.getAttribute('data-ajout');
+        K.appel('apiEstRefAjouter', nom, lire(tr)).then(function () {
+          K.toast('Ligne ajoutée.');
+          K.charger('est-ref', 'apiEstReferentiels', [], function (refs) {
+            rendreReferentiels(zone, refs);
+            var s = $('#ref-' + nom, zone); if (s) s.scrollIntoView();
+          });
+        }).catch(function (e) { K.toast(e.message, true); });
+      });
+    });
+  }
+
+  // ——— Onglet « Estimations » de la fiche affaire ———
+  K.estimationsAffaire = function (zone, idAffaire) {
+    K.charger('est-affaire:' + idAffaire, 'apiEstAffaire', [idAffaire], function (liste) {
+      zone.innerHTML = liste.length
+        ? '<ul class="liste-simple">' + liste.map(function (e) {
+            return '<li><span class="mono">' + esc(e.id) + '</span> · ' + esc(e.phase) + ' ind ' + esc(e.indice) + ' · ' + esc(e.statut) +
+              (e.total_ht === '' ? '' : ' · <span class="mono">' + K.euros(e.total_ht) + ' HT</span>') + '</li>';
+          }).join('') + '</ul>'
+        : '<p class="vide">Aucune estimation pour cette affaire.</p><p class="legende">La création d\'estimation arrive avec l\'étape 5 du module (écran <a href="#estimation">Estimation</a>).</p>';
+    }, function (e) { zone.innerHTML = K.bandeauErreur(e); });
+  };
+
+  K.ecrans.estimation = { titre: 'Estimation', rendu: ecranEstimation };
 })();
 </script>
 </body>

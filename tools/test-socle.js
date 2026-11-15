@@ -99,7 +99,7 @@ test('apiEtat renvoie l\'état du classeur, sérialisable', () => {
   env.ctx.installer({ exercice: false });
   const r = env.ctx.apiEtat();
   assert.ok(r.ok, r.erreur);
-  assert.strictEqual(r.data.onglets.length, 11);
+  assert.strictEqual(r.data.onglets.length, 18); // 11 onglets du suivi + 7 du module Estimation
   assert.ok(r.data.onglets.every((o) => o.present));
   assert.strictEqual(r.data.onglets.find((o) => o.nom === 'Paramètres').lignes, env.ctx.PARAMETRES_DEFAUT.length);
 });
@@ -246,6 +246,76 @@ test('estimation (étape 0) : contrôle des versions Code.gs / Estimation.gs', (
   const inverse = creerEnvironnement({ dist: true, ordre: 'estimation-avant' });
   inverse.ctx.installer({ exercice: false });
   assert.deepStrictEqual(brut(inverse.ctx.Etat_alertes_()), []);
+});
+
+// ——— Module Estimation, étape 1 : référentiels ———
+
+test('estimation (étape 1) : onglets du classeur EST et référentiels initiaux', () => {
+  const env = creerEnvironnement();
+  const r = env.ctx.installer({ exercice: false });
+  const est = Object.values(env.classeurs)[1];
+  assert.deepStrictEqual(est.getSheets().map((f) => f.getName()),
+    ['Paramètres', 'Lots', 'Familles d\'ouvrage', 'Typologies', 'Coefficient K', 'Estimations', 'Lignes d\'estimation']);
+  assert.deepStrictEqual(brut(r.estimation.ajouts), { parametres: 12, lots: 17, typologies: 10 });
+  const A = env.ctx;
+  assert.strictEqual(A.Db_trouver(A.EST_TABLES.LOTS, 'ELE').indice, 'BT47');
+  assert.strictEqual(A.Db_trouver(A.EST_TABLES.LOTS, 'CHARP').indice, 'BT16b');
+  assert.strictEqual(A.Est_param_('est.indice_rehab'), 'BT50');
+  assert.strictEqual(A.Est_paramNombre_('est.tva_defaut', 0), 20);
+  assert.deepStrictEqual(brut(A.Est_paramDico_('est.aleas')), { Programme: '15', APS: '10', APD: '7', DCE: '5' });
+  // Relancer installer() n'écrase pas vos modifications et n'ajoute rien
+  A.Est_refModifier_('LOTS', 'GO', { indice: 'BT03' });
+  const r2 = A.installer({ exercice: false });
+  assert.deepStrictEqual(brut(r2.estimation.ajouts), { parametres: 0, lots: 0, typologies: 0 });
+  assert.strictEqual(A.Db_trouver(A.EST_TABLES.LOTS, 'GO').indice, 'BT03');
+});
+
+test('estimation (étape 1) : édition des référentiels contrôlée', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const ok = (r) => { assert.ok(r.ok, r.erreur); return r.data; };
+  const ko = (r, motif) => { assert.strictEqual(r.ok, false); assert.match(r.erreur, motif); };
+  // Coefficient K : nombre > 0, virgule acceptée
+  const k = ok(A.apiEstRefAjouter('K', { facteur: 'Localisation', modalite: 'Zone de montagne', coefficient: '1,08', actif: 'oui' }));
+  assert.match(k.id, /^KF-/);
+  assert.strictEqual(k.coefficient, 1.08);
+  ko(A.apiEstRefAjouter('K', { facteur: 'X', modalite: 'Y', coefficient: '0' }), /supérieur à 0/);
+  ko(A.apiEstRefModifier('K', k.id, { coefficient: 'abc' }), /nombre attendu/);
+  // Codes : majuscules, unicité
+  const lot = ok(A.apiEstRefAjouter('LOTS', { code: 'dem', libelle: 'Démolition, désamiantage', famille: 'batiment', indice: 'bt50', ordre: '5' }));
+  assert.strictEqual(lot.code, 'DEM');
+  assert.strictEqual(lot.indice, 'BT50');
+  assert.strictEqual(lot.actif, 'oui');
+  ko(A.apiEstRefAjouter('LOTS', { code: 'DEM', libelle: 'doublon' }), /existe déjà/);
+  ko(A.apiEstRefAjouter('LOTS', { code: 'X', famille: 'route' }), /parmi batiment, vrd/);
+  // Famille d'ouvrage : lot existant obligatoire
+  ko(A.apiEstRefAjouter('FAMILLES', { code: 'F1', lot: 'INCONNU', libelle: 'x' }), /Lot inconnu/);
+  ok(A.apiEstRefAjouter('FAMILLES', { code: 'GO-FOND', lot: 'GO', libelle: 'Fondations', unite: 'm3', mots_cles: 'semelle;fondation;longrine' }));
+  // Paramètres : modification seule, clé inchangée
+  ko(A.apiEstRefAjouter('PARAMS', { cle: 'est.nouveau', valeur: '1' }), /Ajout impossible/);
+  ok(A.apiEstRefModifier('PARAMS', 'est.seuil_anonymat', { valeur: '4', cle: 'pirate' }));
+  assert.strictEqual(A.Est_paramNombre_('est.seuil_anonymat', 0), 4);
+  ko(A.apiEstRefModifier('LOTS', 'NEXISTEPAS', { libelle: 'x' }), /introuvable/);
+  // Lecture pour l'écran : ordre respecté, description des colonnes
+  const refs = ok(A.apiEstReferentiels());
+  assert.strictEqual(refs.LOTS.lignes[0].code, 'DEM'); // ordre 5
+  assert.ok(refs.K.colonnes.some((c) => c.nom === 'coefficient' && c.type === 'nombre'));
+  assert.strictEqual(refs.PARAMS.sansAjout, true);
+});
+
+test('estimation (étape 1) : écran Estimation et onglet de la fiche affaire', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const id = A.Affaires_creer({ acheteur: 'Commune de Digne-les-Bains', objet: 'Programmation cantine' }).id;
+  assert.deepStrictEqual(brut(A.apiEstAccueil().data.estimations), []);
+  A.Db_inserer(A.EST_TABLES.ESTIMATIONS, { id_affaire: id, phase: 'Programme', indice: 'A', typologie: 'REST', statut: 'brouillon', total_ht: 1250000 });
+  const acc = A.apiEstAccueil().data;
+  assert.strictEqual(acc.estimations[0].acheteur, 'Commune de Digne-les-Bains');
+  assert.strictEqual(A.apiEstAffaire(id).data.length, 1);
+  assert.strictEqual(A.apiEstAffaire('KA-2099-999').data.length, 0);
+  assert.strictEqual(A.apiEtat().data.onglets.length, 11 + 7);
 });
 
 // ——— Lot 2 : Affaires ———
@@ -939,7 +1009,7 @@ test('fluidité : l\'accueil en un seul appel', () => {
   const r = brut(env.ctx.apiAccueil());
   assert.ok(r.ok, r.erreur);
   assert.deepStrictEqual(Object.keys(r.data).sort(), ['ca', 'etat', 'fiscal', 'suivi', 'tableau']);
-  assert.strictEqual(r.data.etat.onglets.length, 11);
+  assert.strictEqual(r.data.etat.onglets.length, 18); // 11 onglets du suivi + 7 du module Estimation
 });
 
 test('fluidité : relances recalculées après un changement de statut, pas à la lecture', () => {

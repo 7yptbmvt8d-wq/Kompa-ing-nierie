@@ -258,6 +258,19 @@ function assembler() {
   await p.waitForFunction((n) => document.querySelectorAll('[data-declarer]').length === n - 1, nbDeclarer);
   assert.strictEqual(A.Db_lire(A.TABLES.DECLARATIONS).length, 1);
 
+  // ——— Module Estimation (étape 1) : référentiels modifiables ———
+  await p.click('nav a[href="#estimation"]');
+  await p.waitForSelector('.vide-etat');
+  await p.click('.sous-nav a[href="#estimation/referentiels"]');
+  await p.waitForSelector('#ref-LOTS tr[data-cle="ELE"]');
+  await p.fill('#ref-K tr[data-ajout] [data-col="facteur"]', 'Localisation');
+  await p.fill('#ref-K tr[data-ajout] [data-col="modalite"]', 'Zone de montagne');
+  await p.fill('#ref-K tr[data-ajout] [data-col="coefficient"]', '1,08');
+  await p.click('#ref-K tr[data-ajout] [data-ajouter]');
+  await p.waitForSelector('#ref-K tr[data-cle]');
+  assert.strictEqual(A.Db_lire(A.EST_TABLES.K)[0].coefficient, 1.08);
+  await p.screenshot({ path: path.join(sortie, 'pc-estimation-referentiels.png'), fullPage: true });
+
   // Petit portable (1280 px) : pas de débordement de la page
   await p.setViewportSize({ width: 1280, height: 800 });
   for (const ecran of ['#accueil', '#veille', '#affaires', '#echeancier', '#enseignements', '#parametres']) {
