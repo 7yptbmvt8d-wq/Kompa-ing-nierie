@@ -279,6 +279,14 @@ function assembler() {
   await p.click('[data-historique="BT50"]');
   await p.waitForSelector('.historique-index');
   await p.screenshot({ path: path.join(sortie, 'pc-estimation-indices.png'), fullPage: true });
+  // Calculette d'actualisation (étape 3)
+  await p.fill('#c-pu', '100');
+  await p.fill('#c-m0', '03/2024');
+  await p.fill('#c-lot', 'ELE');
+  await p.click('[data-calculette] button[type=submit]');
+  await p.waitForSelector('[data-resultat-calcul] .bandeau');
+  assert.match(await p.textContent('[data-resultat-calcul]'), /BT47 09\/2026/);
+  await p.locator('#calculette').screenshot({ path: path.join(sortie, 'pc-estimation-calculette.png') });
 
   // Petit portable (1280 px) : pas de débordement de la page
   await p.setViewportSize({ width: 1280, height: 800 });

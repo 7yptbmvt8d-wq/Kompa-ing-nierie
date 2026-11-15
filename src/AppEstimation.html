@@ -77,7 +77,8 @@
     zone.innerHTML = bandeau +
       '<div class="actions-ligne"><button class="bouton" type="button" data-maj-indices>Mettre à jour les index</button>' +
       '<span class="legende">Source : API BDM de l\'Insee. Mise à jour automatique chaque mois ; les index paraissent 2 à 3 mois après le mois concerné.</span></div>' +
-      table('BT', 'Index du bâtiment (BT)') + table('TP', 'Index des travaux publics (TP)');
+      (etat ? calculette() : '') + table('BT', 'Index du bâtiment (BT)') + table('TP', 'Index des travaux publics (TP)');
+    brancherCalculette(zone);
 
     $('[data-maj-indices]', zone).addEventListener('click', function () {
       var b = this;
@@ -101,6 +102,34 @@
           }).join('') + '</div><p class="legende">36 derniers mois ; (p) = valeur provisoire.</p>';
         }).catch(function (e) { tr.firstChild.innerHTML = K.bandeauErreur(e); });
       });
+    });
+  }
+
+
+  // ——— Calculette d'actualisation ———
+  function calculette() {
+    return '<section class="groupe-param" id="calculette"><h2>Calculette d\'actualisation</h2>' +
+      '<p class="legende">PU actualisé = PU M0 × (index du dernier mois publié / index du mois M0). Index du lot ; à défaut BT01 (neuf), BT50 (réhabilitation) ou TP01 (VRD).</p>' +
+      '<form class="form-grille form-grille--4" data-calculette novalidate>' +
+        '<div class="champ-bloc"><label for="c-pu">PU HT à M0 (€)</label><input class="champ mono num" id="c-pu" inputmode="decimal" placeholder="ex. 100"></div>' +
+        '<div class="champ-bloc"><label for="c-m0">Mois M0</label><input class="champ mono" id="c-m0" placeholder="MM/AAAA"></div>' +
+        '<div class="champ-bloc"><label for="c-lot">Lot</label><input class="champ mono" id="c-lot" placeholder="ex. ELE"></div>' +
+        '<div class="champ-bloc"><label for="c-nature">Nature</label><select class="champ" id="c-nature"><option>Neuf</option><option>Réhabilitation lourde</option><option>Réhabilitation légère</option></select></div>' +
+        '<div class="bloc-form__actions"><button class="bouton" type="submit">Actualiser</button></div>' +
+      '</form><div data-resultat-calcul aria-live="polite"></div></section>';
+  }
+
+  function brancherCalculette(zone) {
+    var f = $('[data-calculette]', zone);
+    if (!f) return;
+    f.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var sortie = $('[data-resultat-calcul]', zone);
+      K.appel('apiEstActualiser', $('#c-pu', f).value, $('#c-m0', f).value, $('#c-lot', f).value.trim().toUpperCase(), $('#c-nature', f).value).then(function (r) {
+        sortie.innerHTML = r.statut === 'ok'
+          ? '<p class="bandeau"><strong class="mono">' + Number(r.pu).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €</strong> HT · ' + esc(r.message) + ' · <span class="legende">' + esc(r.motif) + '</span></p>'
+          : '<p class="bandeau bandeau--erreur">Non actualisable : ' + esc(r.message) + '</p>';
+      }).catch(function (e) { sortie.innerHTML = K.bandeauErreur(e); });
     });
   }
 

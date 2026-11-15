@@ -173,6 +173,9 @@ function Est_validerRef_(nom, champs, creation) {
   });
   if (creation && table.cle !== 'id' && !out[table.cle]) throw new Error('Le code est obligatoire.');
   if (nom === 'FAMILLES' && out.lot && !Db_trouver(EST_TABLES.LOTS, out.lot)) throw new Error('Lot inconnu : ' + out.lot + '.');
+  if (nom === 'LOTS' && out.indice && !Db_trouver(EST_TABLES.INDICES, out.indice)) {
+    throw new Error('Index inconnu : ' + out.indice + ' (liste dans l\'onglet Index Insee).');
+  }
   return out;
 }
 

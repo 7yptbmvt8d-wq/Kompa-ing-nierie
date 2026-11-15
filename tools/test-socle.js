@@ -431,6 +431,112 @@ test('index Insee : écran — séries avec dernière valeur et historique', () 
   assert.strictEqual(h[35].mois, '2026-09');
 });
 
+// ——— Module Estimation, étape 3 : moteurs de calcul ———
+
+/** Environnement avec quelques valeurs d'index connues (cas de référence calculés à la main). */
+const envCalcul = () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const v = (code, mois, valeur, qualite) => ({ cle: code + '|' + mois, code, mois, valeur, qualite: qualite || 'définitive' });
+  A.Db_insererPlusieurs(A.EST_TABLES.INDICES_VALEURS, [
+    v('BT47', '2024-03', 129.8), v('BT47', '2026-08', 136.2), v('BT47', '2026-09', 136.4, 'provisoire'),
+    v('BT01', '2023-06', 130.0), v('BT01', '2026-09', 139.1),
+    v('BT50', '2023-06', 128.0), v('BT50', '2026-09', 141.3),
+    v('TP01', '2022-01', 120.0), v('TP01', '2026-09', 142.0),
+    v('TP08', '2022-01', 118.5), v('TP08', '2026-09', 141.5),
+    v('BT12', '2023-06', 120.0), v('BT12', '2025-12', 142.9)
+  ]);
+  return A;
+};
+
+test('calcul : actualisation par l\'index du lot (BT47 électricité), mois et qualité restitués', () => {
+  const A = envCalcul();
+  const r = brut(A.Est_actualiser_(100, '03/2024', { lot: 'ELE', nature: 'Neuf' }));
+  assert.strictEqual(r.statut, 'ok');
+  assert.strictEqual(r.indice, 'BT47');
+  assert.strictEqual(r.pu, 105.08); // 100 × 136,4 / 129,8 = 105,0847… → 2 décimales
+  assert.strictEqual(Math.round(r.coef * 10000) / 10000, 1.0508);
+  assert.deepStrictEqual(r.recent, { code: 'BT47', mois: '2026-09', valeur: 136.4, qualite: 'provisoire' });
+  assert.match(r.message, /^BT47 09\/2026 = 136,4 \(provisoire\) ; M0 03\/2024 = 129,8 ; coef\. 1,0508$/);
+  // Mois d'index choisi plus ancien que le dernier publié
+  assert.strictEqual(A.Est_actualiser_(100, '2024-03', { lot: 'ELE', moisCible: '08/2026' }).pu, 104.93); // 136,2 / 129,8
+});
+
+test('calcul : index par défaut — BT01 (neuf), BT50 (réhabilitation), TP01 (VRD), série arrêtée écartée', () => {
+  const A = envCalcul();
+  // Lot sans index
+  A.Est_refAjouter_('LOTS', { code: 'DIV', libelle: 'Divers', famille: 'batiment', indice: '' });
+  assert.strictEqual(A.Est_actualiser_(1000, '06/2023', { lot: 'DIV', nature: 'Neuf' }).pu, 1070); // 139,1 / 130
+  const rehab = brut(A.Est_actualiser_(1000, '06/2023', { lot: 'DIV', nature: 'Réhabilitation lourde' }));
+  assert.strictEqual(rehab.indice, 'BT50');
+  assert.strictEqual(rehab.pu, 1103.91); // 141,3 / 128 = 1,103906…
+  assert.match(rehab.motif, /défaut \(lot sans index\)/);
+  // Lot VRD dont l'index TP08 est désactivé → TP01 (un index inconnu est refusé à la saisie)
+  assert.throws(() => A.Est_refModifier_('LOTS', 'VRD', { indice: 'TP99' }), /Index inconnu : TP99/);
+  A.Db_maj(A.EST_TABLES.INDICES, 'TP08', { actif: 'non' });
+  const vrd = brut(A.Est_actualiser_(50, '01/2022', { lot: 'VRD' }));
+  assert.strictEqual(vrd.indice, 'TP01');
+  assert.strictEqual(vrd.pu, 59.17); // 142 / 120
+  // Index du lot sur une série arrêtée (BT12) → défaut
+  A.Est_refModifier_('LOTS', 'REV-SOL', { indice: 'BT12' });
+  assert.strictEqual(A.Est_actualiser_(10, '06/2023', { lot: 'REV-SOL', nature: 'Neuf' }).indice, 'BT01');
+});
+
+test('calcul : jamais d\'actualisation silencieuse', () => {
+  const A = envCalcul();
+  const absent = brut(A.Est_actualiser_(100, '01/2010', { lot: 'ELE' }));
+  assert.strictEqual(absent.statut, 'non actualisable');
+  assert.strictEqual(absent.pu, 100);
+  assert.match(absent.message, /BT47 de 01\/2010 introuvable/);
+  assert.strictEqual(A.Est_actualiser_(100, '', { lot: 'ELE' }).statut, 'non actualisable');
+  // M0 postérieur au dernier index publié : coefficient 1, signalé
+  const recent = brut(A.Est_actualiser_(100, '11/2026', { lot: 'ELE' }));
+  assert.strictEqual(recent.statut, 'ok');
+  assert.strictEqual(recent.coef, 1);
+  assert.match(recent.message, /postérieur ou égal au dernier BT47 publié \(09\/2026\)/);
+  // API de la calculette
+  assert.strictEqual(A.apiEstActualiser('100,00', '03/2024', 'ELE', 'Neuf').data.pu, 105.08);
+  assert.match(A.apiEstActualiser('abc', '03/2024', 'ELE').erreur, /nombre attendu/);
+  assert.match(A.apiEstActualiser('100', '2024', 'ELE').erreur, /MM\/AAAA/);
+});
+
+test('calcul : coefficient K (produit ou somme, une modalité par facteur)', () => {
+  const A = envCalcul();
+  const k1 = A.Est_refAjouter_('K', { facteur: 'Localisation', modalite: 'Montagne', coefficient: '1,08' }).id;
+  const k1b = A.Est_refAjouter_('K', { facteur: 'Localisation', modalite: 'Urbain dense', coefficient: '1,04' }).id;
+  const k2 = A.Est_refAjouter_('K', { facteur: 'Contexte', modalite: 'Site occupé', coefficient: '1,05' }).id;
+  assert.strictEqual(A.Est_calculerK_([k1, k2]).k, 1.134);
+  assert.strictEqual(A.Est_calculerK_([]).k, 1);
+  A.Est_refModifier_('PARAMS', 'est.k_mode', { valeur: 'somme' });
+  const s = brut(A.Est_calculerK_([k1, k2]));
+  assert.strictEqual(s.k, 1.13);
+  assert.strictEqual(s.mode, 'somme');
+  assert.deepStrictEqual(s.detail.map((d) => d.modalite), ['Montagne', 'Site occupé']);
+  assert.throws(() => A.Est_calculerK_([k1, k1b]), /Une seule modalité par facteur/);
+  A.Est_refModifier_('K', k2, { actif: 'non' });
+  assert.throws(() => A.Est_calculerK_([k2]), /inactif/);
+});
+
+test('calcul : médiane et fourchette, aléas, TVA par zone, totaux, projection', () => {
+  const A = envCalcul();
+  assert.deepStrictEqual(brut(A.Est_stats_([1500, 1200, 1800])), { n: 3, mediane: 1500, min: 1200, max: 1800, q1: 1350, q3: 1650 });
+  assert.strictEqual(A.Est_stats_([10, 20, 30, 40]).mediane, 25);
+  assert.strictEqual(A.Est_stats_([]).n, 0);
+  assert.deepStrictEqual(['Programme', 'APS', 'APD', 'DCE', 'Autre'].map(A.Est_aleasPct_), [15, 10, 7, 5, 0]);
+  assert.strictEqual(A.Est_tvaPour_('04'), 20);
+  assert.strictEqual(A.Est_tvaPour_('2a'), 10);
+  const t = brut(A.Est_totaux_([{ total_ht: 600000 }, { total_ht: 400000 }], 10, 20));
+  assert.deepStrictEqual(t, { ht: 1000000, aleas: 100000, htAleas: 1100000, tva: 220000, ttc: 1320000 });
+  // Projection : 18 mois à 3 %/an → 1,03^1,5
+  const p = brut(A.Est_projection_('2026-09', '2028-03', 3));
+  assert.strictEqual(p.mois, 18);
+  assert.strictEqual(Math.round(p.coef * 1e6) / 1e6, 1.045336);
+  assert.strictEqual(A.Est_projection_('2026-09', '2028-03', 0).coef, 1);
+  // Lecture des mois
+  assert.deepStrictEqual(['03/2024', '2024-3', '15/03/2024', 'mars'].map(A.Est_mois_), ['2024-03', '2024-03', '2024-03', '']);
+});
+
 // ——— Lot 2 : Affaires ———
 
 const nouvelleAffaire = (env, extra = {}) => env.ctx.Affaires_creer(Object.assign({ acheteur: 'Commune de Test', objet: 'AMO faisabilité' }, extra));

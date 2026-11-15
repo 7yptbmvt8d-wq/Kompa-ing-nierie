@@ -90,3 +90,13 @@ function apiEstIndiceHistorique(code) {
     });
   });
 }
+
+/** Calculette d'actualisation (onglet Index Insee) : vérification des formules sur un prix. */
+function apiEstActualiser(pu, m0, lot, nature, moisCible) {
+  return repondre_(function () {
+    var n = Number(String(pu).replace(/\s/g, '').replace(',', '.'));
+    if (!isFinite(n)) throw new Error('Prix unitaire : nombre attendu.');
+    if (!Est_mois_(m0)) throw new Error('Mois M0 : format MM/AAAA attendu (ex. 03/2024).');
+    return Est_actualiser_(n, m0, { lot: lot, nature: nature, moisCible: moisCible || null });
+  });
+}
