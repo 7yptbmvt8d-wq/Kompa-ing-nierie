@@ -17,6 +17,8 @@ var EST_PARAMS_DEFAUT = [
   ['est.indice_rehab', 'BT50', 'Index par défaut d\'un lot de bâtiment sans index, en réhabilitation'],
   ['est.indice_vrd', 'TP01', 'Index par défaut d\'un lot VRD sans index'],
   ['est.projection_taux', '0', 'Taux annuel de projection jusqu\'à la date des travaux (%), 0 = actualisation seule'],
+  ['est.indices_jour', '20', 'Jour du mois de la mise à jour automatique des index Insee (parution au JO vers le 15)'],
+  ['est.indices_depuis', '2015-01', 'Premier mois chargé lors de la première récupération d\'un index'],
   ['est.fiabilite', 'A:Prix de marché de moins de 3 ans, même région;B:Prix de marché plus ancien ou d\'une autre région;C:Ratio sur moins de 5 marchés ou saisie libre', 'Échelle de fiabilité des prix']
 ];
 

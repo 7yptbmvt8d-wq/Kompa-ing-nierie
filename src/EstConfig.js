@@ -47,6 +47,20 @@ var EST_TABLES = {
     nombres: ['surface_sdp', 'surface_vrd', 'k', 'projection_taux', 'tva', 'aleas_pct', 'total_ht', 'total_ttc'],
     texteBrut: ['id_affaire', 'indice', 'mois_indice_bt', 'mois_indice_tp']
   },
+  INDICES: {
+    onglet: 'Index Insee', classeur: 'EST', cle: 'code',
+    colonnes: ['code', 'idbank', 'libelle', 'famille', 'base', 'coef_raccordement', 'arretee', 'actif'],
+    nombres: ['coef_raccordement'], texteBrut: ['code', 'idbank', 'base']
+  },
+  INDICES_VALEURS: {
+    onglet: 'Valeurs des index', classeur: 'EST', cle: 'cle',
+    colonnes: ['cle', 'code', 'mois', 'valeur', 'qualite', 'date_jo', 'recupere_le'],
+    nombres: ['valeur'], texteBrut: ['cle', 'code', 'mois', 'date_jo']
+  },
+  JOURNAL: {
+    onglet: 'Journal du module', classeur: 'EST', cle: 'id', prefixe: 'EJ',
+    colonnes: ['id', 'date', 'operation', 'resultat', 'detail'], horodatages: ['date']
+  },
   LIGNES: {
     onglet: 'Lignes d\'estimation', classeur: 'EST', cle: 'id', prefixe: 'EL',
     colonnes: ['id', 'id_estimation', 'lot', 'num_article', 'designation', 'unite', 'quantite', 'pu_m0', 'm0',
@@ -59,5 +73,7 @@ var EST_TABLES = {
 
 /** Initialisation du module, appelée par installer() après la création des onglets. */
 function Est_installer_() {
-  return { version: EST_VERSION, ajouts: Est_initialiserReferentiels_() };
+  var ajouts = Est_initialiserReferentiels_();
+  ajouts.index = Est_initialiserIndices_();
+  return { version: EST_VERSION, ajouts: ajouts };
 }

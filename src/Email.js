@@ -110,6 +110,10 @@ function Email_construire(quand, depuis) {
   if (relances.length) corps += section('Relances à faire', relances.length, relances.map(function (r) {
     return ligneSimple(jr(r.date_prevue), r.type, r, url + '#echeancier', r.jours < 0);
   }).join(''));
+  // Module Estimation : panne de la mise à jour des index Insee
+  var alerteEst = '';
+  if (typeof Est_alerteEmail_ === 'function') { try { alerteEst = Est_alerteEmail_(); } catch (e) { alerteEst = ''; } }
+  if (alerteEst) corps += section('Module Estimation', 1, '<tr><td style="padding:8px 0;color:' + C.rouille + '">' + h(alerteEst) + '</td></tr>');
   var contenu = !!corps;
   if (!contenu) {
     corps = '<tr><td style="padding:24px 24px 0;color:' + C.gris + '">Rien de nouveau depuis le dernier envoi : pas de nouvel avis, pas d\'échéance dans les 7 jours, pas de relance à faire.</td></tr>';
@@ -150,6 +154,7 @@ function Email_construire(quand, depuis) {
     .concat(avisFrance.length ? ['NOUVEAUX AVIS HORS ' + paca + ' (présentiel à vérifier)'].concat(avisFrance.map(function (a) { return '- [' + a.pre_score + '] ' + a.acheteur + ' — ' + a.objet + ' — ' + a.lien; })).concat(['']) : [])
     .concat(echeances.length ? ['ÉCHÉANCES À 7 JOURS'].concat(echeances.map(function (e) { return '- ' + jr(e.date) + ' ' + e.libelle + ' — ' + e.acheteur; })).concat(['']) : [])
     .concat(relances.length ? ['RELANCES À FAIRE'].concat(relances.map(function (r) { return '- ' + jr(r.date_prevue) + ' ' + r.type + ' — ' + r.acheteur; })).concat(['']) : [])
+    .concat(alerteEst ? ['MODULE ESTIMATION', '- ' + alerteEst, ''] : [])
     .concat(['Ouvrir l\'app : ' + url]).join('\n');
 
   return { sujet: sujet, html: html, texte: texte, contenu: contenu,

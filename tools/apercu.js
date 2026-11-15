@@ -271,6 +271,15 @@ function assembler() {
   assert.strictEqual(A.Db_lire(A.EST_TABLES.K)[0].coefficient, 1.08);
   await p.screenshot({ path: path.join(sortie, 'pc-estimation-referentiels.png'), fullPage: true });
 
+  // ——— Module Estimation (étape 2) : index Insee ———
+  await p.click('.sous-nav a[href="#estimation/indices"]');
+  await p.waitForSelector('[data-maj-indices]');
+  await p.click('[data-maj-indices]');
+  await p.waitForSelector('[data-historique="BT50"]');
+  await p.click('[data-historique="BT50"]');
+  await p.waitForSelector('.historique-index');
+  await p.screenshot({ path: path.join(sortie, 'pc-estimation-indices.png'), fullPage: true });
+
   // Petit portable (1280 px) : pas de débordement de la page
   await p.setViewportSize({ width: 1280, height: 800 });
   for (const ecran of ['#accueil', '#veille', '#affaires', '#echeancier', '#enseignements', '#parametres']) {

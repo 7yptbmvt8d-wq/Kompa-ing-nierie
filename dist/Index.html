@@ -378,6 +378,10 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .table-ref [data-col="libelle"], .table-ref [data-col="valeur"], .table-ref [data-col="mots_cles"], .table-ref [data-col="commentaire"] { min-width: 16rem; }
 .table-ref [data-col="ordre"], .table-ref [data-col="coefficient"] { min-width: 4.5rem; width: 5.5rem; }
 .vide-etat { padding: var(--kompa-s5); background: var(--kompa-brume); border-radius: var(--kompa-radius); }
+
+.actions-ligne { display: flex; align-items: center; gap: var(--kompa-s4); flex-wrap: wrap; margin-bottom: var(--kompa-s5); }
+.table-indices tr.est-arretee td { color: var(--kompa-gris); }
+.historique-index { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--kompa-s1) var(--kompa-s4); font-size: var(--kompa-fs-small); padding: var(--kompa-s2) 0; }
 </style>
 </head>
 <body>
@@ -415,7 +419,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
   /** Appels en lecture seule : tous les autres modifient les données et vident la mémoire d'affichage. */
   var LECTURES = ['apiEtat', 'apiParametres', 'apiCompteurCA', 'apiAccueil', 'apiAffaires', 'apiAffaire', 'apiVeille',
     'apiEcheancier', 'apiSuivi', 'apiCourrier', 'apiEmailApercu', 'apiTableau', 'apiEnseignements', 'apiFiscal', 'apiPieces',
-    'apiEstReferentiels', 'apiEstAccueil', 'apiEstAffaire'];
+    'apiEstReferentiels', 'apiEstAccueil', 'apiEstAffaire', 'apiEstIndices', 'apiEstIndiceHistorique'];
 
   function appel(nom) {
     var args = Array.prototype.slice.call(arguments, 1);
@@ -1875,18 +1879,21 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
   var $ = K.$, $$ = K.$$, esc = K.esc;
 
   function onglets(actif) {
-    var o = [['', 'Estimations'], ['referentiels', 'Référentiels']];
+    var o = [['', 'Estimations'], ['indices', 'Index Insee'], ['referentiels', 'Référentiels']];
     return '<nav class="sous-nav" aria-label="Module Estimation">' + o.map(function (x) {
       return '<a href="#estimation' + (x[0] ? '/' + x[0] : '') + '"' + (x[0] === actif ? ' aria-current="page"' : '') + '>' + x[1] + '</a>';
     }).join('') + '</nav>';
   }
 
   function ecranEstimation(el, param) {
-    var vue = param === 'referentiels' ? 'referentiels' : '';
+    var vue = ['referentiels', 'indices'].indexOf(param) >= 0 ? param : '';
     el.innerHTML = K.titre('Estimation des travaux', 'Estimations reliées aux affaires par le n° KA ; données dans le classeur « Kompa Estimation — données ».') +
       onglets(vue) + '<div id="est-contenu"><div class="chargement">Lecture…</div></div>';
     var zone = $('#est-contenu', el);
-    if (vue === 'referentiels') {
+    if (vue === 'indices') {
+      K.charger('est-indices', 'apiEstIndices', [], function (d) { rendreIndices(zone, d); },
+        function (e) { zone.innerHTML = K.bandeauErreur(e); });
+    } else if (vue === 'referentiels') {
       K.charger('est-ref', 'apiEstReferentiels', [], function (refs) { rendreReferentiels(zone, refs); },
         function (e) { zone.innerHTML = K.bandeauErreur(e); });
     } else {
@@ -1910,6 +1917,64 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
           '<span class="legende">' + esc(e.acheteur) + '</span></td><td>' + esc(e.phase) + ' · ind ' + esc(e.indice) + '</td>' +
           '<td>' + esc(e.typologie) + '</td><td class="num mono">' + (e.total_ht === '' ? '' : K.euros(e.total_ht)) + '</td><td>' + esc(e.statut) + '</td></tr>';
       }).join('') + '</tbody></table></div>';
+  }
+
+  // ——— Index Insee ———
+  function mois(m) { var x = String(m || '').match(/^(\d{4})-(\d{2})$/); return x ? x[2] + '/' + x[1] : ''; }
+  function nombre(v) { return v === null || v === undefined || v === '' ? '' : Number(v).toFixed(1).replace('.', ','); }
+
+  function rendreIndices(zone, d) {
+    var etat = d.etat;
+    var bandeau = !etat
+      ? '<p class="bandeau">Aucune valeur chargée : cliquez sur « Mettre à jour les index » (premier chargement depuis 2015, quelques secondes).</p>'
+      : etat.enEchec
+        ? '<p class="bandeau bandeau--erreur" role="alert"><strong>Dernière mise à jour en échec</strong> le ' + esc(K.dateHeure(etat.date)) + ' : ' + esc(etat.detail) + '</p>'
+        : '<p class="bandeau">Dernière mise à jour le ' + esc(K.dateHeure(etat.date)) + ' — ' + esc(etat.detail) + '</p>';
+    var table = function (famille, titre) {
+      var lignes = d.series.filter(function (s) { return s.famille === famille; });
+      return '<section class="groupe-param"><h2>' + titre + ' <span class="legende">' + lignes.length + ' index</span></h2>' +
+        '<div class="tableau-conteneur"><table class="table-indices"><thead><tr><th scope="col">Index</th><th scope="col">Libellé</th>' +
+        '<th scope="col">Dernier mois</th><th scope="col" class="num">Valeur</th><th scope="col">Qualité</th><th scope="col">idbank</th><th scope="col"><span class="seul-lecteur">Historique</span></th></tr></thead><tbody>' +
+        lignes.map(function (s) {
+          var dv = s.dernier;
+          return '<tr' + (s.arretee === 'oui' ? ' class="est-arretee"' : '') + '><td class="mono"><strong>' + esc(s.code) + '</strong></td>' +
+            '<td>' + esc(s.libelle) + (s.arretee === 'oui' ? ' <span class="legende">— série arrêtée, non utilisée pour l\'actualisation</span>' : '') + '</td>' +
+            '<td class="mono">' + (dv ? mois(dv.mois) : '<span class="vide">—</span>') + '</td>' +
+            '<td class="num mono">' + (dv ? nombre(dv.valeur) : '') + '</td>' +
+            '<td>' + (dv ? (dv.qualite === 'provisoire' ? '<span class="statut statut--alerte">provisoire</span>' : 'définitive') : '') + '</td>' +
+            '<td class="mono legende">' + esc(s.idbank) + '</td>' +
+            '<td>' + (dv ? '<button class="bouton bouton--discret" type="button" data-historique="' + esc(s.code) + '">Historique</button>' : '') + '</td></tr>' +
+            '<tr class="ligne-historique" data-pour="' + esc(s.code) + '" hidden><td colspan="7"></td></tr>';
+        }).join('') + '</tbody></table></div></section>';
+    };
+    zone.innerHTML = bandeau +
+      '<div class="actions-ligne"><button class="bouton" type="button" data-maj-indices>Mettre à jour les index</button>' +
+      '<span class="legende">Source : API BDM de l\'Insee. Mise à jour automatique chaque mois ; les index paraissent 2 à 3 mois après le mois concerné.</span></div>' +
+      table('BT', 'Index du bâtiment (BT)') + table('TP', 'Index des travaux publics (TP)');
+
+    $('[data-maj-indices]', zone).addEventListener('click', function () {
+      var b = this;
+      b.disabled = true; b.textContent = 'Mise à jour…';
+      K.appel('apiEstIndicesMettreAJour').then(function (bilan) {
+        if (bilan.ok) K.toast(bilan.ajoutees + ' valeur(s) ajoutée(s), ' + bilan.modifiees + ' modifiée(s).');
+        else K.toast('Échec : ' + bilan.erreur + '. Dernières valeurs conservées.', true);
+        K.charger('est-indices', 'apiEstIndices', [], function (d2) { rendreIndices(zone, d2); });
+      }).catch(function (e) { b.disabled = false; b.textContent = 'Mettre à jour les index'; K.toast(e.message, true); });
+    });
+    $$('[data-historique]', zone).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var code = b.getAttribute('data-historique');
+        var tr = $('tr[data-pour="' + code + '"]', zone);
+        if (!tr.hidden) { tr.hidden = true; return; }
+        tr.hidden = false;
+        tr.firstChild.innerHTML = '<div class="chargement">Lecture…</div>';
+        K.appel('apiEstIndiceHistorique', code).then(function (h) {
+          tr.firstChild.innerHTML = '<div class="historique-index">' + h.slice().reverse().map(function (v) {
+            return '<span class="mono"><strong>' + mois(v.mois) + '</strong> ' + nombre(v.valeur) + (v.qualite === 'provisoire' ? ' (p)' : '') + '</span>';
+          }).join('') + '</div><p class="legende">36 derniers mois ; (p) = valeur provisoire.</p>';
+        }).catch(function (e) { tr.firstChild.innerHTML = K.bandeauErreur(e); });
+      });
+    });
   }
 
   // ——— Référentiels modifiables ———

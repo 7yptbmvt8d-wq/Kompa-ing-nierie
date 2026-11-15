@@ -146,6 +146,8 @@ function Setup_declencheurs_() {
       }
     }
   ];
+  // Module Estimation (Estimation.gs) : mise à jour mensuelle des index Insee
+  if (typeof Est_declencheurs_ === 'function') voulus = voulus.concat(Est_declencheurs_());
   var existants = ScriptApp.getProjectTriggers();
   return voulus.map(function (v) {
     existants

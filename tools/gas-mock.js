@@ -103,6 +103,29 @@ function creerClasseur(nom) {
   return s;
 }
 
+/**
+ * API Insee simulée. options.insee(url) → { code, texte } remplace tout ;
+ * options.inseeEchecs = n : n réponses HTTP 503 ; sinon valeurs synthétiques déterministes
+ * (100 + 0,25 par mois depuis 2015-01, dernier mois 2026-09 provisoire).
+ */
+function inseeSimule(url, options) {
+  if (options.insee) { const r = options.insee(url); return { getResponseCode: () => r.code, getContentText: () => r.texte }; }
+  if ((options.inseeEchecs || 0) > 0) { options.inseeEchecs--; return { getResponseCode: () => 503, getContentText: () => 'Service Unavailable' }; }
+  const idbanks = url.split('SERIES_BDM/')[1].split('?')[0].split('+');
+  const debut = (url.match(/startPeriod=(\d{4}-\d{2})/) || [])[1];
+  const dernierN = Number((url.match(/lastNObservations=(\d+)/) || [])[1] || 0);
+  const mois = [];
+  for (let a = 2015; a <= 2026; a++) for (let m = 1; m <= 12; m++) { const t = `${a}-${String(m).padStart(2, '0')}`; if (t <= (options.inseeDernierMois || '2026-09')) mois.push(t); }
+  let liste = debut ? mois.filter((t) => t >= debut) : mois.slice(-dernierN);
+  const serie = (id) => '<Series IDBANK="' + id + '" FREQ="M" TITLE_FR="Index ' + id + '" DECIMALS="1">' + liste.slice().reverse().map((t, i) => {
+    const v = (100 + 0.25 * mois.indexOf(t) + (Number(id.slice(-2)) % 7)).toFixed(1);
+    const qual = i === 0 && !options.inseeToutDefinitif ? 'PROV' : 'DEF';
+    return '<Obs TIME_PERIOD="' + t + '" OBS_VALUE="' + v + '" OBS_STATUS="A" OBS_QUAL="' + qual + '" OBS_TYPE="A"/>';
+  }).join('') + '</Series>';
+  const xml = '<?xml version="1.0"?><message:StructureSpecificData xmlns:message="m"><message:DataSet>' + idbanks.map(serie).join('') + '</message:DataSet></message:StructureSpecificData>';
+  return { getResponseCode: () => 200, getContentText: () => xml };
+}
+
 function creerEnvironnement(options = {}) {
   const classeurs = {};
   const proprietes = {};
@@ -144,6 +167,7 @@ function creerEnvironnement(options = {}) {
       appels: [],
       fetch: (url) => {
         gas.UrlFetchApp.appels.push(url);
+        if (/bdm\.insee\.fr/.test(url)) return inseeSimule(url, options);
         if ((options.echecsHttp || 0) > 0) { options.echecsHttp--; throw new Error('Connection reset by peer'); }
         const offset = Number((url.match(/offset=(\d+)/) || [])[1] || 0);
         const source = options.boamp || { total_count: 0, results: [] };
@@ -167,7 +191,7 @@ function creerEnvironnement(options = {}) {
       deleteTrigger: (t) => { declencheurs.splice(declencheurs.indexOf(t), 1); },
       newTrigger: (fn) => {
         const b = {
-          timeBased: () => b, onWeekDay: () => b, atHour: () => b, everyDays: () => b, inTimezone: () => b,
+          timeBased: () => b, onWeekDay: () => b, onMonthDay: (j) => { b.jour = j; return b; }, atHour: () => b, everyDays: () => b, inTimezone: () => b,
           create: () => { const t = { getHandlerFunction: () => fn }; declencheurs.push(t); return t; }
         };
         return b;
@@ -266,4 +290,4 @@ function creerEnvironnement(options = {}) {
   return { ctx: contexte, classeurs, proprietes, declencheurs, fichiersDrive };
 }
 
-module.exports = { creerEnvironnement };
+module.exports = { creerEnvironnement, inseeSimule };

@@ -20,7 +20,7 @@ test('installer() crée le classeur, les 11 onglets et supprime la feuille par d
   const noms = ss.getSheets().map((f) => f.getName());
   assert.deepStrictEqual(noms, ['Avis', 'Affaires', 'Historique', 'Critères', 'Factures', 'Relances', 'Acheteurs', 'Paramètres', 'Déclarations', 'Journal moteur', 'Avis archivés']);
   assert.ok(rapport.parametresAjoutes > 40);
-  assert.deepStrictEqual(brut(rapport.declencheurs), ['sauvegardeHebdo', 'collecteQuotidienne', 'envoyerEmailMatin']);
+  assert.deepStrictEqual(brut(rapport.declencheurs), ['sauvegardeHebdo', 'collecteQuotidienne', 'envoyerEmailMatin', 'estIndicesMensuel']);
 });
 
 test('chaque onglet a id/clé en 1re colonne et cree_le, modifie_le en fin', () => {
@@ -42,7 +42,7 @@ test('installer() est idempotent : pas de doublon de paramètres ni de déclench
   const r2 = env.ctx.installer({ exercice: false });
   assert.strictEqual(r2.parametresAjoutes, 0);
   assert.strictEqual(r2.colonnesAjoutees, 0);
-  assert.strictEqual(env.declencheurs.length, 3);
+  assert.strictEqual(env.declencheurs.length, 4);
   const params = env.ctx.Db_lire(env.ctx.TABLES.PARAMETRES);
   const cles = params.map((p) => p.cle);
   assert.strictEqual(new Set(cles).size, cles.length);
@@ -99,7 +99,7 @@ test('apiEtat renvoie l\'état du classeur, sérialisable', () => {
   env.ctx.installer({ exercice: false });
   const r = env.ctx.apiEtat();
   assert.ok(r.ok, r.erreur);
-  assert.strictEqual(r.data.onglets.length, 18); // 11 onglets du suivi + 7 du module Estimation
+  assert.strictEqual(r.data.onglets.length, 21); // 11 onglets du suivi + 10 du module Estimation
   assert.ok(r.data.onglets.every((o) => o.present));
   assert.strictEqual(r.data.onglets.find((o) => o.nom === 'Paramètres').lignes, env.ctx.PARAMETRES_DEFAUT.length);
 });
@@ -255,8 +255,8 @@ test('estimation (étape 1) : onglets du classeur EST et référentiels initiaux
   const r = env.ctx.installer({ exercice: false });
   const est = Object.values(env.classeurs)[1];
   assert.deepStrictEqual(est.getSheets().map((f) => f.getName()),
-    ['Paramètres', 'Lots', 'Familles d\'ouvrage', 'Typologies', 'Coefficient K', 'Estimations', 'Lignes d\'estimation']);
-  assert.deepStrictEqual(brut(r.estimation.ajouts), { parametres: 12, lots: 17, typologies: 10 });
+    ['Paramètres', 'Lots', 'Familles d\'ouvrage', 'Typologies', 'Coefficient K', 'Estimations', 'Index Insee', 'Valeurs des index', 'Journal du module', 'Lignes d\'estimation']);
+  assert.deepStrictEqual(brut(r.estimation.ajouts), { parametres: 14, lots: 17, typologies: 10, index: 57 });
   const A = env.ctx;
   assert.strictEqual(A.Db_trouver(A.EST_TABLES.LOTS, 'ELE').indice, 'BT47');
   assert.strictEqual(A.Db_trouver(A.EST_TABLES.LOTS, 'CHARP').indice, 'BT16b');
@@ -266,7 +266,7 @@ test('estimation (étape 1) : onglets du classeur EST et référentiels initiaux
   // Relancer installer() n'écrase pas vos modifications et n'ajoute rien
   A.Est_refModifier_('LOTS', 'GO', { indice: 'BT03' });
   const r2 = A.installer({ exercice: false });
-  assert.deepStrictEqual(brut(r2.estimation.ajouts), { parametres: 0, lots: 0, typologies: 0 });
+  assert.deepStrictEqual(brut(r2.estimation.ajouts), { parametres: 0, lots: 0, typologies: 0, index: 0 });
   assert.strictEqual(A.Db_trouver(A.EST_TABLES.LOTS, 'GO').indice, 'BT03');
 });
 
@@ -315,7 +315,120 @@ test('estimation (étape 1) : écran Estimation et onglet de la fiche affaire', 
   assert.strictEqual(acc.estimations[0].acheteur, 'Commune de Digne-les-Bains');
   assert.strictEqual(A.apiEstAffaire(id).data.length, 1);
   assert.strictEqual(A.apiEstAffaire('KA-2099-999').data.length, 0);
-  assert.strictEqual(A.apiEtat().data.onglets.length, 11 + 7);
+  assert.strictEqual(A.apiEtat().data.onglets.length, 11 + 10);
+});
+
+// ——— Module Estimation, étape 2 : index Insee ———
+
+test('index Insee : 57 séries chargées (idbank vérifiés), 4 arrêtées, déclencheur mensuel le 20', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const series = A.Db_lire(A.EST_TABLES.INDICES);
+  assert.strictEqual(series.length, 57);
+  assert.deepStrictEqual(series.filter((x) => x.arretee === 'oui').map((x) => x.code), ['BT12', 'TP10a', 'TP13', 'TP14']);
+  const idb = (c) => A.Db_trouver(A.EST_TABLES.INDICES, c).idbank;
+  assert.deepStrictEqual(['BT01', 'BT02', 'BT38', 'BT47', 'BT50', 'TP01', 'TP08'].map(idb),
+    ['001710986', '001710950', '001710972', '001710979', '001710982', '001711007', '001710996']);
+  const t = env.declencheurs.find((x) => x.getHandlerFunction() === 'estIndicesMensuel');
+  assert.ok(t);
+  // chaque lot pointe vers un index connu
+  A.Db_lire(A.EST_TABLES.LOTS).forEach((l) => assert.ok(A.Db_trouver(A.EST_TABLES.INDICES, l.indice), l.code + ' → ' + l.indice));
+});
+
+test('index Insee : lecture d\'une vraie réponse SDMX de la BDM (BT01, BT50, TP01)', () => {
+  const env = creerEnvironnement();
+  const xml = require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'insee-bt01-bt50-tp01.xml'), 'utf8');
+  const obs = brut(env.ctx.Est_parserSdmx_(xml));
+  const bt01 = obs.filter((o) => o.idbank === '001710986');
+  assert.ok(bt01.length >= 20);
+  assert.deepStrictEqual(bt01.find((o) => o.mois === '2026-09'), { idbank: '001710986', mois: '2026-09', valeur: 139.1, qualite: 'définitive', date_jo: '' });
+  assert.strictEqual(bt01.find((o) => o.mois === '2026-08').date_jo, '2026-10-16');
+  assert.ok(obs.some((o) => o.idbank === '001710982') && obs.some((o) => o.idbank === '001711007'));
+  assert.throws(() => env.ctx.Est_parserSdmx_('<html>Maintenance</html>'), /illisible/);
+});
+
+test('index Insee : premier chargement depuis 2015, puis mises à jour mensuelles sans doublon', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  // 1) Premier chargement : historique depuis 2015-01, 2 requêtes groupées (30 + 27 séries)
+  let b = brut(A.Est_indicesMettreAJour());
+  assert.ok(b.ok, b.erreur);
+  const appels = A.UrlFetchApp.appels.filter((u) => /insee/.test(u));
+  assert.strictEqual(appels.length, 2);
+  assert.ok(appels.every((u) => /startPeriod=2015-01/.test(u)));
+  assert.strictEqual(b.ajoutees, 57 * 141); // 141 mois de 2015-01 à 2026-09
+  assert.strictEqual(b.derniers.BT01, '2026-09');
+  assert.strictEqual(A.Est_derniereValeur_('BT01').qualite, 'provisoire');
+  assert.strictEqual(A.Est_valeurIndice_('BT47', '2020-01').mois, '2020-01');
+  // 2) Mois suivant : 6 derniers mois seulement ; la valeur provisoire devient définitive
+  A.UrlFetchApp.appels.length = 0;
+  env.ctx.Db_viderCache_();
+  const env2opts = { inseeToutDefinitif: true };
+  A.UrlFetchApp.fetch = (url) => { A.UrlFetchApp.appels.push(url); return require('./gas-mock').inseeSimule(url, env2opts); };
+  b = brut(A.Est_indicesMettreAJour());
+  assert.ok(A.UrlFetchApp.appels.every((u) => /lastNObservations=6/.test(u)));
+  assert.strictEqual(b.ajoutees, 0);
+  assert.strictEqual(b.modifiees, 57);
+  assert.strictEqual(A.Est_derniereValeur_('BT01').qualite, 'définitive');
+  // 3) Parution d'un nouveau mois : une valeur par index, aucun doublon
+  env2opts.inseeDernierMois = '2026-10';
+  b = brut(A.Est_indicesMettreAJour());
+  assert.strictEqual(b.ajoutees, 57);
+  assert.strictEqual(A.Est_derniereValeur_('TP01').mois, '2026-10');
+  const cles = A.Db_lire(A.EST_TABLES.INDICES_VALEURS).map((v) => v.cle);
+  assert.strictEqual(new Set(cles).size, cles.length);
+  // Dernière valeur au plus tard à un mois donné
+  assert.strictEqual(A.Est_derniereValeur_('BT01', '2024-03').mois, '2024-03');
+});
+
+test('index Insee : panne de l\'API → valeurs conservées, incident signalé (écran et e-mail du matin)', () => {
+  const opts = {};
+  const env = creerEnvironnement(opts);
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  assert.ok(A.Est_indicesMettreAJour().ok);
+  const avant = A.Db_lire(A.EST_TABLES.INDICES_VALEURS).length;
+  // 2 échecs puis succès : les 3 essais suffisent
+  opts.inseeEchecs = 2;
+  assert.ok(A.Est_indicesMettreAJour().ok);
+  // 3 échecs : panne
+  opts.inseeEchecs = 3;
+  const b = brut(A.apiEstIndicesMettreAJour().data);
+  assert.strictEqual(b.ok, false);
+  assert.match(b.erreur, /API Insee indisponible \(réponse HTTP 503/);
+  assert.strictEqual(A.Db_lire(A.EST_TABLES.INDICES_VALEURS).length, avant);
+  const etat = A.apiEstIndices().data.etat;
+  assert.strictEqual(etat.enEchec, true);
+  assert.match(A.Est_alerteEmail_(), /en échec le \d{2}\/\d{2}\/\d{4} .*dernières valeurs connues restent utilisées \(BT01 09\/2026\)/);
+  const mail = A.Email_construire(new Date());
+  assert.match(mail.html, /Module Estimation/);
+  assert.match(mail.texte, /MODULE ESTIMATION/);
+  // Retour à la normale : plus d'alerte
+  assert.ok(A.Est_indicesMettreAJour().ok);
+  assert.strictEqual(A.Est_alerteEmail_(), '');
+  assert.doesNotMatch(A.Email_construire(new Date()).html, /Module Estimation/);
+  // 404 (aucune observation sur la période) : pas une panne
+  opts.insee = () => ({ code: 404, texte: 'NoRecordsFound' });
+  assert.ok(A.Est_indicesMettreAJour().ok);
+  delete opts.insee;
+});
+
+test('index Insee : écran — séries avec dernière valeur et historique', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  assert.strictEqual(A.apiEstIndices().data.etat, null);
+  A.apiEstIndicesMettreAJour();
+  const d = brut(A.apiEstIndices().data);
+  const bt50 = d.series.find((x) => x.code === 'BT50');
+  assert.strictEqual(bt50.dernier.mois, '2026-09');
+  assert.strictEqual(bt50.dernier.qualite, 'provisoire');
+  assert.strictEqual(d.etat.enEchec, false);
+  const h = brut(A.apiEstIndiceHistorique('BT50').data);
+  assert.strictEqual(h.length, 36);
+  assert.strictEqual(h[35].mois, '2026-09');
 });
 
 // ——— Lot 2 : Affaires ———
@@ -1009,7 +1122,7 @@ test('fluidité : l\'accueil en un seul appel', () => {
   const r = brut(env.ctx.apiAccueil());
   assert.ok(r.ok, r.erreur);
   assert.deepStrictEqual(Object.keys(r.data).sort(), ['ca', 'etat', 'fiscal', 'suivi', 'tableau']);
-  assert.strictEqual(r.data.etat.onglets.length, 18); // 11 onglets du suivi + 7 du module Estimation
+  assert.strictEqual(r.data.etat.onglets.length, 21); // 11 onglets du suivi + 10 du module Estimation
 });
 
 test('fluidité : relances recalculées après un changement de statut, pas à la lecture', () => {

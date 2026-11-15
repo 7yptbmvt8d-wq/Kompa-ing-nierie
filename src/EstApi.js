@@ -56,3 +56,37 @@ function apiEstAffaire(idAffaire) {
       .map(function (e) { return Est_versClient_('ESTIMATIONS', e); });
   });
 }
+
+/** Index Insee : séries, dernière valeur, état de la dernière mise à jour. */
+function apiEstIndices() {
+  return repondre_(function () {
+    var derniers = {};
+    Db_lire(EST_TABLES.INDICES_VALEURS).forEach(function (v) {
+      var c = String(v.code);
+      if (!derniers[c] || String(v.mois) > derniers[c].mois) derniers[c] = { mois: String(v.mois), valeur: Number(v.valeur), qualite: String(v.qualite) };
+    });
+    var etat = Est_etatIndices_();
+    return {
+      series: Db_lire(EST_TABLES.INDICES).map(function (s) {
+        var c = Est_versClient_('INDICES', s);
+        c.dernier = derniers[String(s.code)] || null;
+        return c;
+      }),
+      etat: etat ? { date: etat.date instanceof Date ? etat.date.toISOString() : etat.date, resultat: etat.resultat, detail: etat.detail, enEchec: etat.enEchec } : null
+    };
+  });
+}
+
+/** Bouton « Mettre à jour les index ». */
+function apiEstIndicesMettreAJour() {
+  return repondre_(function () { return Est_indicesMettreAJour({ source: 'manuelle' }); });
+}
+
+/** Historique d'un index (36 derniers mois). */
+function apiEstIndiceHistorique(code) {
+  return repondre_(function () {
+    return Est_valeursIndice_(code).slice(-36).map(function (v) {
+      return { mois: String(v.mois), valeur: Number(v.valeur), qualite: String(v.qualite), date_jo: String(v.date_jo || '') };
+    });
+  });
+}

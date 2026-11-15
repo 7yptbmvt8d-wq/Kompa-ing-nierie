@@ -51,6 +51,20 @@ var EST_TABLES = {
     nombres: ['surface_sdp', 'surface_vrd', 'k', 'projection_taux', 'tva', 'aleas_pct', 'total_ht', 'total_ttc'],
     texteBrut: ['id_affaire', 'indice', 'mois_indice_bt', 'mois_indice_tp']
   },
+  INDICES: {
+    onglet: 'Index Insee', classeur: 'EST', cle: 'code',
+    colonnes: ['code', 'idbank', 'libelle', 'famille', 'base', 'coef_raccordement', 'arretee', 'actif'],
+    nombres: ['coef_raccordement'], texteBrut: ['code', 'idbank', 'base']
+  },
+  INDICES_VALEURS: {
+    onglet: 'Valeurs des index', classeur: 'EST', cle: 'cle',
+    colonnes: ['cle', 'code', 'mois', 'valeur', 'qualite', 'date_jo', 'recupere_le'],
+    nombres: ['valeur'], texteBrut: ['cle', 'code', 'mois', 'date_jo']
+  },
+  JOURNAL: {
+    onglet: 'Journal du module', classeur: 'EST', cle: 'id', prefixe: 'EJ',
+    colonnes: ['id', 'date', 'operation', 'resultat', 'detail'], horodatages: ['date']
+  },
   LIGNES: {
     onglet: 'Lignes d\'estimation', classeur: 'EST', cle: 'id', prefixe: 'EL',
     colonnes: ['id', 'id_estimation', 'lot', 'num_article', 'designation', 'unite', 'quantite', 'pu_m0', 'm0',
@@ -63,7 +77,9 @@ var EST_TABLES = {
 
 /** Initialisation du module, appelée par installer() après la création des onglets. */
 function Est_installer_() {
-  return { version: EST_VERSION, ajouts: Est_initialiserReferentiels_() };
+  var ajouts = Est_initialiserReferentiels_();
+  ajouts.index = Est_initialiserIndices_();
+  return { version: EST_VERSION, ajouts: ajouts };
 }
 
 
@@ -128,6 +144,243 @@ function apiEstAffaire(idAffaire) {
   });
 }
 
+/** Index Insee : séries, dernière valeur, état de la dernière mise à jour. */
+function apiEstIndices() {
+  return repondre_(function () {
+    var derniers = {};
+    Db_lire(EST_TABLES.INDICES_VALEURS).forEach(function (v) {
+      var c = String(v.code);
+      if (!derniers[c] || String(v.mois) > derniers[c].mois) derniers[c] = { mois: String(v.mois), valeur: Number(v.valeur), qualite: String(v.qualite) };
+    });
+    var etat = Est_etatIndices_();
+    return {
+      series: Db_lire(EST_TABLES.INDICES).map(function (s) {
+        var c = Est_versClient_('INDICES', s);
+        c.dernier = derniers[String(s.code)] || null;
+        return c;
+      }),
+      etat: etat ? { date: etat.date instanceof Date ? etat.date.toISOString() : etat.date, resultat: etat.resultat, detail: etat.detail, enEchec: etat.enEchec } : null
+    };
+  });
+}
+
+/** Bouton « Mettre à jour les index ». */
+function apiEstIndicesMettreAJour() {
+  return repondre_(function () { return Est_indicesMettreAJour({ source: 'manuelle' }); });
+}
+
+/** Historique d'un index (36 derniers mois). */
+function apiEstIndiceHistorique(code) {
+  return repondre_(function () {
+    return Est_valeursIndice_(code).slice(-36).map(function (v) {
+      return { mois: String(v.mois), valeur: Number(v.valeur), qualite: String(v.qualite), date_jo: String(v.date_jo || '') };
+    });
+  });
+}
+
+
+// ════════ EstIndices.js ════════
+
+/**
+ * Module Estimation — index Insee BT et TP (étape 2).
+ *
+ * Source : API BDM de l'Insee (SDMX, libre d'accès, sans clé)
+ *   https://bdm.insee.fr/series/sdmx/data/SERIES_BDM/{idbank}+{idbank}…?startPeriod=AAAA-MM | ?lastNObservations=N
+ * Historique stocké dans l'onglet « Valeurs des index » (une ligne par index et par mois).
+ * Mise à jour : déclencheur mensuel (jour paramétrable) + bouton de l'écran Estimation.
+ * Panne de l'API : rien n'est effacé, les dernières valeurs connues restent utilisées et l'incident est signalé.
+ * Les index paraissent environ 2 à 3 mois après le mois concerné : le mois de l'index est toujours affiché.
+ */
+
+var EST_INSEE_URL = 'https://bdm.insee.fr/series/sdmx/data/SERIES_BDM/';
+var EST_INSEE_LOT = 30; // séries par requête (longueur d'URL raisonnable)
+
+/** Ajoute les séries absentes de l'onglet « Index Insee » (actives sauf séries arrêtées). */
+function Est_initialiserIndices_() {
+  var existants = {};
+  Db_lire(EST_TABLES.INDICES).forEach(function (l) { existants[String(l.code)] = true; });
+  var nouveaux = EST_SERIES_INSEE.filter(function (s) { return !existants[s[0]]; }).map(function (s) {
+    return { code: s[0], idbank: s[1], libelle: s[2], famille: s[3], base: '2010', coef_raccordement: 1, arretee: s[4], actif: 'oui' };
+  });
+  Db_insererPlusieurs(EST_TABLES.INDICES, nouveaux);
+  return nouveaux.length;
+}
+
+/** Fonction appelée par le déclencheur mensuel. */
+function estIndicesMensuel() {
+  return Est_indicesMettreAJour({ source: 'automatique' });
+}
+
+/** Déclencheur mensuel, ajouté par installer() (Setup_declencheurs_). */
+function Est_declencheurs_() {
+  return [{
+    fonction: 'estIndicesMensuel',
+    creer: function () {
+      var jour = Math.min(28, Math.max(1, Math.round(Est_paramNombre_('est.indices_jour', 20))));
+      return ScriptApp.newTrigger('estIndicesMensuel').timeBased().onMonthDay(jour).atHour(5).inTimezone(APP.FUSEAU).create();
+    }
+  }];
+}
+
+/**
+ * Récupère les valeurs des index actifs. Index sans historique : depuis est.indices_depuis ;
+ * index déjà chargés : les 6 derniers mois (prise en compte des valeurs provisoires devenues définitives).
+ * Renvoie un bilan ; en cas d'échec, aucune valeur n'est modifiée.
+ */
+function Est_indicesMettreAJour(options) {
+  options = options || {};
+  var series = Db_lire(EST_TABLES.INDICES).filter(function (s) { return s.actif === 'oui' && s.idbank; });
+  var parIdbank = {};
+  series.forEach(function (s) { parIdbank[String(s.idbank)] = String(s.code); });
+  var valeurs = {};
+  var avecHistorique = {};
+  Db_lire(EST_TABLES.INDICES_VALEURS).forEach(function (v) { valeurs[String(v.cle)] = v; avecHistorique[String(v.code)] = true; });
+
+  var nouvelles = series.filter(function (s) { return !avecHistorique[String(s.code)]; });
+  var connues = series.filter(function (s) { return avecHistorique[String(s.code)]; });
+  var depuis = Est_param_('est.indices_depuis', '2015-01');
+  var requetes = [];
+  var decouper = function (liste, suffixe) {
+    for (var i = 0; i < liste.length; i += EST_INSEE_LOT) {
+      requetes.push(EST_INSEE_URL + liste.slice(i, i + EST_INSEE_LOT).map(function (s) { return s.idbank; }).join('+') + suffixe);
+    }
+  };
+  decouper(nouvelles, '?startPeriod=' + depuis);
+  decouper(connues, '?lastNObservations=6');
+
+  var bilan = { ok: true, series: series.length, ajoutees: 0, modifiees: 0, derniers: {}, erreur: '', source: options.source || 'manuelle' };
+  var observations = [];
+  try {
+    requetes.forEach(function (url) { observations = observations.concat(Est_inseeLire_(url)); });
+  } catch (e) {
+    bilan.ok = false;
+    bilan.erreur = e.message;
+    Est_journal_('index Insee', 'erreur', bilan.source + ' — ' + e.message + ' — dernières valeurs conservées');
+    return bilan;
+  }
+
+  var maintenant = new Date();
+  var aInserer = [];
+  observations.forEach(function (o) {
+    var code = parIdbank[o.idbank];
+    if (!code || !o.mois || !isFinite(o.valeur)) return;
+    var cle = code + '|' + o.mois;
+    var ex = valeurs[cle];
+    if (!ex) {
+      aInserer.push({ cle: cle, code: code, mois: o.mois, valeur: o.valeur, qualite: o.qualite, date_jo: o.date_jo, recupere_le: maintenant });
+      valeurs[cle] = aInserer[aInserer.length - 1];
+    } else if (Number(ex.valeur) !== o.valeur || String(ex.qualite) !== o.qualite || (o.date_jo && String(ex.date_jo) !== o.date_jo)) {
+      Db_maj(EST_TABLES.INDICES_VALEURS, cle, { valeur: o.valeur, qualite: o.qualite, date_jo: o.date_jo || ex.date_jo, recupere_le: maintenant });
+      bilan.modifiees++;
+    }
+    if (!bilan.derniers[code] || o.mois > bilan.derniers[code]) bilan.derniers[code] = o.mois;
+  });
+  Db_insererPlusieurs(EST_TABLES.INDICES_VALEURS, aInserer);
+  bilan.ajoutees = aInserer.length;
+  Est_journal_('index Insee', 'ok', bilan.source + ' — ' + series.length + ' index, ' + bilan.ajoutees + ' valeur(s) ajoutée(s), ' +
+    bilan.modifiees + ' modifiée(s)' + (bilan.derniers.BT01 ? ' — BT01 ' + Est_moisLisible_(bilan.derniers.BT01) : ''));
+  return bilan;
+}
+
+/** Une requête à l'API (3 essais) → liste d'observations { idbank, mois, valeur, qualite, date_jo }. */
+function Est_inseeLire_(url) {
+  var derniere;
+  for (var essai = 1; essai <= 3; essai++) {
+    try {
+      var r = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: { Accept: 'application/xml' } });
+      var code = r.getResponseCode();
+      // 404 : aucune observation sur la période demandée (index récent ou arrêté) — pas une panne.
+      if (code === 404) return [];
+      if (code !== 200) throw new Error('réponse HTTP ' + code + ' de l\'Insee');
+      return Est_parserSdmx_(r.getContentText());
+    } catch (e) {
+      derniere = e;
+      if (essai < 3) Utilities.sleep(1500 * essai);
+    }
+  }
+  throw new Error('API Insee indisponible (' + (derniere && derniere.message) + ')');
+}
+
+/** Lecture du XML SDMX « StructureSpecificData » de la BDM. Lève une erreur si la réponse est illisible. */
+function Est_parserSdmx_(xml) {
+  xml = String(xml || '');
+  if (xml.indexOf('StructureSpecificData') < 0) throw new Error('réponse de l\'Insee illisible');
+  var attributs = function (txt) {
+    var o = {}, re = /([A-Za-z_]+)="([^"]*)"/g, m;
+    while ((m = re.exec(txt))) o[m[1]] = m[2];
+    return o;
+  };
+  var out = [];
+  var reSerie = /<Series\b([^>]*)>([\s\S]*?)<\/Series>/g, s;
+  while ((s = reSerie.exec(xml))) {
+    var idbank = attributs(s[1]).IDBANK;
+    var reObs = /<Obs\b([^>]*?)\/?>/g, o;
+    while ((o = reObs.exec(s[2]))) {
+      var a = attributs(o[1]);
+      out.push({
+        idbank: idbank, mois: a.TIME_PERIOD, valeur: Number(a.OBS_VALUE),
+        qualite: a.OBS_QUAL === 'DEF' ? 'définitive' : 'provisoire', date_jo: a.DATE_JO || ''
+      });
+    }
+  }
+  return out;
+}
+
+// ——— Lecture des valeurs ———
+
+/** Valeurs d'un index triées par mois croissant. */
+function Est_valeursIndice_(code) {
+  return Db_lire(EST_TABLES.INDICES_VALEURS)
+    .filter(function (v) { return String(v.code) === String(code); })
+    .sort(function (a, b) { return String(a.mois) < String(b.mois) ? -1 : 1; });
+}
+
+/** Valeur d'un index pour un mois AAAA-MM, ou null. */
+function Est_valeurIndice_(code, mois) {
+  var v = Db_trouver(EST_TABLES.INDICES_VALEURS, code + '|' + mois);
+  return v ? { code: String(code), mois: String(v.mois), valeur: Number(v.valeur), qualite: String(v.qualite) } : null;
+}
+
+/** Dernière valeur publiée d'un index (au plus tard au mois `auPlusTard` s'il est donné), ou null. */
+function Est_derniereValeur_(code, auPlusTard) {
+  var liste = Est_valeursIndice_(code).filter(function (v) { return !auPlusTard || String(v.mois) <= auPlusTard; });
+  var v = liste[liste.length - 1];
+  return v ? { code: String(code), mois: String(v.mois), valeur: Number(v.valeur), qualite: String(v.qualite) } : null;
+}
+
+function Est_moisLisible_(mois) {
+  var m = String(mois || '').match(/^(\d{4})-(\d{2})$/);
+  return m ? m[2] + '/' + m[1] : String(mois || '');
+}
+
+// ——— Journal et alertes ———
+
+function Est_journal_(operation, resultat, detail) {
+  Db_inserer(EST_TABLES.JOURNAL, { date: new Date(), operation: operation, resultat: resultat, detail: String(detail).slice(0, 500) });
+}
+
+/** État de la dernière mise à jour des index : { date, resultat, detail, enEchec } ou null. */
+function Est_etatIndices_() {
+  var j = Db_lire(EST_TABLES.JOURNAL).filter(function (l) { return l.operation === 'index Insee'; });
+  if (!j.length) return null;
+  var d = j[j.length - 1];
+  var bt01 = Est_derniereValeur_('BT01');
+  var tp01 = Est_derniereValeur_('TP01');
+  return {
+    date: d.date, resultat: String(d.resultat), detail: String(d.detail), enEchec: d.resultat !== 'ok',
+    bt01: bt01, tp01: tp01
+  };
+}
+
+/** Ligne d'alerte pour l'e-mail du matin, ou '' si tout va bien. */
+function Est_alerteEmail_() {
+  var e = Est_etatIndices_();
+  if (!e || !e.enEchec) return '';
+  var date = Utilities.formatDate(date_(e.date) || new Date(e.date), APP.FUSEAU, 'dd/MM/yyyy');
+  return 'Mise à jour des index Insee en échec le ' + date + ' (' + e.detail.split(' — ')[1] + '). ' +
+    'Les dernières valeurs connues restent utilisées' + (e.bt01 ? ' (BT01 ' + Est_moisLisible_(e.bt01.mois) + ')' : '') + '.';
+}
+
 
 // ════════ EstReferentiels.js ════════
 
@@ -150,6 +403,8 @@ var EST_PARAMS_DEFAUT = [
   ['est.indice_rehab', 'BT50', 'Index par défaut d\'un lot de bâtiment sans index, en réhabilitation'],
   ['est.indice_vrd', 'TP01', 'Index par défaut d\'un lot VRD sans index'],
   ['est.projection_taux', '0', 'Taux annuel de projection jusqu\'à la date des travaux (%), 0 = actualisation seule'],
+  ['est.indices_jour', '20', 'Jour du mois de la mise à jour automatique des index Insee (parution au JO vers le 15)'],
+  ['est.indices_depuis', '2015-01', 'Premier mois chargé lors de la première récupération d\'un index'],
   ['est.fiabilite', 'A:Prix de marché de moins de 3 ans, même région;B:Prix de marché plus ancien ou d\'une autre région;C:Ratio sur moins de 5 marchés ou saisie libre', 'Échelle de fiabilité des prix']
 ];
 
@@ -332,3 +587,73 @@ function Est_refModifier_(nom, cle, champs) {
   delete maj[table.cle]; // la clé ne change pas : désactiver et recréer
   return Db_maj(table, cle, maj);
 }
+
+
+// ════════ EstSeries.js ════════
+
+/**
+ * Module Estimation — séries Insee des index BT (bâtiment) et TP (travaux publics), base 2010.
+ * Identifiants (idbank) relevés le 15/11/2026 sur l'API BDM de l'Insee :
+ *   https://bdm.insee.fr/series/sdmx/data/SERIES_BDM/{idbank}
+ * Chargées dans l'onglet « Index Insee » par installer() ; ajout d'un autre index : une ligne dans cet onglet.
+ * [code, idbank, libellé, famille, série arrêtée]
+ */
+var EST_SERIES_INSEE = [
+  ["BT01", "001710986", "Tous corps d'état", "BT", "non"],
+  ["BT02", "001710950", "Terrassements", "BT", "non"],
+  ["BT03", "001710951", "Maçonnerie et canalisations en béton (sauf ossature, béton armé, carrelage, revêtements et plâtrerie)", "BT", "non"],
+  ["BT06", "001710952", "Ossature, ouvrages en béton armé", "BT", "non"],
+  ["BT07", "001710953", "Ossature et charpentes métalliques", "BT", "non"],
+  ["BT08", "001710954", "Plâtre et préfabriqués", "BT", "non"],
+  ["BT09", "001710955", "Carrelage et revêtement céramique", "BT", "non"],
+  ["BT10", "001710956", "Revêtements en plastiques", "BT", "non"],
+  ["BT11", "001710957", "Revêtements en textiles", "BT", "non"],
+  ["BT12", "001710958", "Revêtements en textiles naturels", "BT", "oui"],
+  ["BT14", "001710959", "Revêtements en plaque de pierre naturelle sciée et produits assimilés", "BT", "non"],
+  ["BT16b", "001710960", "Charpente bois", "BT", "non"],
+  ["BT18a", "001710962", "Menuiserie intérieure en bois", "BT", "non"],
+  ["BT19b", "001710963", "Menuiserie extérieure en bois", "BT", "non"],
+  ["BT26", "001710965", "Fermeture de baies en plastique y compris fenêtre PVC", "BT", "non"],
+  ["BT27", "001710966", "Fermeture de baies en aluminium", "BT", "non"],
+  ["BT28", "001710967", "Fermeture de baies en métal ferreux", "BT", "non"],
+  ["BT30", "001710968", "Couverture en ardoises de schiste", "BT", "non"],
+  ["BT32", "001710969", "Couverture en tuiles en terre cuite", "BT", "non"],
+  ["BT33", "001710970", "Couverture en tuiles en béton", "BT", "non"],
+  ["BT34", "001710971", "Couverture en zinc et en métal (sauf cuivre)", "BT", "non"],
+  ["BT35", "001710940", "Couverture en bardeaux bitumés", "BT", "non"],
+  ["BT38", "001710972", "Plomberie sanitaire (y compris appareils)", "BT", "non"],
+  ["BT40", "001710973", "Chauffage central (à l'exclusion du chauffage électrique)", "BT", "non"],
+  ["BT41", "001710974", "Ventilation et conditionnement d'air", "BT", "non"],
+  ["BT42", "001710975", "Menuiserie en acier et serrurerie", "BT", "non"],
+  ["BT43", "001710976", "Menuiserie en alliage d'aluminium", "BT", "non"],
+  ["BT45", "001710977", "Vitrerie - Miroiterie", "BT", "non"],
+  ["BT46", "001710978", "Peinture, tenture, revêtements muraux", "BT", "non"],
+  ["BT47", "001710979", "Électricité", "BT", "non"],
+  ["BT48", "001710980", "Ascenseurs", "BT", "non"],
+  ["BT49", "001710981", "Couverture et bardage en tôles d'acier nervurés avec revêtement étanchéité", "BT", "non"],
+  ["BT50", "001710982", "Rénovation - Entretien tous corps d'état", "BT", "non"],
+  ["BT51", "001710983", "Menuiseries PVC", "BT", "non"],
+  ["BT52", "001710984", "Imperméabilité de façades", "BT", "non"],
+  ["BT53", "001710985", "Étanchéité", "BT", "non"],
+  ["TP01", "001711007", "Index général tous travaux", "TP", "non"],
+  ["TP02", "001710987", "Travaux de génie civil et d'ouvrages d'art neufs ou rénovation", "TP", "non"],
+  ["TP03a", "001710988", "Grands terrassements", "TP", "non"],
+  ["TP03b", "001710989", "Travaux à l'explosif", "TP", "non"],
+  ["TP04", "001710990", "Fondations et travaux géotechniques", "TP", "non"],
+  ["TP05a", "001710991", "Travaux en souterrains traditionnels", "TP", "non"],
+  ["TP05b", "001710992", "Travaux en souterrains avec tunnelier", "TP", "non"],
+  ["TP06a", "001710993", "Grands dragages maritimes", "TP", "non"],
+  ["TP06b", "001710994", "Dragages fluviaux et petits dragages maritimes", "TP", "non"],
+  ["TP07b", "001710995", "Travaux de génie civil, béton et acier pour ouvrages maritimes et fluviaux", "TP", "non"],
+  ["TP08", "001710996", "Travaux d'aménagement et entretien de voirie en zones rurale et urbaine", "TP", "non"],
+  ["TP09", "001710997", "Fabrication et mise en œuvre d'enrobés", "TP", "non"],
+  ["TP10a", "001710998", "Canalisations, assainissement et adduction d'eau avec fourniture de tuyaux", "TP", "oui"],
+  ["TP10b", "001710999", "Canalisations sans fourniture de tuyaux", "TP", "non"],
+  ["TP10c", "001711000", "Réhabilitation de canalisations non visitables", "TP", "non"],
+  ["TP11", "001711001", "Canalisations grandes distances de transport / transfert avec fourniture de tuyaux", "TP", "non"],
+  ["TP12a", "001711002", "Réseaux d'énergie et de communication hors fibre optique", "TP", "non"],
+  ["TP12b", "001711003", "Éclairage public - Travaux d'installation", "TP", "non"],
+  ["TP12c", "001711004", "Éclairage public - Travaux de maintenance", "TP", "non"],
+  ["TP13", "001711005", "Charpentes et ouvrages d'art métalliques", "TP", "oui"],
+  ["TP14", "001711006", "Travaux immergés par scaphandriers", "TP", "oui"]
+];
