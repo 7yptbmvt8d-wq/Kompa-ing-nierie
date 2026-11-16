@@ -268,7 +268,7 @@ function assembler() {
   await p.fill('#ref-K tr[data-ajout] [data-col="coefficient"]', '1,08');
   await p.click('#ref-K tr[data-ajout] [data-ajouter]');
   await p.waitForSelector('#ref-K tr[data-cle]');
-  assert.strictEqual(A.Db_lire(A.EST_TABLES.K)[0].coefficient, 1.08);
+  assert.strictEqual(A.Db_lire(A.EST_TABLES.K).find((l) => l.modalite === 'Zone de montagne').coefficient, 1.08);
   await p.screenshot({ path: path.join(sortie, 'pc-estimation-referentiels.png'), fullPage: true });
 
   // ——— Module Estimation (étape 2) : index Insee ———

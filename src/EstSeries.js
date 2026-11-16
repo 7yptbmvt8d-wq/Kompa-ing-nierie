@@ -1,6 +1,6 @@
 /**
  * Module Estimation — séries Insee des index BT (bâtiment) et TP (travaux publics), base 2010.
- * Identifiants (idbank) relevés le 15/11/2026 sur l'API BDM de l'Insee :
+ * Identifiants (idbank) relevés les 15 et 16/11/2026 sur l'API BDM de l'Insee (liste du SID fournie le 16/11) :
  *   https://bdm.insee.fr/series/sdmx/data/SERIES_BDM/{idbank}
  * Chargées dans l'onglet « Index Insee » par installer() ; ajout d'un autre index : une ligne dans cet onglet.
  * [code, idbank, libellé, famille, série arrêtée]
@@ -42,6 +42,8 @@ var EST_SERIES_INSEE = [
   ["BT51", "001710983", "Menuiseries PVC", "BT", "non"],
   ["BT52", "001710984", "Imperméabilité de façades", "BT", "non"],
   ["BT53", "001710985", "Étanchéité", "BT", "non"],
+  ["BT54", "001711942", "Ossature bois", "BT", "non"],
+  ["BT55", "011818304", "Isolation thermique par l'extérieur - Enduit sur isolant", "BT", "non"],
   ["TP01", "001711007", "Index général tous travaux", "TP", "non"],
   ["TP02", "001710987", "Travaux de génie civil et d'ouvrages d'art neufs ou rénovation", "TP", "non"],
   ["TP03a", "001710988", "Grands terrassements", "TP", "non"],
@@ -57,10 +59,17 @@ var EST_SERIES_INSEE = [
   ["TP10a", "001710998", "Canalisations, assainissement et adduction d'eau avec fourniture de tuyaux", "TP", "oui"],
   ["TP10b", "001710999", "Canalisations sans fourniture de tuyaux", "TP", "non"],
   ["TP10c", "001711000", "Réhabilitation de canalisations non visitables", "TP", "non"],
+  ["TP10d", "010605983", "Réseaux de chauffage et de froid avec fourniture de tuyaux", "TP", "non"],
+  ["TP10e", "010777525", "Canalisations, assainissement et adduction d'eau avec fourniture de tuyaux en fonte majoritaire", "TP", "non"],
+  ["TP10f", "010777582", "Canalisations, assainissement et adduction d'eau avec fourniture de tuyaux multi-matériaux", "TP", "non"],
   ["TP11", "001711001", "Canalisations grandes distances de transport / transfert avec fourniture de tuyaux", "TP", "non"],
   ["TP12a", "001711002", "Réseaux d'énergie et de communication hors fibre optique", "TP", "non"],
   ["TP12b", "001711003", "Éclairage public - Travaux d'installation", "TP", "non"],
   ["TP12c", "001711004", "Éclairage public - Travaux de maintenance", "TP", "non"],
+  ["TP12d", "001796841", "Réseaux de communication en fibre optique", "TP", "non"],
   ["TP13", "001711005", "Charpentes et ouvrages d'art métalliques", "TP", "oui"],
-  ["TP14", "001711006", "Travaux immergés par scaphandriers", "TP", "oui"]
+  ["TP13a", "010777583", "Charpentes et ouvrages d'art métalliques", "TP", "non"],
+  ["TP13b", "010777526", "Charpentes et ouvrages d'art métalliques hors fourniture des aciers", "TP", "non"],
+  ["TP14", "001711006", "Travaux immergés par scaphandriers", "TP", "oui"],
+  ["ING", "001711010", "Ingénierie (index divers de la construction)", "DIV", "non"]
 ];

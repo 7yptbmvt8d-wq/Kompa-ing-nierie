@@ -91,23 +91,70 @@ function Est_actualiser_(puM0, m0, options) {
 }
 
 /**
- * Projection facultative jusqu'à la date prévisionnelle des travaux (Q7), distincte de l'actualisation :
- * coef = (1 + taux annuel) ^ (mois entre l'index utilisé et les travaux / 12). Taux en %.
+ * Taux annuels de projection par période (paramètre est.projection_taux, note SID « taux prévisionnels
+ * d'évolution du coût des facteurs du bâtiment : projection du BT01 ») : « 2023-2025:2,70;2026-2028:5,10;suite:5,10 ».
+ * Renvoie le taux annuel (%) applicable à une année.
  */
-function Est_projection_(moisIndice, moisTravaux, tauxAnnuelPct) {
-  var a = Est_mois_(moisIndice), b = Est_mois_(moisTravaux);
-  var t = Number(tauxAnnuelPct) || 0;
-  if (!a || !b || !t) return { coef: 1, mois: 0, taux: t };
-  var n = Math.max(0, Est_ecartMois_(a, b));
-  return { coef: Math.pow(1 + t / 100, n / 12), mois: n, taux: t };
+function Est_tauxProjection_(annee, spec) {
+  var d = {};
+  String(spec === undefined ? Est_param_('est.projection_taux', '0') : spec).split(';').forEach(function (p) {
+    var i = p.indexOf(':');
+    if (i > 0) d[p.slice(0, i).trim()] = Number(p.slice(i + 1).trim().replace(',', '.')) || 0;
+    else if (p.trim()) d.suite = Number(p.trim().replace(',', '.')) || 0;
+  });
+  var taux = null;
+  Object.keys(d).forEach(function (k) {
+    var m = k.match(/^(\d{4})(?:-(\d{4}))?$/);
+    if (m && annee >= Number(m[1]) && annee <= Number(m[2] || m[1])) taux = d[k];
+  });
+  return taux !== null ? taux : (d.suite || 0);
 }
 
 /**
- * Coefficient K à partir des lignes choisies dans la table « Coefficient K » (une modalité par facteur).
+ * Projection facultative jusqu'à la date prévisionnelle des travaux (Q7), distincte de l'actualisation.
+ * Méthode simple (non composée, validée le 16/11/2026) : du mois suivant celui de l'index utilisé jusqu'au mois
+ * des travaux, on additionne le taux mensuel de chaque mois (taux annuel de l'année / 12, cf. note SID :
+ * 2,70 %/an = 0,225 %/mois) : coef = 1 + Σ taux mensuels.
+ * `taux` : nombre (% annuel constant) ou chaîne de périodes ; par défaut le paramètre est.projection_taux.
+ */
+function Est_projection_(moisIndice, moisTravaux, taux) {
+  var a = Est_mois_(moisIndice), b = Est_mois_(moisTravaux);
+  if (!a || !b) return { coef: 1, mois: 0, detail: [] };
+  var n = Math.max(0, Est_ecartMois_(a, b));
+  var coef = 1, annee = Number(a.slice(0, 4)), mois = Number(a.slice(5, 7)), detail = {};
+  for (var i = 0; i < n; i++) {
+    mois++; if (mois > 12) { mois = 1; annee++; }
+    var t = typeof taux === 'number' ? taux : Est_tauxProjection_(annee, taux);
+    coef += t / 12 / 100;
+    detail[annee] = detail[annee] || { annee: annee, taux: t, mois: 0 };
+    detail[annee].mois++;
+  }
+  return { coef: coef, mois: n, detail: Object.keys(detail).map(function (k) { return detail[k]; }) };
+}
+
+/** Facteur départemental de la méthode kloc ? (« kdép », « kdep »…) */
+function Est_estKdep_(facteur) {
+  return /^k\s*d[ée]p/i.test(String(facteur || ''));
+}
+
+/** Ligne kdép d'un département (« 04 — Alpes-de-Haute-Provence »), ou null. */
+function Est_kdepPour_(departement) {
+  var dep = String(departement || '').trim().toUpperCase();
+  if (/^\d$/.test(dep)) dep = '0' + dep;
+  return Db_lire(EST_TABLES.K).filter(function (l) {
+    return Est_estKdep_(l.facteur) && l.actif === 'oui' && String(l.modalite).split(' ')[0].toUpperCase() === dep;
+  })[0] || null;
+}
+
+/**
+ * Coefficient de localisation à partir des lignes choisies dans la table « Coefficient K » (une modalité par facteur).
+ * Mode « kloc » (méthode validée le 16/11/2026) : kloc = kdép + kalt + kagg + klieu — kdép obligatoire
+ *   (coefficient départemental « Métropole »), les autres facteurs sont des ajouts (+0,05, −0,02…).
  * Mode « produit » : K = Π ki ; mode « somme » : K = 1 + Σ (ki − 1). Renvoie { k, mode, detail }.
  */
 function Est_calculerK_(idsChoisis) {
-  var mode = Est_param_('est.k_mode', 'produit') === 'somme' ? 'somme' : 'produit';
+  var p = Est_param_('est.k_mode', 'kloc');
+  var mode = ['kloc', 'produit', 'somme'].indexOf(p) >= 0 ? p : 'kloc';
   var lignes = Db_lire(EST_TABLES.K);
   var vus = {};
   var detail = (idsChoisis || []).map(function (id) {
@@ -118,9 +165,18 @@ function Est_calculerK_(idsChoisis) {
     vus[l.facteur] = true;
     return { id: String(l.id), facteur: String(l.facteur), modalite: String(l.modalite), coefficient: Number(l.coefficient) };
   });
-  var k = mode === 'produit'
-    ? detail.reduce(function (p, d) { return p * d.coefficient; }, 1)
-    : 1 + detail.reduce(function (s, d) { return s + (d.coefficient - 1); }, 0);
+  var k;
+  if (mode === 'kloc') {
+    var dep = detail.filter(function (d) { return Est_estKdep_(d.facteur); });
+    if (!dep.length) throw new Error('kloc : choisissez le coefficient départemental (kdép).');
+    k = detail.reduce(function (s, d) { return s + d.coefficient; }, 0);
+  } else if (mode === 'produit') {
+    if (detail.some(function (d) { return !(d.coefficient > 0); })) throw new Error('Mode produit : coefficients supérieurs à 0 attendus.');
+    k = detail.reduce(function (p, d) { return p * d.coefficient; }, 1);
+  } else {
+    k = 1 + detail.reduce(function (s, d) { return s + (d.coefficient - 1); }, 0);
+  }
+  if (!(k > 0)) throw new Error('Coefficient de localisation nul ou négatif (' + Est_fr_(k, 4) + ') : vérifiez les valeurs.');
   return { k: Est_arrondi_(k, 4), mode: mode, detail: detail };
 }
 

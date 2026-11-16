@@ -256,7 +256,7 @@ test('estimation (étape 1) : onglets du classeur EST et référentiels initiaux
   const est = Object.values(env.classeurs)[1];
   assert.deepStrictEqual(est.getSheets().map((f) => f.getName()),
     ['Paramètres', 'Lots', 'Familles d\'ouvrage', 'Typologies', 'Coefficient K', 'Estimations', 'Index Insee', 'Valeurs des index', 'Journal du module', 'Lignes d\'estimation']);
-  assert.deepStrictEqual(brut(r.estimation.ajouts), { parametres: 14, lots: 17, typologies: 10, index: 57 });
+  assert.deepStrictEqual(brut(r.estimation.ajouts), { parametres: 14, lots: 17, typologies: 10, k: 114, index: 66 });
   const A = env.ctx;
   assert.strictEqual(A.Db_trouver(A.EST_TABLES.LOTS, 'ELE').indice, 'BT47');
   assert.strictEqual(A.Db_trouver(A.EST_TABLES.LOTS, 'CHARP').indice, 'BT16b');
@@ -266,7 +266,7 @@ test('estimation (étape 1) : onglets du classeur EST et référentiels initiaux
   // Relancer installer() n'écrase pas vos modifications et n'ajoute rien
   A.Est_refModifier_('LOTS', 'GO', { indice: 'BT03' });
   const r2 = A.installer({ exercice: false });
-  assert.deepStrictEqual(brut(r2.estimation.ajouts), { parametres: 0, lots: 0, typologies: 0, index: 0 });
+  assert.deepStrictEqual(brut(r2.estimation.ajouts), { parametres: 0, lots: 0, typologies: 0, k: 0, index: 0 });
   assert.strictEqual(A.Db_trouver(A.EST_TABLES.LOTS, 'GO').indice, 'BT03');
 });
 
@@ -280,7 +280,8 @@ test('estimation (étape 1) : édition des référentiels contrôlée', () => {
   const k = ok(A.apiEstRefAjouter('K', { facteur: 'Localisation', modalite: 'Zone de montagne', coefficient: '1,08', actif: 'oui' }));
   assert.match(k.id, /^KF-/);
   assert.strictEqual(k.coefficient, 1.08);
-  ko(A.apiEstRefAjouter('K', { facteur: 'X', modalite: 'Y', coefficient: '0' }), /supérieur à 0/);
+  ko(A.apiEstRefAjouter('K', { facteur: 'X', modalite: 'Y', coefficient: '9' }), /entre −1 et 3/);
+  ok(A.apiEstRefAjouter('K', { facteur: 'klieu', modalite: 'Essai', coefficient: '-0,02' })); // ajouts négatifs admis
   ko(A.apiEstRefModifier('K', k.id, { coefficient: 'abc' }), /nombre attendu/);
   // Codes : majuscules, unicité
   const lot = ok(A.apiEstRefAjouter('LOTS', { code: 'dem', libelle: 'Démolition, désamiantage', famille: 'batiment', indice: 'bt50', ordre: '5' }));
@@ -320,16 +321,16 @@ test('estimation (étape 1) : écran Estimation et onglet de la fiche affaire', 
 
 // ——— Module Estimation, étape 2 : index Insee ———
 
-test('index Insee : 57 séries chargées (idbank vérifiés), 4 arrêtées, déclencheur mensuel le 20', () => {
+test('index Insee : 66 séries chargées (idbank vérifiés), 4 arrêtées, déclencheur mensuel le 20', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });
   const A = env.ctx;
   const series = A.Db_lire(A.EST_TABLES.INDICES);
-  assert.strictEqual(series.length, 57);
+  assert.strictEqual(series.length, 66);
   assert.deepStrictEqual(series.filter((x) => x.arretee === 'oui').map((x) => x.code), ['BT12', 'TP10a', 'TP13', 'TP14']);
   const idb = (c) => A.Db_trouver(A.EST_TABLES.INDICES, c).idbank;
-  assert.deepStrictEqual(['BT01', 'BT02', 'BT38', 'BT47', 'BT50', 'TP01', 'TP08'].map(idb),
-    ['001710986', '001710950', '001710972', '001710979', '001710982', '001711007', '001710996']);
+  assert.deepStrictEqual(['BT01', 'BT02', 'BT38', 'BT47', 'BT50', 'TP01', 'TP08', 'BT54', 'TP10d', 'TP13a', 'ING'].map(idb),
+    ['001710986', '001710950', '001710972', '001710979', '001710982', '001711007', '001710996', '001711942', '010605983', '010777583', '001711010']);
   const t = env.declencheurs.find((x) => x.getHandlerFunction() === 'estIndicesMensuel');
   assert.ok(t);
   // chaque lot pointe vers un index connu
@@ -352,13 +353,13 @@ test('index Insee : premier chargement depuis 2015, puis mises à jour mensuelle
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });
   const A = env.ctx;
-  // 1) Premier chargement : historique depuis 2015-01, 2 requêtes groupées (30 + 27 séries)
+  // 1) Premier chargement : historique depuis 2015-01, 3 requêtes groupées (30 + 30 + 6 séries)
   let b = brut(A.Est_indicesMettreAJour());
   assert.ok(b.ok, b.erreur);
   const appels = A.UrlFetchApp.appels.filter((u) => /insee/.test(u));
-  assert.strictEqual(appels.length, 2);
+  assert.strictEqual(appels.length, 3);
   assert.ok(appels.every((u) => /startPeriod=2015-01/.test(u)));
-  assert.strictEqual(b.ajoutees, 57 * 141); // 141 mois de 2015-01 à 2026-09
+  assert.strictEqual(b.ajoutees, 66 * 141); // 141 mois de 2015-01 à 2026-09
   assert.strictEqual(b.derniers.BT01, '2026-09');
   assert.strictEqual(A.Est_derniereValeur_('BT01').qualite, 'provisoire');
   assert.strictEqual(A.Est_valeurIndice_('BT47', '2020-01').mois, '2020-01');
@@ -370,12 +371,12 @@ test('index Insee : premier chargement depuis 2015, puis mises à jour mensuelle
   b = brut(A.Est_indicesMettreAJour());
   assert.ok(A.UrlFetchApp.appels.every((u) => /lastNObservations=6/.test(u)));
   assert.strictEqual(b.ajoutees, 0);
-  assert.strictEqual(b.modifiees, 57);
+  assert.strictEqual(b.modifiees, 66);
   assert.strictEqual(A.Est_derniereValeur_('BT01').qualite, 'définitive');
   // 3) Parution d'un nouveau mois : une valeur par index, aucun doublon
   env2opts.inseeDernierMois = '2026-10';
   b = brut(A.Est_indicesMettreAJour());
-  assert.strictEqual(b.ajoutees, 57);
+  assert.strictEqual(b.ajoutees, 66);
   assert.strictEqual(A.Est_derniereValeur_('TP01').mois, '2026-10');
   const cles = A.Db_lire(A.EST_TABLES.INDICES_VALEURS).map((v) => v.cle);
   assert.strictEqual(new Set(cles).size, cles.length);
@@ -501,8 +502,32 @@ test('calcul : jamais d\'actualisation silencieuse', () => {
   assert.match(A.apiEstActualiser('100', '2024', 'ELE').erreur, /MM\/AAAA/);
 });
 
-test('calcul : coefficient K (produit ou somme, une modalité par facteur)', () => {
+test('calcul : kloc = kdép + kalt + kagg + klieu (méthode du 16/11/2026)', () => {
   const A = envCalcul();
+  assert.strictEqual(A.Est_param_('est.k_mode'), 'kloc');
+  const K = A.Db_lire(A.EST_TABLES.K);
+  const id = (f, m) => K.find((l) => l.facteur === f && l.modalite.indexOf(m) === 0).id;
+  // Tableau kdép (96 départements) : contrôles ponctuels
+  assert.strictEqual(K.filter((l) => l.facteur === 'kdép').length, 96);
+  assert.strictEqual(A.Est_kdepPour_('04').coefficient, 1.04);
+  assert.strictEqual(A.Est_kdepPour_('4').coefficient, 1.04);
+  assert.strictEqual(A.Est_kdepPour_('2a').coefficient, 1.03);
+  assert.strictEqual(A.Est_kdepPour_('2B').coefficient, 1.00);
+  assert.strictEqual(A.Est_kdepPour_('75').coefficient, 1.12);
+  assert.strictEqual(A.Est_kdepPour_('13').coefficient, 1.06);
+  assert.strictEqual(A.Est_kdepPour_('20'), null);
+  const dep04 = A.Est_kdepPour_('04').id;
+  const r = brut(A.Est_calculerK_([dep04, id('kalt', 'Altitude > 800'), id('kagg', '25 000 à 100 000 habitants (haut)'), id('klieu', 'Défavorables (+0,01)')]));
+  assert.strictEqual(r.mode, 'kloc');
+  assert.strictEqual(r.k, 1.12); // 1,04 + 0,05 + 0,02 + 0,01
+  assert.strictEqual(A.Est_calculerK_([dep04, id('klieu', 'Très favorables (−0,05)')]).k, 0.99);
+  assert.throws(() => A.Est_calculerK_([id('kalt', 'Altitude > 800')]), /choisissez le coefficient départemental \(kdép\)/);
+  assert.throws(() => A.Est_calculerK_([dep04, id('klieu', 'Normales'), id('klieu', 'Favorables (−0,01)')]), /Une seule modalité par facteur/);
+});
+
+test('calcul : coefficient K (modes produit et somme, une modalité par facteur)', () => {
+  const A = envCalcul();
+  A.Est_refModifier_('PARAMS', 'est.k_mode', { valeur: 'produit' });
   const k1 = A.Est_refAjouter_('K', { facteur: 'Localisation', modalite: 'Montagne', coefficient: '1,08' }).id;
   const k1b = A.Est_refAjouter_('K', { facteur: 'Localisation', modalite: 'Urbain dense', coefficient: '1,04' }).id;
   const k2 = A.Est_refAjouter_('K', { facteur: 'Contexte', modalite: 'Site occupé', coefficient: '1,05' }).id;
@@ -528,11 +553,17 @@ test('calcul : médiane et fourchette, aléas, TVA par zone, totaux, projection'
   assert.strictEqual(A.Est_tvaPour_('2a'), 10);
   const t = brut(A.Est_totaux_([{ total_ht: 600000 }, { total_ht: 400000 }], 10, 20));
   assert.deepStrictEqual(t, { ht: 1000000, aleas: 100000, htAleas: 1100000, tva: 220000, ttc: 1320000 });
-  // Projection : 18 mois à 3 %/an → 1,03^1,5
-  const p = brut(A.Est_projection_('2026-09', '2028-03', 3));
-  assert.strictEqual(p.mois, 18);
-  assert.strictEqual(Math.round(p.coef * 1e6) / 1e6, 1.045336);
+  // Projection (ta, note SID juin 2023) : taux mensuel = annuel / 12, par période
+  assert.strictEqual(A.Est_tauxProjection_(2025), 2.7);
+  assert.strictEqual(A.Est_tauxProjection_(2027), 5.1);
+  assert.strictEqual(A.Est_tauxProjection_(2031), 5.1); // « suite »
+  const p = brut(A.Est_projection_('2025-09', '2026-03'));
+  assert.strictEqual(p.mois, 6);
+  assert.deepStrictEqual(p.detail, [{ annee: 2025, taux: 2.7, mois: 3 }, { annee: 2026, taux: 5.1, mois: 3 }]);
+  assert.strictEqual(Math.round(p.coef * 1e6) / 1e6, 1.0195); // méthode simple : 1 + 3 × 0,225 % + 3 × 0,425 %
+  assert.strictEqual(Math.round(A.Est_projection_('2026-09', '2029-09').coef * 1e6) / 1e6, 1.153); // 36 mois × 0,425 %
   assert.strictEqual(A.Est_projection_('2026-09', '2028-03', 0).coef, 1);
+  assert.strictEqual(A.Est_projection_('2026-09', '', 3).coef, 1);
   // Lecture des mois
   assert.deepStrictEqual(['03/2024', '2024-3', '15/03/2024', 'mars'].map(A.Est_mois_), ['2024-03', '2024-03', '2024-03', '']);
 });

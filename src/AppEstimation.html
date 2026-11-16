@@ -77,7 +77,7 @@
     zone.innerHTML = bandeau +
       '<div class="actions-ligne"><button class="bouton" type="button" data-maj-indices>Mettre à jour les index</button>' +
       '<span class="legende">Source : API BDM de l\'Insee. Mise à jour automatique chaque mois ; les index paraissent 2 à 3 mois après le mois concerné.</span></div>' +
-      (etat ? calculette() : '') + table('BT', 'Index du bâtiment (BT)') + table('TP', 'Index des travaux publics (TP)');
+      (etat ? calculette() : '') + table('BT', 'Index du bâtiment (BT)') + table('TP', 'Index des travaux publics (TP)') + table('DIV', 'Index divers de la construction');
     brancherCalculette(zone);
 
     $('[data-maj-indices]', zone).addEventListener('click', function () {

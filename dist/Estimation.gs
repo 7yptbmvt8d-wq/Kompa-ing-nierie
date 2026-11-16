@@ -284,23 +284,70 @@ function Est_actualiser_(puM0, m0, options) {
 }
 
 /**
- * Projection facultative jusqu'à la date prévisionnelle des travaux (Q7), distincte de l'actualisation :
- * coef = (1 + taux annuel) ^ (mois entre l'index utilisé et les travaux / 12). Taux en %.
+ * Taux annuels de projection par période (paramètre est.projection_taux, note SID « taux prévisionnels
+ * d'évolution du coût des facteurs du bâtiment : projection du BT01 ») : « 2023-2025:2,70;2026-2028:5,10;suite:5,10 ».
+ * Renvoie le taux annuel (%) applicable à une année.
  */
-function Est_projection_(moisIndice, moisTravaux, tauxAnnuelPct) {
-  var a = Est_mois_(moisIndice), b = Est_mois_(moisTravaux);
-  var t = Number(tauxAnnuelPct) || 0;
-  if (!a || !b || !t) return { coef: 1, mois: 0, taux: t };
-  var n = Math.max(0, Est_ecartMois_(a, b));
-  return { coef: Math.pow(1 + t / 100, n / 12), mois: n, taux: t };
+function Est_tauxProjection_(annee, spec) {
+  var d = {};
+  String(spec === undefined ? Est_param_('est.projection_taux', '0') : spec).split(';').forEach(function (p) {
+    var i = p.indexOf(':');
+    if (i > 0) d[p.slice(0, i).trim()] = Number(p.slice(i + 1).trim().replace(',', '.')) || 0;
+    else if (p.trim()) d.suite = Number(p.trim().replace(',', '.')) || 0;
+  });
+  var taux = null;
+  Object.keys(d).forEach(function (k) {
+    var m = k.match(/^(\d{4})(?:-(\d{4}))?$/);
+    if (m && annee >= Number(m[1]) && annee <= Number(m[2] || m[1])) taux = d[k];
+  });
+  return taux !== null ? taux : (d.suite || 0);
 }
 
 /**
- * Coefficient K à partir des lignes choisies dans la table « Coefficient K » (une modalité par facteur).
+ * Projection facultative jusqu'à la date prévisionnelle des travaux (Q7), distincte de l'actualisation.
+ * Méthode simple (non composée, validée le 16/11/2026) : du mois suivant celui de l'index utilisé jusqu'au mois
+ * des travaux, on additionne le taux mensuel de chaque mois (taux annuel de l'année / 12, cf. note SID :
+ * 2,70 %/an = 0,225 %/mois) : coef = 1 + Σ taux mensuels.
+ * `taux` : nombre (% annuel constant) ou chaîne de périodes ; par défaut le paramètre est.projection_taux.
+ */
+function Est_projection_(moisIndice, moisTravaux, taux) {
+  var a = Est_mois_(moisIndice), b = Est_mois_(moisTravaux);
+  if (!a || !b) return { coef: 1, mois: 0, detail: [] };
+  var n = Math.max(0, Est_ecartMois_(a, b));
+  var coef = 1, annee = Number(a.slice(0, 4)), mois = Number(a.slice(5, 7)), detail = {};
+  for (var i = 0; i < n; i++) {
+    mois++; if (mois > 12) { mois = 1; annee++; }
+    var t = typeof taux === 'number' ? taux : Est_tauxProjection_(annee, taux);
+    coef += t / 12 / 100;
+    detail[annee] = detail[annee] || { annee: annee, taux: t, mois: 0 };
+    detail[annee].mois++;
+  }
+  return { coef: coef, mois: n, detail: Object.keys(detail).map(function (k) { return detail[k]; }) };
+}
+
+/** Facteur départemental de la méthode kloc ? (« kdép », « kdep »…) */
+function Est_estKdep_(facteur) {
+  return /^k\s*d[ée]p/i.test(String(facteur || ''));
+}
+
+/** Ligne kdép d'un département (« 04 — Alpes-de-Haute-Provence »), ou null. */
+function Est_kdepPour_(departement) {
+  var dep = String(departement || '').trim().toUpperCase();
+  if (/^\d$/.test(dep)) dep = '0' + dep;
+  return Db_lire(EST_TABLES.K).filter(function (l) {
+    return Est_estKdep_(l.facteur) && l.actif === 'oui' && String(l.modalite).split(' ')[0].toUpperCase() === dep;
+  })[0] || null;
+}
+
+/**
+ * Coefficient de localisation à partir des lignes choisies dans la table « Coefficient K » (une modalité par facteur).
+ * Mode « kloc » (méthode validée le 16/11/2026) : kloc = kdép + kalt + kagg + klieu — kdép obligatoire
+ *   (coefficient départemental « Métropole »), les autres facteurs sont des ajouts (+0,05, −0,02…).
  * Mode « produit » : K = Π ki ; mode « somme » : K = 1 + Σ (ki − 1). Renvoie { k, mode, detail }.
  */
 function Est_calculerK_(idsChoisis) {
-  var mode = Est_param_('est.k_mode', 'produit') === 'somme' ? 'somme' : 'produit';
+  var p = Est_param_('est.k_mode', 'kloc');
+  var mode = ['kloc', 'produit', 'somme'].indexOf(p) >= 0 ? p : 'kloc';
   var lignes = Db_lire(EST_TABLES.K);
   var vus = {};
   var detail = (idsChoisis || []).map(function (id) {
@@ -311,9 +358,18 @@ function Est_calculerK_(idsChoisis) {
     vus[l.facteur] = true;
     return { id: String(l.id), facteur: String(l.facteur), modalite: String(l.modalite), coefficient: Number(l.coefficient) };
   });
-  var k = mode === 'produit'
-    ? detail.reduce(function (p, d) { return p * d.coefficient; }, 1)
-    : 1 + detail.reduce(function (s, d) { return s + (d.coefficient - 1); }, 0);
+  var k;
+  if (mode === 'kloc') {
+    var dep = detail.filter(function (d) { return Est_estKdep_(d.facteur); });
+    if (!dep.length) throw new Error('kloc : choisissez le coefficient départemental (kdép).');
+    k = detail.reduce(function (s, d) { return s + d.coefficient; }, 0);
+  } else if (mode === 'produit') {
+    if (detail.some(function (d) { return !(d.coefficient > 0); })) throw new Error('Mode produit : coefficients supérieurs à 0 attendus.');
+    k = detail.reduce(function (p, d) { return p * d.coefficient; }, 1);
+  } else {
+    k = 1 + detail.reduce(function (s, d) { return s + (d.coefficient - 1); }, 0);
+  }
+  if (!(k > 0)) throw new Error('Coefficient de localisation nul ou négatif (' + Est_fr_(k, 4) + ') : vérifiez les valeurs.');
   return { k: Est_arrondi_(k, 4), mode: mode, detail: detail };
 }
 
@@ -571,12 +627,12 @@ var EST_PARAMS_DEFAUT = [
   ['est.aleas', 'Programme:15;APS:10;APD:7;DCE:5', 'Aléas et imprévus par phase, en % du total HT (ligne séparée dans l\'estimation)'],
   ['est.tva_defaut', '20', 'Taux de TVA par défaut (%), modifiable par estimation'],
   ['est.tva_zones', '2A:10;2B:10', 'Taux de TVA par département (département:taux). Corse : taux propre aux travaux immobiliers, à confirmer'],
-  ['est.k_mode', 'produit', 'Combinaison des facteurs K : « produit » (K = k1 × k2 × …) ou « somme » (K = 1 + Σ (ki − 1))'],
+  ['est.k_mode', 'kloc', 'Calcul du coefficient de localisation : « kloc » = kdép + kalt + kagg + klieu (méthode validée) ; autres : « produit » (Π ki), « somme » (1 + Σ (ki − 1))'],
   ['est.seuil_anonymat', '3', 'Nombre minimal de marchés pour afficher un ratio'],
   ['est.indice_neuf', 'BT01', 'Index par défaut d\'un lot de bâtiment sans index, en neuf'],
   ['est.indice_rehab', 'BT50', 'Index par défaut d\'un lot de bâtiment sans index, en réhabilitation'],
   ['est.indice_vrd', 'TP01', 'Index par défaut d\'un lot VRD sans index'],
-  ['est.projection_taux', '0', 'Taux annuel de projection jusqu\'à la date des travaux (%), 0 = actualisation seule'],
+  ['est.projection_taux', '2023-2025:2,70;2026-2028:5,10;suite:5,10', 'Taux prévisionnels d\'évolution du BT01 (% par an, par période) pour la projection jusqu\'à la date des travaux — note SID « projection du BT01 », édition juin 2023 ; « suite » = au-delà'],
   ['est.indices_jour', '20', 'Jour du mois de la mise à jour automatique des index Insee (parution au JO vers le 15)'],
   ['est.indices_depuis', '2015-01', 'Premier mois chargé lors de la première récupération d\'un index'],
   ['est.fiabilite', 'A:Prix de marché de moins de 3 ans, même région;B:Prix de marché plus ancien ou d\'une autre région;C:Ratio sur moins de 5 marchés ou saisie libre', 'Échelle de fiabilité des prix']
@@ -601,6 +657,129 @@ var EST_LOTS_DEFAUT = [
   ['ELE', 'Électricité', 'batiment', 'BT47', 150],
   ['ASC', 'Ascenseurs', 'batiment', 'BT48', 160],
   ['VRD', 'Voirie et réseaux divers', 'vrd', 'TP08', 170]
+];
+
+/**
+ * Coefficient de localisation kloc = kdép + kalt + kagg + klieu (méthode fournie le 16/11/2026).
+ * kdép (« Métropole », par département) : tableau en annexe de la méthode, fourni le 16/11/2026 (96 départements).
+ * [facteur, modalité, valeur]
+ */
+var EST_K_DEFAUT = [
+  // kdép « Métropole » par département (tableau fourni le 16/11/2026)
+  ['kdép', '01 — Ain', 1.06],
+  ['kdép', '02 — Aisne', 1.03],
+  ['kdép', '03 — Allier', 1.01],
+  ['kdép', '04 — Alpes-de-Haute-Provence', 1.04],
+  ['kdép', '05 — Hautes-Alpes', 1.03],
+  ['kdép', '06 — Alpes-Maritimes', 1.04],
+  ['kdép', '07 — Ardèche', 1.04],
+  ['kdép', '08 — Ardennes', 1.04],
+  ['kdép', '09 — Ariège', 1.01],
+  ['kdép', '10 — Aube', 1.03],
+  ['kdép', '11 — Aude', 1.01],
+  ['kdép', '12 — Aveyron', 1.03],
+  ['kdép', '13 — Bouches-du-Rhône', 1.06],
+  ['kdép', '14 — Calvados', 1.04],
+  ['kdép', '15 — Cantal', 1.00],
+  ['kdép', '16 — Charente', 1.01],
+  ['kdép', '17 — Charente-Maritime', 1.02],
+  ['kdép', '18 — Cher', 1.00],
+  ['kdép', '19 — Corrèze', 1.03],
+  ['kdép', '2A — Corse-du-Sud', 1.03],
+  ['kdép', '2B — Haute-Corse', 1.00],
+  ['kdép', '21 — Côte-d\'Or', 1.00],
+  ['kdép', '22 — Côtes-d\'Armor', 1.00],
+  ['kdép', '23 — Creuse', 1.04],
+  ['kdép', '24 — Dordogne', 1.04],
+  ['kdép', '25 — Doubs', 1.04],
+  ['kdép', '26 — Drôme', 1.05],
+  ['kdép', '27 — Eure', 1.06],
+  ['kdép', '28 — Eure-et-Loir', 1.08],
+  ['kdép', '29 — Finistère', 1.08],
+  ['kdép', '30 — Gard', 1.04],
+  ['kdép', '31 — Haute-Garonne', 1.04],
+  ['kdép', '32 — Gers', 1.00],
+  ['kdép', '33 — Gironde', 1.04],
+  ['kdép', '34 — Hérault', 1.03],
+  ['kdép', '35 — Ille-et-Vilaine', 1.04],
+  ['kdép', '36 — Indre', 1.02],
+  ['kdép', '37 — Indre-et-Loire', 1.04],
+  ['kdép', '38 — Isère', 1.06],
+  ['kdép', '39 — Jura', 1.02],
+  ['kdép', '40 — Landes', 1.01],
+  ['kdép', '41 — Loir-et-Cher', 1.03],
+  ['kdép', '42 — Loire', 1.06],
+  ['kdép', '43 — Haute-Loire', 1.01],
+  ['kdép', '44 — Loire-Atlantique', 1.04],
+  ['kdép', '45 — Loiret', 1.04],
+  ['kdép', '46 — Lot', 1.01],
+  ['kdép', '47 — Lot-et-Garonne', 1.01],
+  ['kdép', '48 — Lozère', 1.00],
+  ['kdép', '49 — Maine-et-Loire', 1.03],
+  ['kdép', '50 — Manche', 1.01],
+  ['kdép', '51 — Marne', 1.03],
+  ['kdép', '52 — Haute-Marne', 1.02],
+  ['kdép', '53 — Mayenne', 1.03],
+  ['kdép', '54 — Meurthe-et-Moselle', 1.07],
+  ['kdép', '55 — Meuse', 1.04],
+  ['kdép', '56 — Morbihan', 1.04],
+  ['kdép', '57 — Moselle', 1.06],
+  ['kdép', '58 — Nièvre', 1.00],
+  ['kdép', '59 — Nord', 1.07],
+  ['kdép', '60 — Oise', 1.07],
+  ['kdép', '61 — Orne', 1.02],
+  ['kdép', '62 — Pas-de-Calais', 1.06],
+  ['kdép', '63 — Puy-de-Dôme', 1.02],
+  ['kdép', '64 — Pyrénées-Atlantiques', 1.02],
+  ['kdép', '65 — Hautes-Pyrénées', 1.01],
+  ['kdép', '66 — Pyrénées-Orientales', 1.01],
+  ['kdép', '67 — Bas-Rhin', 1.02],
+  ['kdép', '68 — Haut-Rhin', 1.03],
+  ['kdép', '69 — Rhône', 1.04],
+  ['kdép', '70 — Haute-Saône', 1.01],
+  ['kdép', '71 — Saône-et-Loire', 1.04],
+  ['kdép', '72 — Sarthe', 1.04],
+  ['kdép', '73 — Savoie', 1.06],
+  ['kdép', '74 — Haute-Savoie', 1.04],
+  ['kdép', '75 — Paris', 1.12],
+  ['kdép', '76 — Seine-Maritime', 1.04],
+  ['kdép', '77 — Seine-et-Marne', 1.08],
+  ['kdép', '78 — Yvelines', 1.08],
+  ['kdép', '79 — Deux-Sèvres', 1.01],
+  ['kdép', '80 — Somme', 1.05],
+  ['kdép', '81 — Tarn', 1.02],
+  ['kdép', '82 — Tarn-et-Garonne', 1.01],
+  ['kdép', '83 — Var', 1.04],
+  ['kdép', '84 — Vaucluse', 1.03],
+  ['kdép', '85 — Vendée', 1.01],
+  ['kdép', '86 — Vienne', 1.02],
+  ['kdép', '87 — Haute-Vienne', 1.04],
+  ['kdép', '88 — Vosges', 1.05],
+  ['kdép', '89 — Yonne', 1.05],
+  ['kdép', '90 — Territoire de Belfort', 1.02],
+  ['kdép', '91 — Essonne', 1.08],
+  ['kdép', '92 — Hauts-de-Seine', 1.12],
+  ['kdép', '93 — Seine-Saint-Denis', 1.12],
+  ['kdép', '94 — Val-de-Marne', 1.12],
+  ['kdép', '95 — Val-d\'Oise', 1.08],
+  ['kalt', 'Altitude ≤ 800 m NGF', 0],
+  ['kalt', 'Altitude > 800 m NGF', 0.05],
+  ['kagg', 'Moins de 25 000 habitants', 0],
+  ['kagg', '25 000 à 100 000 habitants (bas)', 0.01],
+  ['kagg', '25 000 à 100 000 habitants (haut)', 0.02],
+  ['kagg', '100 000 habitants et plus', 0.03],
+  ['kagg', 'Plus de 500 000 habitants, Paris et sa région', 0.04],
+  ['klieu', 'Très favorables (−0,05)', -0.05],
+  ['klieu', 'Très favorables (−0,04)', -0.04],
+  ['klieu', 'Très favorables (−0,03)', -0.03],
+  ['klieu', 'Favorables (−0,02)', -0.02],
+  ['klieu', 'Favorables (−0,01)', -0.01],
+  ['klieu', 'Normales', 0],
+  ['klieu', 'Défavorables (+0,01)', 0.01],
+  ['klieu', 'Défavorables (+0,02)', 0.02],
+  ['klieu', 'Très défavorables (+0,03)', 0.03],
+  ['klieu', 'Très défavorables (+0,04)', 0.04],
+  ['klieu', 'Très défavorables (+0,05)', 0.05]
 ];
 
 /** Typologies (§ 5.3 Q2). [code, libellé, unité de référence, ordre] */
@@ -633,8 +812,26 @@ function Est_initialiserReferentiels_() {
     }),
     typologies: ajouter(EST_TABLES.TYPOLOGIES, EST_TYPOLOGIES_DEFAUT, function (d) {
       return { code: d[0], libelle: d[1], unite_ref: d[2], ordre: d[3], actif: 'oui' };
-    })
+    }),
+    k: Est_initialiserK_()
   };
+}
+
+/**
+ * Valeurs kalt, kagg, klieu de la méthode kloc, ajoutées si la modalité est absente (comparaison facteur + modalité).
+ * Migration : installation antérieure restée sur les réglages d'origine (mode « produit », projection « 0 ») → méthode validée.
+ */
+function Est_initialiserK_() {
+  var existants = {};
+  var lignes = Db_lire(EST_TABLES.K);
+  lignes.forEach(function (l) { existants[l.facteur + '|' + l.modalite] = true; });
+  var nouveaux = EST_K_DEFAUT.filter(function (d) { return !existants[d[0] + '|' + d[1]]; }).map(function (d) {
+    return { facteur: d[0], modalite: d[1], coefficient: d[2], actif: 'oui', commentaire: 'Méthode kloc' };
+  });
+  if (String(Est_param_('est.k_mode', '')) === 'produit' && !lignes.length) Db_maj(EST_TABLES.PARAMS, 'est.k_mode', { valeur: 'kloc' });
+  if (String(Est_param_('est.projection_taux', '')) === '0') Db_maj(EST_TABLES.PARAMS, 'est.projection_taux', { valeur: EST_PARAMS_DEFAUT.filter(function (p) { return p[0] === 'est.projection_taux'; })[0][1] });
+  Db_insererPlusieurs(EST_TABLES.K, nouveaux);
+  return nouveaux.length;
 }
 
 // ——— Paramètres du module ———
@@ -687,7 +884,7 @@ var EST_REFERENTIELS = {
       ['mots_cles', 'Mots-clés', 'texte'], ['actif', 'Active', 'oui_non']]
   },
   K: {
-    titre: 'Coefficient K', aide: 'Facteurs de localisation et de contexte. Combinaison selon le paramètre est.k_mode. Votre méthode sera paramétrée ici.',
+    titre: 'Coefficient de localisation (kloc)', aide: 'kloc = kdép + kalt + kagg + klieu. Une modalité par facteur ; kdép (coefficient départemental « Métropole ») est obligatoire : saisir une ligne par département avec le facteur « kdép ». kalt, kagg et klieu sont des ajouts (0,05 = +0,05).',
     colonnes: [['facteur', 'Facteur', 'texte'], ['modalite', 'Modalité', 'texte'], ['coefficient', 'Coefficient', 'nombre'],
       ['actif', 'Actif', 'oui_non'], ['commentaire', 'Commentaire', 'texte']]
   },
@@ -721,7 +918,7 @@ function Est_validerRef_(nom, champs, creation) {
       if (v === '') { out[col] = ''; return; }
       var n = Number(v.replace(/\s/g, '').replace(',', '.'));
       if (!isFinite(n)) throw new Error(c[1] + ' : nombre attendu.');
-      if (col === 'coefficient' && !(n > 0)) throw new Error('Coefficient : nombre supérieur à 0 attendu (ex. 1,05).');
+      if (col === 'coefficient' && !(n > -1 && n <= 3)) throw new Error('Coefficient : valeur entre −1 et 3 attendue (ex. 0,98 pour kdép, +0,05 pour kalt).');
       out[col] = n; return;
     } else if (type === 'oui_non') {
       v = /^(non|n|0|false)$/i.test(v) ? 'non' : 'oui';
@@ -770,7 +967,7 @@ function Est_refModifier_(nom, cle, champs) {
 
 /**
  * Module Estimation — séries Insee des index BT (bâtiment) et TP (travaux publics), base 2010.
- * Identifiants (idbank) relevés le 15/11/2026 sur l'API BDM de l'Insee :
+ * Identifiants (idbank) relevés les 15 et 16/11/2026 sur l'API BDM de l'Insee (liste du SID fournie le 16/11) :
  *   https://bdm.insee.fr/series/sdmx/data/SERIES_BDM/{idbank}
  * Chargées dans l'onglet « Index Insee » par installer() ; ajout d'un autre index : une ligne dans cet onglet.
  * [code, idbank, libellé, famille, série arrêtée]
@@ -812,6 +1009,8 @@ var EST_SERIES_INSEE = [
   ["BT51", "001710983", "Menuiseries PVC", "BT", "non"],
   ["BT52", "001710984", "Imperméabilité de façades", "BT", "non"],
   ["BT53", "001710985", "Étanchéité", "BT", "non"],
+  ["BT54", "001711942", "Ossature bois", "BT", "non"],
+  ["BT55", "011818304", "Isolation thermique par l'extérieur - Enduit sur isolant", "BT", "non"],
   ["TP01", "001711007", "Index général tous travaux", "TP", "non"],
   ["TP02", "001710987", "Travaux de génie civil et d'ouvrages d'art neufs ou rénovation", "TP", "non"],
   ["TP03a", "001710988", "Grands terrassements", "TP", "non"],
@@ -827,10 +1026,17 @@ var EST_SERIES_INSEE = [
   ["TP10a", "001710998", "Canalisations, assainissement et adduction d'eau avec fourniture de tuyaux", "TP", "oui"],
   ["TP10b", "001710999", "Canalisations sans fourniture de tuyaux", "TP", "non"],
   ["TP10c", "001711000", "Réhabilitation de canalisations non visitables", "TP", "non"],
+  ["TP10d", "010605983", "Réseaux de chauffage et de froid avec fourniture de tuyaux", "TP", "non"],
+  ["TP10e", "010777525", "Canalisations, assainissement et adduction d'eau avec fourniture de tuyaux en fonte majoritaire", "TP", "non"],
+  ["TP10f", "010777582", "Canalisations, assainissement et adduction d'eau avec fourniture de tuyaux multi-matériaux", "TP", "non"],
   ["TP11", "001711001", "Canalisations grandes distances de transport / transfert avec fourniture de tuyaux", "TP", "non"],
   ["TP12a", "001711002", "Réseaux d'énergie et de communication hors fibre optique", "TP", "non"],
   ["TP12b", "001711003", "Éclairage public - Travaux d'installation", "TP", "non"],
   ["TP12c", "001711004", "Éclairage public - Travaux de maintenance", "TP", "non"],
+  ["TP12d", "001796841", "Réseaux de communication en fibre optique", "TP", "non"],
   ["TP13", "001711005", "Charpentes et ouvrages d'art métalliques", "TP", "oui"],
-  ["TP14", "001711006", "Travaux immergés par scaphandriers", "TP", "oui"]
+  ["TP13a", "010777583", "Charpentes et ouvrages d'art métalliques", "TP", "non"],
+  ["TP13b", "010777526", "Charpentes et ouvrages d'art métalliques hors fourniture des aciers", "TP", "non"],
+  ["TP14", "001711006", "Travaux immergés par scaphandriers", "TP", "oui"],
+  ["ING", "001711010", "Ingénierie (index divers de la construction)", "DIV", "non"]
 ];
