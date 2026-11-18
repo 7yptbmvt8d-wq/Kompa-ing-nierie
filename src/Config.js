@@ -94,6 +94,14 @@ var TABLES = {
     colonnes: ['id', 'id_affaire', 'categorie', 'libelle', 'etat', 'ordre', 'commentaire'],
     nombres: ['ordre']
   },
+  LIVRABLES: {
+    onglet: 'Livrables',
+    cle: 'id',
+    prefixe: 'LV',
+    colonnes: ['id', 'id_affaire', 'tranche', 'libelle', 'date_echeance', 'etat', 'indice', 'lien', 'ordre', 'commentaire'],
+    nombres: ['ordre'],
+    texteBrut: ['tranche', 'indice']
+  },
   CRITERES: {
     onglet: 'Critères',
     cle: 'id',

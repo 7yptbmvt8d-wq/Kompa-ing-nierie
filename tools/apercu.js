@@ -202,6 +202,25 @@ function assembler() {
   await p.click('form[data-note] button[type=submit]');
   await p.waitForSelector('.notes:has-text("Offre déposée sur la plateforme.")');
 
+  // Affaire gagnée : la fiche s'ouvre sur Mission › Livrables
+  await p.click('a[href="#affaires"]');
+  await p.click('[data-vue="liste"]');
+  await p.click(`[data-ouvrir="${w1}"]`);
+  await p.waitForSelector('[data-sous="livrables"][aria-selected="true"]');
+  await p.fill('#ajout-liv-tranche', 'TF');
+  await p.fill('#ajout-liv-lib', 'Rapport de faisabilité');
+  await p.fill('#ajout-liv-date', '2026-12-04');
+  await p.click('[data-ajout-livrable] button[type=submit]');
+  await p.waitForSelector('#livrables tr[data-livrable]');
+  await p.fill('#ajout-liv-tranche', 'TF');
+  await p.fill('#ajout-liv-lib', 'Note de présentation aux élus');
+  await p.click('[data-ajout-livrable] button[type=submit]');
+  await p.waitForFunction(() => document.querySelectorAll('#livrables tr[data-livrable]').length === 2);
+  await p.waitForSelector('.synthese:has-text("Remettre : Rapport de faisabilité")');
+  await p.screenshot({ path: path.join(sortie, 'pc-fiche-mission-livrables.png'), fullPage: true });
+  await p.click('[data-sous="facturation"]');
+  await p.waitForSelector('#p-facturation:not([hidden])');
+
   // ——— Lot 3 : Veille ———
   await p.click('nav a[href="#veille"]');
   await p.waitForSelector('[data-action="collecter"]');

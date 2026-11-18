@@ -216,6 +216,7 @@ function Affaires_fiche(id) {
     factures: factures,
     relances: Db_lire(TABLES.RELANCES).filter(filtre),
     pieces: PiecesOffre_lister(id),
+    livrables: Livrables_lister(id),
     totaux: {
       facture: arrondi_(facture),
       encaisse: arrondi_(encaisse),

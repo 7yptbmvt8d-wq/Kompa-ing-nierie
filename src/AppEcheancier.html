@@ -8,7 +8,7 @@
 
   var CLASSES_TYPE = {
     'Remise': 'ech--remise', 'Questions': 'ech--secondaire', 'Visite': 'ech--secondaire',
-    'Décision': 'ech--attente', 'Facturation': 'ech--argent', 'Encaissement': 'ech--argent'
+    'Décision': 'ech--attente', 'Facturation': 'ech--argent', 'Encaissement': 'ech--argent', 'Livrable': 'ech--livrable'
   };
   var NOMS_MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
@@ -86,7 +86,7 @@
       '<button type="button" class="bouton bouton--discret" data-mois="1" aria-label="Mois suivant">›</button></div></div>' +
       '<div class="cal"><div class="cal-entete">' + ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'].map(function (j) { return '<div>' + j + '</div>'; }).join('') + '</div>' +
       '<div class="cal-grille">' + cases.join('') + '</div></div>' +
-      '<p class="legende cle-cal"><span class="ech ech--remise">Remise</span> <span class="ech ech--secondaire">Questions, visite</span> <span class="ech ech--attente">Décision attendue</span> <span class="ech ech--argent">Facturation, encaissement</span></p>';
+      '<p class="legende cle-cal"><span class="ech ech--remise">Remise</span> <span class="ech ech--secondaire">Questions, visite</span> <span class="ech ech--attente">Décision attendue</span> <span class="ech ech--argent">Facturation, encaissement</span> <span class="ech ech--livrable">Livrable de mission</span></p>';
   }
 
   function blocListe(r) {

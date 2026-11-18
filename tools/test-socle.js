@@ -18,7 +18,7 @@ test('installer() crée le classeur, les 11 onglets et supprime la feuille par d
   const ss = Object.values(env.classeurs)[0];
   assert.strictEqual(ss.getName(), 'Kompa Affaires — données');
   const noms = ss.getSheets().map((f) => f.getName());
-  assert.deepStrictEqual(noms, ['Avis', 'Affaires', 'Historique', 'Pièces de l\'offre', 'Critères', 'Factures', 'Relances', 'Acheteurs', 'Paramètres', 'Déclarations', 'Journal moteur', 'Avis archivés']);
+  assert.deepStrictEqual(noms, ['Avis', 'Affaires', 'Historique', 'Pièces de l\'offre', 'Livrables', 'Critères', 'Factures', 'Relances', 'Acheteurs', 'Paramètres', 'Déclarations', 'Journal moteur', 'Avis archivés']);
   assert.ok(rapport.parametresAjoutes > 40);
   assert.deepStrictEqual(brut(rapport.declencheurs), ['sauvegardeHebdo', 'collecteQuotidienne', 'envoyerEmailMatin', 'estIndicesMensuel']);
 });
@@ -99,7 +99,7 @@ test('apiEtat renvoie l\'état du classeur, sérialisable', () => {
   env.ctx.installer({ exercice: false });
   const r = env.ctx.apiEtat();
   assert.ok(r.ok, r.erreur);
-  assert.strictEqual(r.data.onglets.length, 22); // 12 onglets du suivi + 10 du module Estimation
+  assert.strictEqual(r.data.onglets.length, 23); // 13 onglets du suivi + 10 du module Estimation
   assert.ok(r.data.onglets.every((o) => o.present));
   assert.strictEqual(r.data.onglets.find((o) => o.nom === 'Paramètres').lignes, env.ctx.PARAMETRES_DEFAUT.length);
 });
@@ -240,6 +240,46 @@ test('pièces de l\'offre : liste type, ajout, état, retrait, contrôle, passag
   assert.strictEqual(f.piecesResume.aFaire, 5);
 });
 
+test('livrables de mission : ajout, contrôles, état, échéancier et e-mail, synthèse', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const id = A.Affaires_creer({ acheteur: 'Commune de Digne-les-Bains', objet: 'AMO programmation cantine' }).id;
+  A.Affaires_changerStatut(id, 'Go', {});
+  A.Affaires_changerStatut(id, 'Déposée', { montant_ht: 40800, jours_reponse: 4 });
+  A.Affaires_changerStatut(id, 'Gagnée', { date_notification: '2026-11-10', montant_notifie: 40800 });
+  const ok = (r) => { assert.ok(r.ok, r.erreur); return brut(r.data); };
+  let f = ok(A.apiLivrableAjouter(id, { tranche: 'tf', libelle: 'Rapport de diagnostic', date_echeance: '2026-11-20' }));
+  f = ok(A.apiLivrableAjouter(id, { tranche: 'TF', libelle: 'Plan de phasage détaillé', date_echeance: '2026-11-12' }));
+  f = ok(A.apiLivrableAjouter(id, { tranche: 'TO1', libelle: 'Programme fonctionnel et technique' }));
+  assert.deepStrictEqual(f.livrables.map((l) => l.libelle), ['Plan de phasage détaillé', 'Rapport de diagnostic', 'Programme fonctionnel et technique']); // par échéance, sans date à la fin
+  assert.strictEqual(f.livrables[1].tranche, 'TF');
+  assert.match(A.apiLivrableAjouter(id, { libelle: '' }).erreur, /obligatoire/);
+  assert.match(A.apiLivrableMaj(id, f.livrables[0].id, { etat: 'perdu' }).erreur, /État attendu/);
+  assert.match(A.apiLivrableMaj(id, f.livrables[0].id, { lien: 'ftp://x' }).erreur, /https:\/\//);
+  assert.match(A.apiLivrableMaj(id, f.livrables[0].id, { date_echeance: 'demain' }).erreur, /date attendue/);
+  // Synthèse : prochain livrable à remettre
+  assert.deepStrictEqual(f.livrablesResume, { total: 3, valides: 0, remis: 0, prochain: { libelle: 'Plan de phasage détaillé', tranche: 'TF', date: '2026-11-12' } });
+  // Échéancier : livrables à remettre (le plan de phasage est en retard au 18/11)
+  const quand = new Date(2026, 10, 18, 7);
+  let ech = brut(A.Echeances_calculer(new Date(2026, 10, 18), new Date(2026, 11, 31), quand)).filter((e) => e.type === 'Livrable');
+  assert.deepStrictEqual(ech.map((e) => [e.libelle, e.jours, e.depassee]), [
+    ['Livrable à remettre : Plan de phasage détaillé (TF)', -6, true],
+    ['Livrable à remettre : Rapport de diagnostic (TF)', 2, false]]);
+  assert.match(A.Email_construire(quand).html, /Livrable à remettre : Rapport de diagnostic \(TF\)/);
+  // Remis, puis validé : plus d'échéance
+  f = ok(A.apiLivrableMaj(id, f.livrables[0].id, { etat: 'remis', indice: 'a', lien: 'https://drive.google.com/file/d/x' }));
+  f = ok(A.apiLivrableMaj(id, f.livrables.find((l) => l.libelle === 'Rapport de diagnostic').id, { etat: 'validé' }));
+  assert.strictEqual(f.livrables[0].indice, 'A');
+  assert.deepStrictEqual([f.livrablesResume.remis, f.livrablesResume.valides], [2, 1]);
+  assert.strictEqual(f.livrablesResume.prochain.libelle, 'Programme fonctionnel et technique');
+  ech = brut(A.Echeances_calculer(new Date(2026, 10, 18), new Date(2026, 11, 31), quand)).filter((e) => e.type === 'Livrable');
+  assert.strictEqual(ech.length, 0);
+  // Retrait
+  f = ok(A.apiLivrableSupprimer(id, f.livrables[2].id));
+  assert.strictEqual(f.livrables.length, 2);
+});
+
 // ——— Module Estimation, étape 0 : deux classeurs, deux fichiers ———
 
 test('estimation (étape 0) : installer() crée aussi le classeur « Kompa Estimation — données »', () => {
@@ -356,7 +396,7 @@ test('estimation (étape 1) : écran Estimation et onglet de la fiche affaire', 
   assert.strictEqual(acc.estimations[0].acheteur, 'Commune de Digne-les-Bains');
   assert.strictEqual(A.apiEstAffaire(id).data.length, 1);
   assert.strictEqual(A.apiEstAffaire('KA-2099-999').data.length, 0);
-  assert.strictEqual(A.apiEtat().data.onglets.length, 12 + 10);
+  assert.strictEqual(A.apiEtat().data.onglets.length, 13 + 10);
 });
 
 // ——— Module Estimation, étape 2 : index Insee ———
@@ -1316,7 +1356,7 @@ test('fluidité : l\'accueil en un seul appel', () => {
   const r = brut(env.ctx.apiAccueil());
   assert.ok(r.ok, r.erreur);
   assert.deepStrictEqual(Object.keys(r.data).sort(), ['ca', 'etat', 'fiscal', 'suivi', 'tableau']);
-  assert.strictEqual(r.data.etat.onglets.length, 22); // 12 onglets du suivi + 10 du module Estimation
+  assert.strictEqual(r.data.etat.onglets.length, 23); // 13 onglets du suivi + 10 du module Estimation
 });
 
 test('fluidité : relances recalculées après un changement de statut, pas à la lecture', () => {

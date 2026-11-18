@@ -79,6 +79,13 @@ function Echeances_calculer(debut, fin, quand) {
 
   var affaires = {};
   Affaires_lister().forEach(function (a) { affaires[a.id] = a; });
+  // Livrables de mission à remettre (affaires gagnées)
+  Db_lire(TABLES.LIVRABLES).forEach(function (l) {
+    var a = affaires[l.id_affaire];
+    if (!a || a.statut !== 'Gagnée' || (l.etat !== 'à faire' && l.etat !== 'en cours')) return;
+    ajouter(date_(l.date_echeance), 'Livrable', 'Livrable à remettre : ' + l.libelle + (l.tranche ? ' (' + l.tranche + ')' : ''), a,
+      { siDepassee: true, id_livrable: l.id });
+  });
   Db_lire(TABLES.FACTURES).forEach(function (f) {
     var a = affaires[f.id_affaire] || { id: f.id_affaire, acheteur: '', objet: '' };
     if (Factures_prevue_(f, auj)) {

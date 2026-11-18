@@ -428,6 +428,18 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .ajout-piece { display: flex; gap: var(--kompa-s2); flex-wrap: wrap; margin-top: var(--kompa-s3); }
 .ajout-piece select { width: auto; }
 .ajout-piece input { flex: 1 1 18rem; min-width: 0; }
+
+/* Livrables de la mission */
+.ech--livrable { background: #FFF1E8; color: var(--kompa-rouille); }
+.table-livrables td { vertical-align: middle; }
+.table-livrables input[data-lc="libelle"] { min-width: 16rem; }
+.table-livrables input[data-lc="tranche"], .table-livrables input[data-lc="indice"] { width: 4.5rem; }
+.table-livrables .jours { display: block; margin-top: 2px; }
+.table-livrables .est-retard { color: var(--app-statut-perdue); font-weight: 600; }
+.cellule-lien { display: flex; gap: var(--kompa-s2); align-items: center; }
+.cellule-lien input { min-width: 10rem; }
+.ajout-piece #ajout-liv-tranche { flex: 0 0 5rem; }
+.ajout-piece #ajout-liv-date { flex: 0 0 auto; width: auto; }
 </style>
 </head>
 <body>
@@ -1159,7 +1171,13 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
     };
     var action = relance ? esc(relance.type) + ' <span class="jours">' + jour(relance.date_prevue) + '</span>' : esc(actions[s] || '');
     var avancement;
-    if (EN_MISSION.indexOf(s) >= 0) avancement = ['Facturé', K.euros(f.totaux.facture) + (a.montant_notifie ? ' <span class="jours">/ ' + K.euros(a.montant_notifie) + '</span>' : '')];
+    var lr = f.livrablesResume || { total: 0 };
+    if (s === 'Gagnée' && lr.prochain) {
+      action = 'Remettre : ' + esc(lr.prochain.libelle) + (lr.prochain.tranche ? ' <span class="jours">' + esc(lr.prochain.tranche) + '</span>' : '');
+      if (lr.prochain.date) ech = ['Livrable', lr.prochain.date];
+    }
+    if (EN_MISSION.indexOf(s) >= 0 && lr.total) avancement = ['Livrables', lr.valides + ' validé' + (lr.valides > 1 ? 's' : '') + ' sur ' + lr.total + ' <span class="jours">· ' + lr.remis + ' remis</span>'];
+    else if (EN_MISSION.indexOf(s) >= 0) avancement = ['Facturé', K.euros(f.totaux.facture) + (a.montant_notifie ? ' <span class="jours">/ ' + K.euros(a.montant_notifie) + '</span>' : '')];
     else if (s === 'Déposée' || s === 'Perdue' || s === 'Sans suite') avancement = ['Offre', a.montant_ht ? K.euros(a.montant_ht) + ' HT' : '—'];
     else if ((s === 'Go' || s === 'Abandonnée') && f.piecesResume && f.piecesResume.total) avancement = ['Pièces de l\'offre', f.piecesResume.pretes + ' sur ' + f.piecesResume.total + ' prêtes'];
     else if (s === 'Go' || s === 'Abandonnée') avancement = ['Offre en préparation', a.montant_ht ? K.euros(a.montant_ht) + ' HT' : (a.prix_jour ? K.euros(a.prix_jour) + ' / jour' : 'montant à chiffrer')];
@@ -1211,9 +1229,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
       consultation: function () { return formBloc('identification') + formBloc('echeances') + formBloc('decision'); },
       offre: function () { return blocPiecesOffre(f) + formBloc('offre'); },
       resultat: function () { return formBloc('resultat') + '<section class="fiche-bloc">' + tableCriteres(f.criteres) + '</section>' + formBloc('enseignements'); },
-      livrables: function () {
-        return '<section class="fiche-bloc"><h2 class="fiche-bloc__titre">Livrables</h2><p class="vide">Le suivi des livrables par tranche (échéance, état, indice, fichier) arrive avec la prochaine étape.</p></section>';
-      },
+      livrables: function () { return blocLivrables(f); },
       estimations: function () { return '<section class="fiche-bloc"><h2 class="fiche-bloc__titre">Estimations des travaux</h2><div data-estimations><div class="chargement">Lecture des estimations…</div></div></section>'; },
       facturation: function () { return formBloc('execution') + '<section class="fiche-bloc">' + tableFactures(f) + '</section>'; }
     };
@@ -1244,6 +1260,63 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
     chargerPieces(el, a);
     var zoneEst = $('[data-estimations]', el);
     if (zoneEst && K.estimationsAffaire) K.estimationsAffaire(zoneEst, a.id);
+  }
+
+  // ——— Livrables de la mission ———
+  var ETATS_LIVRABLE = ['à faire', 'en cours', 'remis', 'validé'];
+  var CLASSES_LIVRABLE = { 'à faire': 'etat-afaire', 'en cours': 'etat-encours', 'remis': 'etat-deposee', 'validé': 'etat-prete' };
+
+  function blocLivrables(f) {
+    var lignes = (f.livrables || []).map(function (l) {
+      var j = l.date_echeance && (l.etat === 'à faire' || l.etat === 'en cours') ? joursAvant(l.date_echeance) : null;
+      return '<tr data-livrable="' + esc(l.id) + '">' +
+        '<td><input class="champ mono" data-lc="tranche" value="' + esc(l.tranche) + '" aria-label="Tranche" size="5"></td>' +
+        '<td><input class="champ" data-lc="libelle" value="' + esc(l.libelle) + '" aria-label="Livrable"></td>' +
+        '<td><input class="champ mono" type="date" data-lc="date_echeance" value="' + esc(String(l.date_echeance || '').slice(0, 10)) + '" aria-label="Échéance">' +
+          (j !== null ? '<span class="jours' + (j < 0 ? ' est-retard' : '') + '">' + (j < 0 ? 'retard ' + (-j) + ' j' : j === 0 ? 'aujourd\'hui' : 'J-' + j) + '</span>' : '') + '</td>' +
+        '<td><select class="champ etat-piece ' + (CLASSES_LIVRABLE[l.etat] || '') + '" data-lc="etat" aria-label="État">' +
+          ETATS_LIVRABLE.map(function (e) { return '<option' + (e === l.etat ? ' selected' : '') + '>' + e + '</option>'; }).join('') + '</select></td>' +
+        '<td><input class="champ mono" data-lc="indice" value="' + esc(l.indice) + '" aria-label="Indice" size="2" placeholder="A"></td>' +
+        '<td><div class="cellule-lien"><input class="champ" type="url" data-lc="lien" value="' + esc(l.lien) + '" aria-label="Lien vers le fichier" placeholder="https://drive…">' +
+          (l.lien ? '<a href="' + esc(l.lien) + '" target="_blank" rel="noopener" data-externe>Ouvrir</a>' : '') + '</div></td>' +
+        '<td><button type="button" class="bouton bouton--discret bouton--petit" data-suppr-livrable aria-label="Retirer « ' + esc(l.libelle) + ' »">Retirer</button></td></tr>';
+    }).join('');
+    return '<section class="fiche-bloc" id="livrables"><h2 class="fiche-bloc__titre">Livrables par tranche</h2>' +
+      ((f.livrables || []).length
+        ? '<div class="tableau-conteneur"><table class="table-livrables"><thead><tr><th scope="col">Tranche</th><th scope="col">Livrable</th><th scope="col">Échéance</th><th scope="col">État</th><th scope="col">Indice</th><th scope="col">Fichier</th><th scope="col"><span class="seul-lecteur">Action</span></th></tr></thead><tbody>' + lignes + '</tbody></table></div>'
+        : '<p class="vide">Aucun livrable. Ajoutez ceux du CCTP (article « Livrables »), avec leur date de remise contractuelle.</p>') +
+      '<p class="legende">Les échéances des livrables à faire ou en cours apparaissent dans l\'Échéancier et l\'e-mail du matin. Modification enregistrée dès que vous quittez le champ.</p>' +
+      '<form class="ajout-piece" data-ajout-livrable novalidate>' +
+        '<input class="champ mono" id="ajout-liv-tranche" placeholder="TF" aria-label="Tranche" size="5">' +
+        '<input class="champ" id="ajout-liv-lib" placeholder="ex. Rapport de diagnostic" aria-label="Intitulé du livrable">' +
+        '<input class="champ mono" type="date" id="ajout-liv-date" aria-label="Échéance">' +
+        '<button type="submit" class="bouton bouton--discret">Ajouter</button></form></section>';
+  }
+
+  function brancherLivrables(el, f, recharger) {
+    var a = f.affaire, zone = $('#livrables', el);
+    if (!zone) return;
+    var appel = function (nom, args, message) {
+      return K.appel.apply(null, [nom, a.id].concat(args)).then(function (fiche) { if (message) K.toast(message); recharger(fiche); })
+        .catch(function (e) { K.toast(e.message, true); recharger(f); });
+    };
+    $$('[data-livrable]', zone).forEach(function (tr) {
+      $$('[data-lc]', tr).forEach(function (champ) {
+        var initial = champ.value;
+        champ.addEventListener('change', function () {
+          if (champ.value === initial) return;
+          var o = {}; o[champ.getAttribute('data-lc')] = champ.value;
+          appel('apiLivrableMaj', [tr.getAttribute('data-livrable'), o], 'Livrable enregistré.');
+        });
+      });
+      $('[data-suppr-livrable]', tr).addEventListener('click', function () { appel('apiLivrableSupprimer', [tr.getAttribute('data-livrable')], 'Livrable retiré.'); });
+    });
+    $('[data-ajout-livrable]', zone).addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var lib = $('#ajout-liv-lib', zone).value.trim();
+      if (!lib) { K.toast('Intitulé du livrable obligatoire.', true); return; }
+      appel('apiLivrableAjouter', [{ tranche: $('#ajout-liv-tranche', zone).value, libelle: lib, date_echeance: $('#ajout-liv-date', zone).value }], 'Livrable ajouté.');
+    });
   }
 
   // ——— Pièces de l'offre : liste et contrôle avant dépôt ———
@@ -1484,6 +1557,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
       b.addEventListener('click', function () { passerStatut(a, b.getAttribute('data-passer'), recharger); });
     });
     brancherPiecesOffre(el, f, recharger);
+    brancherLivrables(el, f, recharger);
     // Volets : on rouvre le sous-onglet de l'étape en cours si c'est le volet en cours, sinon le premier
     $$('[data-volet]', el).forEach(function (b) {
       b.addEventListener('click', function () {
@@ -1752,7 +1826,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 
   var CLASSES_TYPE = {
     'Remise': 'ech--remise', 'Questions': 'ech--secondaire', 'Visite': 'ech--secondaire',
-    'Décision': 'ech--attente', 'Facturation': 'ech--argent', 'Encaissement': 'ech--argent'
+    'Décision': 'ech--attente', 'Facturation': 'ech--argent', 'Encaissement': 'ech--argent', 'Livrable': 'ech--livrable'
   };
   var NOMS_MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
@@ -1830,7 +1904,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
       '<button type="button" class="bouton bouton--discret" data-mois="1" aria-label="Mois suivant">›</button></div></div>' +
       '<div class="cal"><div class="cal-entete">' + ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'].map(function (j) { return '<div>' + j + '</div>'; }).join('') + '</div>' +
       '<div class="cal-grille">' + cases.join('') + '</div></div>' +
-      '<p class="legende cle-cal"><span class="ech ech--remise">Remise</span> <span class="ech ech--secondaire">Questions, visite</span> <span class="ech ech--attente">Décision attendue</span> <span class="ech ech--argent">Facturation, encaissement</span></p>';
+      '<p class="legende cle-cal"><span class="ech ech--remise">Remise</span> <span class="ech ech--secondaire">Questions, visite</span> <span class="ech ech--attente">Décision attendue</span> <span class="ech ech--argent">Facturation, encaissement</span> <span class="ech ech--livrable">Livrable de mission</span></p>';
   }
 
   function blocListe(r) {

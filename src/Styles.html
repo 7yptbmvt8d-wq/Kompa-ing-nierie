@@ -360,4 +360,16 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .ajout-piece { display: flex; gap: var(--kompa-s2); flex-wrap: wrap; margin-top: var(--kompa-s3); }
 .ajout-piece select { width: auto; }
 .ajout-piece input { flex: 1 1 18rem; min-width: 0; }
+
+/* Livrables de la mission */
+.ech--livrable { background: #FFF1E8; color: var(--kompa-rouille); }
+.table-livrables td { vertical-align: middle; }
+.table-livrables input[data-lc="libelle"] { min-width: 16rem; }
+.table-livrables input[data-lc="tranche"], .table-livrables input[data-lc="indice"] { width: 4.5rem; }
+.table-livrables .jours { display: block; margin-top: 2px; }
+.table-livrables .est-retard { color: var(--app-statut-perdue); font-weight: 600; }
+.cellule-lien { display: flex; gap: var(--kompa-s2); align-items: center; }
+.cellule-lien input { min-width: 10rem; }
+.ajout-piece #ajout-liv-tranche { flex: 0 0 5rem; }
+.ajout-piece #ajout-liv-date { flex: 0 0 auto; width: auto; }
 </style>

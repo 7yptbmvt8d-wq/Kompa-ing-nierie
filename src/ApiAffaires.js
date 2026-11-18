@@ -39,6 +39,8 @@ function ficheClient_(id) {
     relances: f.relances.map(function (l) { return versClient_(TABLES.RELANCES, l); }),
     pieces: f.pieces.map(function (l) { return versClient_(TABLES.PIECES_OFFRE, l); }),
     piecesResume: PiecesOffre_resume_(f.pieces),
+    livrables: f.livrables.map(function (l) { return versClient_(TABLES.LIVRABLES, l); }),
+    livrablesResume: Livrables_resume_(f.livrables),
     totaux: f.totaux,
     transitions: f.transitions
   };
@@ -133,4 +135,18 @@ function apiPieceOffreMaj(id, idPiece, champs) {
 
 function apiPieceOffreSupprimer(id, idPiece) {
   return repondre_(function () { PiecesOffre_supprimer(id, idPiece); return ficheClient_(id); });
+}
+
+// ——— Livrables de la mission ———
+
+function apiLivrableAjouter(id, champs) {
+  return repondre_(function () { Livrables_ajouter(id, champs); return ficheClient_(id); });
+}
+
+function apiLivrableMaj(id, idLivrable, champs) {
+  return repondre_(function () { Livrables_maj(id, idLivrable, champs); return ficheClient_(id); });
+}
+
+function apiLivrableSupprimer(id, idLivrable) {
+  return repondre_(function () { Livrables_supprimer(id, idLivrable); return ficheClient_(id); });
 }
