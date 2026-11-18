@@ -421,6 +421,7 @@ function Affaires_fiche(id) {
     criteres: Db_lire(TABLES.CRITERES).filter(filtre),
     factures: factures,
     relances: Db_lire(TABLES.RELANCES).filter(filtre),
+    pieces: PiecesOffre_lister(id),
     totaux: {
       facture: arrondi_(facture),
       encaisse: arrondi_(encaisse),
@@ -657,6 +658,8 @@ function ficheClient_(id) {
     criteres: f.criteres.map(function (l) { return versClient_(TABLES.CRITERES, l); }),
     factures: f.factures.map(function (l) { return versClient_(TABLES.FACTURES, l); }),
     relances: f.relances.map(function (l) { return versClient_(TABLES.RELANCES, l); }),
+    pieces: f.pieces.map(function (l) { return versClient_(TABLES.PIECES_OFFRE, l); }),
+    piecesResume: PiecesOffre_resume_(f.pieces),
     totaux: f.totaux,
     transitions: f.transitions
   };
@@ -698,6 +701,7 @@ function apiAffaireMaj(id, champs) {
 function apiAffaireStatut(id, statut, champs, commentaire) {
   return repondre_(function () {
     Affaires_changerStatut(id, statut, champs, { commentaire: commentaire });
+    if (statut === STATUTS.DEPOSEE) PiecesOffre_marquerDeposees_(id);
     Relances_synchroniser();
     return ficheClient_(id);
   });
@@ -732,6 +736,24 @@ function apiPieceDeposer(id, sousDossier, fichier) {
     p.depose = r;
     return p;
   });
+}
+
+// ——— Pièces de l'offre ———
+
+function apiPieceOffreAjouter(id, champs) {
+  return repondre_(function () { PiecesOffre_ajouter(id, champs); return ficheClient_(id); });
+}
+
+function apiPiecesOffreListeType(id) {
+  return repondre_(function () { PiecesOffre_ajouterListeType(id); return ficheClient_(id); });
+}
+
+function apiPieceOffreMaj(id, idPiece, champs) {
+  return repondre_(function () { PiecesOffre_maj(id, idPiece, champs); return ficheClient_(id); });
+}
+
+function apiPieceOffreSupprimer(id, idPiece) {
+  return repondre_(function () { PiecesOffre_supprimer(id, idPiece); return ficheClient_(id); });
 }
 
 
@@ -1105,6 +1127,13 @@ var TABLES = {
     prefixe: 'HI',
     colonnes: ['id', 'id_affaire', 'ancien_statut', 'nouveau_statut', 'date', 'commentaire'],
     horodatages: ['date']
+  },
+  PIECES_OFFRE: {
+    onglet: 'Pièces de l\'offre',
+    cle: 'id',
+    prefixe: 'PO',
+    colonnes: ['id', 'id_affaire', 'categorie', 'libelle', 'etat', 'ordre', 'commentaire'],
+    nombres: ['ordre']
   },
   CRITERES: {
     onglet: 'Critères',
@@ -2730,6 +2759,8 @@ var PARAMETRES_DEFAUT = [
   ['liste.procedures', 'MAPA;AO;Consultation directe', 'Procédures'],
   ['liste.statuts_relance', 'à faire;faite;sans objet', 'Statuts d\'une relance'],
   ['liste.pieces_types', 'note méthodologique;CV;références;prix', 'Pièces-types à améliorer'],
+  ['liste.pieces_offre', 'Candidature:DC1 et DC2, ou DUME;Candidature:Attestation d\'assurance responsabilité civile professionnelle;Candidature:Références et qualifications;Offre:Acte d\'engagement;Offre:Décomposition du prix (DPGF ou BPU);Offre:Mémoire technique;Offre:CV de l\'équipe',
+    'Liste type des pièces d\'une offre (catégorie:pièce), proposée dans Appel d\'offres › Offre ; à compléter selon le RC'],
 
   // Dossiers Drive des affaires
   ['drive.actif', 'oui', 'Créer un dossier Drive pour chaque affaire : oui ou non'],
@@ -2849,6 +2880,99 @@ function Params_initialiser_() {
   Db_insererPlusieurs(TABLES.PARAMETRES, nouveaux);
   Params_cache_ = null;
   return nouveaux.length;
+}
+
+
+// ════════ PiecesOffre.js ════════
+
+/**
+ * Pièces de l'offre (fiche › Appel d'offres › Offre) : liste des pièces exigées par le RC et leur état.
+ * Sert au contrôle avant dépôt et à la synthèse de la fiche. Organisation validée le 18/11/2026.
+ */
+
+var ETATS_PIECE = ['à faire', 'en cours', 'prête', 'déposée'];
+var CATEGORIES_PIECE = ['Candidature', 'Offre'];
+
+function PiecesOffre_lister(idAffaire) {
+  return Db_lire(TABLES.PIECES_OFFRE)
+    .filter(function (p) { return String(p.id_affaire) === String(idAffaire); })
+    .sort(function (x, y) {
+      var c = CATEGORIES_PIECE.indexOf(x.categorie) - CATEGORIES_PIECE.indexOf(y.categorie);
+      return c || (Number(x.ordre) || 0) - (Number(y.ordre) || 0);
+    });
+}
+
+function PiecesOffre_valider_(champs, creation) {
+  var out = {};
+  if ('categorie' in champs || creation) {
+    var c = String(champs.categorie || '').trim();
+    if (CATEGORIES_PIECE.indexOf(c) < 0) throw new Error('Catégorie attendue : ' + CATEGORIES_PIECE.join(' ou ') + '.');
+    out.categorie = c;
+  }
+  if ('libelle' in champs || creation) {
+    var l = String(champs.libelle || '').trim();
+    if (!l) throw new Error('Intitulé de la pièce obligatoire.');
+    out.libelle = l.slice(0, 200);
+  }
+  if ('etat' in champs) {
+    if (ETATS_PIECE.indexOf(champs.etat) < 0) throw new Error('État attendu : ' + ETATS_PIECE.join(', ') + '.');
+    out.etat = champs.etat;
+  }
+  if ('commentaire' in champs) out.commentaire = String(champs.commentaire || '').trim();
+  return out;
+}
+
+function PiecesOffre_ajouter(idAffaire, champs) {
+  Affaires_get_(idAffaire);
+  var p = PiecesOffre_valider_(champs, true);
+  var existantes = PiecesOffre_lister(idAffaire);
+  p.id_affaire = idAffaire;
+  p.etat = p.etat || 'à faire';
+  p.ordre = existantes.reduce(function (m, x) { return Math.max(m, Number(x.ordre) || 0); }, 0) + 10;
+  return Db_inserer(TABLES.PIECES_OFFRE, p);
+}
+
+/** Ajoute la liste type (paramètre liste.pieces_offre), sans doublon d'intitulé. Renvoie le nombre ajouté. */
+function PiecesOffre_ajouterListeType(idAffaire) {
+  Affaires_get_(idAffaire);
+  var deja = {};
+  PiecesOffre_lister(idAffaire).forEach(function (p) { deja[String(p.libelle).toLowerCase()] = true; });
+  var ordre = PiecesOffre_lister(idAffaire).reduce(function (m, x) { return Math.max(m, Number(x.ordre) || 0); }, 0);
+  var lignes = Params_liste('liste.pieces_offre').map(function (item) {
+    var i = item.indexOf(':');
+    var cat = i > 0 ? item.slice(0, i).trim() : 'Offre';
+    return { categorie: CATEGORIES_PIECE.indexOf(cat) >= 0 ? cat : 'Offre', libelle: (i > 0 ? item.slice(i + 1) : item).trim() };
+  }).filter(function (l) { return l.libelle && !deja[l.libelle.toLowerCase()]; }).map(function (l) {
+    ordre += 10;
+    return { id_affaire: idAffaire, categorie: l.categorie, libelle: l.libelle, etat: 'à faire', ordre: ordre };
+  });
+  Db_insererPlusieurs(TABLES.PIECES_OFFRE, lignes);
+  return lignes.length;
+}
+
+function PiecesOffre_maj(idAffaire, idPiece, champs) {
+  var p = Db_trouver(TABLES.PIECES_OFFRE, idPiece);
+  if (!p || String(p.id_affaire) !== String(idAffaire)) throw new Error('Pièce introuvable.');
+  return Db_maj(TABLES.PIECES_OFFRE, idPiece, PiecesOffre_valider_(champs, false));
+}
+
+function PiecesOffre_supprimer(idAffaire, idPiece) {
+  return Db_supprimerSi(TABLES.PIECES_OFFRE, function (p) { return String(p.id) === String(idPiece) && String(p.id_affaire) === String(idAffaire); });
+}
+
+/** Au passage en Déposée : les pièces prêtes ou en cours passent « déposée ». */
+function PiecesOffre_marquerDeposees_(idAffaire) {
+  var n = 0;
+  PiecesOffre_lister(idAffaire).forEach(function (p) {
+    if (p.etat !== 'déposée' && p.etat !== 'à faire') { Db_maj(TABLES.PIECES_OFFRE, p.id, { etat: 'déposée' }); n++; }
+  });
+  return n;
+}
+
+/** Résumé pour la synthèse et le contrôle avant dépôt. */
+function PiecesOffre_resume_(pieces) {
+  var n = function (e) { return pieces.filter(function (p) { return p.etat === e; }).length; };
+  return { total: pieces.length, pretes: n('prête') + n('déposée'), deposees: n('déposée'), aFaire: n('à faire'), enCours: n('en cours') };
 }
 
 

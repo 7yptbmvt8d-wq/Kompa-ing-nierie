@@ -87,6 +87,13 @@ var TABLES = {
     colonnes: ['id', 'id_affaire', 'ancien_statut', 'nouveau_statut', 'date', 'commentaire'],
     horodatages: ['date']
   },
+  PIECES_OFFRE: {
+    onglet: 'Pièces de l\'offre',
+    cle: 'id',
+    prefixe: 'PO',
+    colonnes: ['id', 'id_affaire', 'categorie', 'libelle', 'etat', 'ordre', 'commentaire'],
+    nombres: ['ordre']
+  },
   CRITERES: {
     onglet: 'Critères',
     cle: 'id',

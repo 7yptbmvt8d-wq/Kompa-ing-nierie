@@ -414,6 +414,20 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
   .synthese { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .synthese__action { grid-column: 1 / -1; }
 }
+
+/* Pièces de l'offre */
+.encadre-controle { background: var(--kompa-brume); border-radius: var(--kompa-radius-sm); padding: var(--kompa-s3) var(--kompa-s4); margin-bottom: var(--kompa-s4); font-size: var(--kompa-fs-small); }
+.encadre-controle.est-complet { background: var(--app-statut-gagnee-fond); color: var(--app-statut-gagnee); }
+.table-pieces td { vertical-align: middle; }
+.etat-piece { width: auto; min-width: 8rem; font-weight: 600; }
+.etat-afaire { color: var(--kompa-gris); }
+.etat-encours { color: var(--kompa-rouille); }
+.etat-prete { color: var(--app-statut-gagnee); }
+.etat-deposee { color: var(--kompa-ardoise); }
+.bouton--petit { padding: 2px 10px; font-size: 13px; }
+.ajout-piece { display: flex; gap: var(--kompa-s2); flex-wrap: wrap; margin-top: var(--kompa-s3); }
+.ajout-piece select { width: auto; }
+.ajout-piece input { flex: 1 1 18rem; min-width: 0; }
 </style>
 </head>
 <body>
@@ -1147,6 +1161,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
     var avancement;
     if (EN_MISSION.indexOf(s) >= 0) avancement = ['Facturé', K.euros(f.totaux.facture) + (a.montant_notifie ? ' <span class="jours">/ ' + K.euros(a.montant_notifie) + '</span>' : '')];
     else if (s === 'Déposée' || s === 'Perdue' || s === 'Sans suite') avancement = ['Offre', a.montant_ht ? K.euros(a.montant_ht) + ' HT' : '—'];
+    else if ((s === 'Go' || s === 'Abandonnée') && f.piecesResume && f.piecesResume.total) avancement = ['Pièces de l\'offre', f.piecesResume.pretes + ' sur ' + f.piecesResume.total + ' prêtes'];
     else if (s === 'Go' || s === 'Abandonnée') avancement = ['Offre en préparation', a.montant_ht ? K.euros(a.montant_ht) + ' HT' : (a.prix_jour ? K.euros(a.prix_jour) + ' / jour' : 'montant à chiffrer')];
     else avancement = ['Décision', a.decision ? esc(a.decision) + (a.motif_decision ? ' <span class="jours">' + esc(a.motif_decision) + '</span>' : '') : 'à prendre'];
     var score = (a.score_final !== '' && a.score_final !== undefined && a.score_final !== null)
@@ -1194,7 +1209,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
     };
     var contenu = {
       consultation: function () { return formBloc('identification') + formBloc('echeances') + formBloc('decision'); },
-      offre: function () { return formBloc('offre'); },
+      offre: function () { return blocPiecesOffre(f) + formBloc('offre'); },
       resultat: function () { return formBloc('resultat') + '<section class="fiche-bloc">' + tableCriteres(f.criteres) + '</section>' + formBloc('enseignements'); },
       livrables: function () {
         return '<section class="fiche-bloc"><h2 class="fiche-bloc__titre">Livrables</h2><p class="vide">Le suivi des livrables par tranche (échéance, état, indice, fichier) arrive avec la prochaine étape.</p></section>';
@@ -1229,6 +1244,60 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
     chargerPieces(el, a);
     var zoneEst = $('[data-estimations]', el);
     if (zoneEst && K.estimationsAffaire) K.estimationsAffaire(zoneEst, a.id);
+  }
+
+  // ——— Pièces de l'offre : liste et contrôle avant dépôt ———
+  var ETATS_PIECE = ['à faire', 'en cours', 'prête', 'déposée'];
+  var CLASSES_ETAT = { 'à faire': 'etat-afaire', 'en cours': 'etat-encours', 'prête': 'etat-prete', 'déposée': 'etat-deposee' };
+
+  function blocPiecesOffre(f) {
+    var a = f.affaire, pieces = f.pieces || [], r = f.piecesResume || { total: 0, pretes: 0 };
+    var controle = '';
+    if (r.total) {
+      var depot = a.date_limite_remise ? plusJours(a.date_limite_remise, -2) : '';
+      controle = r.pretes === r.total
+        ? '<div class="encadre-controle est-complet"><strong>Dossier complet</strong> : ' + r.total + ' pièce' + (r.total > 1 ? 's' : '') + ' prête' + (r.total > 1 ? 's' : '') + (depot ? ', dépôt conseillé le <span class="mono">' + jour(depot) + '</span> (48 h avant l\'heure limite)' : '') + '.</div>'
+        : '<div class="encadre-controle"><strong>' + (r.total - r.pretes) + ' pièce' + (r.total - r.pretes > 1 ? 's' : '') + ' à finir</strong> sur ' + r.total + (depot ? ' avant le dépôt conseillé le <span class="mono">' + jour(depot) + '</span>' : '') + '.</div>';
+    }
+    var lignes = pieces.map(function (p) {
+      return '<tr data-piece="' + esc(p.id) + '"><td class="legende">' + esc(p.categorie) + '</td><td>' + esc(p.libelle) + '</td>' +
+        '<td><select class="champ etat-piece ' + (CLASSES_ETAT[p.etat] || '') + '" data-etat-piece aria-label="État de « ' + esc(p.libelle) + ' »">' +
+        ETATS_PIECE.map(function (e) { return '<option' + (e === p.etat ? ' selected' : '') + '>' + e + '</option>'; }).join('') + '</select></td>' +
+        '<td><button type="button" class="bouton bouton--discret bouton--petit" data-suppr-piece aria-label="Retirer « ' + esc(p.libelle) + ' »">Retirer</button></td></tr>';
+    }).join('');
+    return '<section class="fiche-bloc" id="pieces-offre"><h2 class="fiche-bloc__titre">Pièces à remettre</h2>' + controle +
+      (pieces.length
+        ? '<div class="tableau-conteneur"><table class="table-pieces"><thead><tr><th scope="col">Catégorie</th><th scope="col">Pièce</th><th scope="col">État</th><th scope="col"><span class="seul-lecteur">Action</span></th></tr></thead><tbody>' + lignes + '</tbody></table></div>'
+        : '<p class="vide">Aucune pièce listée.</p><p><button type="button" class="bouton" data-liste-type>Ajouter la liste type</button> <span class="legende">Candidature et offre courantes (paramètre liste.pieces_offre), à compléter selon la rubrique « Pièces à remettre » de l\'analyse du DCE.</span></p>') +
+      '<form class="ajout-piece" data-ajout-piece novalidate><select class="champ" id="ajout-piece-cat" aria-label="Catégorie"><option>Candidature</option><option selected>Offre</option></select>' +
+      '<input class="champ" id="ajout-piece-lib" placeholder="ex. Mémoire environnemental (démarche RSE)" aria-label="Intitulé de la pièce">' +
+      '<button type="submit" class="bouton bouton--discret">Ajouter</button></form></section>';
+  }
+
+  function brancherPiecesOffre(el, f, recharger) {
+    var a = f.affaire, zone = $('#pieces-offre', el);
+    if (!zone) return;
+    var appel = function (nom, args, message) {
+      return K.appel.apply(null, [nom, a.id].concat(args)).then(function (fiche) { if (message) K.toast(message); recharger(fiche); })
+        .catch(function (e) { K.toast(e.message, true); recharger(f); });
+    };
+    var lt = $('[data-liste-type]', zone);
+    if (lt) lt.addEventListener('click', function () { lt.disabled = true; appel('apiPiecesOffreListeType', [], 'Liste type ajoutée.'); });
+    $$('[data-etat-piece]', zone).forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        sel.className = 'champ etat-piece ' + (CLASSES_ETAT[sel.value] || '');
+        appel('apiPieceOffreMaj', [sel.closest('tr').getAttribute('data-piece'), { etat: sel.value }]);
+      });
+    });
+    $$('[data-suppr-piece]', zone).forEach(function (b) {
+      b.addEventListener('click', function () { b.disabled = true; appel('apiPieceOffreSupprimer', [b.closest('tr').getAttribute('data-piece')], 'Pièce retirée.'); });
+    });
+    $('[data-ajout-piece]', zone).addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var lib = $('#ajout-piece-lib', zone).value.trim();
+      if (!lib) { K.toast('Intitulé de la pièce obligatoire.', true); return; }
+      appel('apiPieceOffreAjouter', [{ categorie: $('#ajout-piece-cat', zone).value, libelle: lib }], 'Pièce ajoutée.');
+    });
   }
 
   // ——— Pièces : dossiers Drive de l'affaire, rangés par sous-onglet ———
@@ -1414,6 +1483,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
     $$('[data-passer]', el).forEach(function (b) {
       b.addEventListener('click', function () { passerStatut(a, b.getAttribute('data-passer'), recharger); });
     });
+    brancherPiecesOffre(el, f, recharger);
     // Volets : on rouvre le sous-onglet de l'étape en cours si c'est le volet en cours, sinon le premier
     $$('[data-volet]', el).forEach(function (b) {
       b.addEventListener('click', function () {

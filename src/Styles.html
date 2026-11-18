@@ -346,4 +346,18 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
   .synthese { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .synthese__action { grid-column: 1 / -1; }
 }
+
+/* Pièces de l'offre */
+.encadre-controle { background: var(--kompa-brume); border-radius: var(--kompa-radius-sm); padding: var(--kompa-s3) var(--kompa-s4); margin-bottom: var(--kompa-s4); font-size: var(--kompa-fs-small); }
+.encadre-controle.est-complet { background: var(--app-statut-gagnee-fond); color: var(--app-statut-gagnee); }
+.table-pieces td { vertical-align: middle; }
+.etat-piece { width: auto; min-width: 8rem; font-weight: 600; }
+.etat-afaire { color: var(--kompa-gris); }
+.etat-encours { color: var(--kompa-rouille); }
+.etat-prete { color: var(--app-statut-gagnee); }
+.etat-deposee { color: var(--kompa-ardoise); }
+.bouton--petit { padding: 2px 10px; font-size: 13px; }
+.ajout-piece { display: flex; gap: var(--kompa-s2); flex-wrap: wrap; margin-top: var(--kompa-s3); }
+.ajout-piece select { width: auto; }
+.ajout-piece input { flex: 1 1 18rem; min-width: 0; }
 </style>

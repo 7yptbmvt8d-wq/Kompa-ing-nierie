@@ -118,6 +118,8 @@ var PARAMETRES_DEFAUT = [
   ['liste.procedures', 'MAPA;AO;Consultation directe', 'Procédures'],
   ['liste.statuts_relance', 'à faire;faite;sans objet', 'Statuts d\'une relance'],
   ['liste.pieces_types', 'note méthodologique;CV;références;prix', 'Pièces-types à améliorer'],
+  ['liste.pieces_offre', 'Candidature:DC1 et DC2, ou DUME;Candidature:Attestation d\'assurance responsabilité civile professionnelle;Candidature:Références et qualifications;Offre:Acte d\'engagement;Offre:Décomposition du prix (DPGF ou BPU);Offre:Mémoire technique;Offre:CV de l\'équipe',
+    'Liste type des pièces d\'une offre (catégorie:pièce), proposée dans Appel d\'offres › Offre ; à compléter selon le RC'],
 
   // Dossiers Drive des affaires
   ['drive.actif', 'oui', 'Créer un dossier Drive pour chaque affaire : oui ou non'],

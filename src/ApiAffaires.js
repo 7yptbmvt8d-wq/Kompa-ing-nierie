@@ -37,6 +37,8 @@ function ficheClient_(id) {
     criteres: f.criteres.map(function (l) { return versClient_(TABLES.CRITERES, l); }),
     factures: f.factures.map(function (l) { return versClient_(TABLES.FACTURES, l); }),
     relances: f.relances.map(function (l) { return versClient_(TABLES.RELANCES, l); }),
+    pieces: f.pieces.map(function (l) { return versClient_(TABLES.PIECES_OFFRE, l); }),
+    piecesResume: PiecesOffre_resume_(f.pieces),
     totaux: f.totaux,
     transitions: f.transitions
   };
@@ -78,6 +80,7 @@ function apiAffaireMaj(id, champs) {
 function apiAffaireStatut(id, statut, champs, commentaire) {
   return repondre_(function () {
     Affaires_changerStatut(id, statut, champs, { commentaire: commentaire });
+    if (statut === STATUTS.DEPOSEE) PiecesOffre_marquerDeposees_(id);
     Relances_synchroniser();
     return ficheClient_(id);
   });
@@ -112,4 +115,22 @@ function apiPieceDeposer(id, sousDossier, fichier) {
     p.depose = r;
     return p;
   });
+}
+
+// ——— Pièces de l'offre ———
+
+function apiPieceOffreAjouter(id, champs) {
+  return repondre_(function () { PiecesOffre_ajouter(id, champs); return ficheClient_(id); });
+}
+
+function apiPiecesOffreListeType(id) {
+  return repondre_(function () { PiecesOffre_ajouterListeType(id); return ficheClient_(id); });
+}
+
+function apiPieceOffreMaj(id, idPiece, champs) {
+  return repondre_(function () { PiecesOffre_maj(id, idPiece, champs); return ficheClient_(id); });
+}
+
+function apiPieceOffreSupprimer(id, idPiece) {
+  return repondre_(function () { PiecesOffre_supprimer(id, idPiece); return ficheClient_(id); });
 }

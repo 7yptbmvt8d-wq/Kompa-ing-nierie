@@ -174,8 +174,8 @@ function assembler() {
   // Bloc Offre : enregistrement
   await p.click('[data-sous="offre"]');
   await p.fill('#offre-prix_jour', '600');
-  await p.click('#p-offre button[type=submit]');
-  await p.waitForFunction(() => document.querySelector('#offre-prix_jour') && document.querySelector('#offre-prix_jour').value === '600' && document.querySelector('#p-offre button[type=submit]').disabled);
+  await p.click('form[data-bloc="offre"] button[type=submit]');
+  await p.waitForFunction(() => document.querySelector('#offre-prix_jour') && document.querySelector('#offre-prix_jour').value === '600' && document.querySelector('form[data-bloc="offre"] button[type=submit]').disabled);
   const nouvelle = A.Affaires_lister().filter((x) => x.acheteur === 'Commune de Briançon')[0];
   assert.strictEqual(nouvelle.prix_jour, 600);
   assert.strictEqual(nouvelle.departement, '05');
@@ -184,6 +184,14 @@ function assembler() {
   await p.click('a[href="#affaires"]');
   await p.click(`[data-ouvrir="${g1}"]`);
   await p.waitForSelector('.fiche-tete');
+  // Affaire en Go : la fiche s'ouvre sur Appel d'offres › Offre ; liste type des pièces, une pièce prête
+  await p.waitForSelector('[data-sous="offre"][aria-selected="true"]');
+  await p.click('[data-liste-type]');
+  await p.waitForSelector('#pieces-offre tr[data-piece]');
+  assert.strictEqual(await p.locator('#pieces-offre tr[data-piece]').count(), 7);
+  await p.locator('#pieces-offre tr[data-piece]').nth(5).locator('select').selectOption('prête');
+  await p.waitForSelector('.synthese:has-text("1 sur 7 prêtes")');
+  await p.screenshot({ path: path.join(sortie, 'pc-fiche-offre-pieces.png'), fullPage: true });
   await p.click('[data-passer="Déposée"]');
   await p.fill('#p-montant_ht', '21000');
   await p.fill('#p-jours_reponse', '3');

@@ -18,7 +18,7 @@ test('installer() crée le classeur, les 11 onglets et supprime la feuille par d
   const ss = Object.values(env.classeurs)[0];
   assert.strictEqual(ss.getName(), 'Kompa Affaires — données');
   const noms = ss.getSheets().map((f) => f.getName());
-  assert.deepStrictEqual(noms, ['Avis', 'Affaires', 'Historique', 'Critères', 'Factures', 'Relances', 'Acheteurs', 'Paramètres', 'Déclarations', 'Journal moteur', 'Avis archivés']);
+  assert.deepStrictEqual(noms, ['Avis', 'Affaires', 'Historique', 'Pièces de l\'offre', 'Critères', 'Factures', 'Relances', 'Acheteurs', 'Paramètres', 'Déclarations', 'Journal moteur', 'Avis archivés']);
   assert.ok(rapport.parametresAjoutes > 40);
   assert.deepStrictEqual(brut(rapport.declencheurs), ['sauvegardeHebdo', 'collecteQuotidienne', 'envoyerEmailMatin', 'estIndicesMensuel']);
 });
@@ -99,7 +99,7 @@ test('apiEtat renvoie l\'état du classeur, sérialisable', () => {
   env.ctx.installer({ exercice: false });
   const r = env.ctx.apiEtat();
   assert.ok(r.ok, r.erreur);
-  assert.strictEqual(r.data.onglets.length, 21); // 11 onglets du suivi + 10 du module Estimation
+  assert.strictEqual(r.data.onglets.length, 22); // 12 onglets du suivi + 10 du module Estimation
   assert.ok(r.data.onglets.every((o) => o.present));
   assert.strictEqual(r.data.onglets.find((o) => o.nom === 'Paramètres').lignes, env.ctx.PARAMETRES_DEFAUT.length);
 });
@@ -198,6 +198,46 @@ test('dist/ est à jour et le Code.gs assemblé fonctionne', () => {
   assert.ok(env.ctx.apiParametreEnregistrer('seuil.plafond_vise', '75000').ok);
   assert.ok(env.ctx.apiCompteurCA().ok);
   assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', 'dist', 'Index.html'), 'utf8'), /<\?/);
+});
+
+// ——— Fiche : pièces de l'offre ———
+
+test('pièces de l\'offre : liste type, ajout, état, retrait, contrôle, passage en Déposée', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const id = A.Affaires_creer({ acheteur: 'Commune de Digne-les-Bains', objet: 'AMO programmation cantine', date_limite_remise: '2026-12-07' }).id;
+  A.Affaires_changerStatut(id, 'Go', {});
+  const ok = (r) => { assert.ok(r.ok, r.erreur); return brut(r.data); };
+  let f = ok(A.apiAffaire(id));
+  assert.deepStrictEqual(f.pieces, []);
+  assert.deepStrictEqual(f.piecesResume, { total: 0, pretes: 0, deposees: 0, aFaire: 0, enCours: 0 });
+  f = ok(A.apiPiecesOffreListeType(id));
+  assert.strictEqual(f.pieces.length, 7);
+  assert.deepStrictEqual(f.pieces.map((p) => p.categorie), ['Candidature', 'Candidature', 'Candidature', 'Offre', 'Offre', 'Offre', 'Offre']);
+  assert.strictEqual(ok(A.apiPiecesOffreListeType(id)).pieces.length, 7); // pas de doublon
+  f = ok(A.apiPieceOffreAjouter(id, { categorie: 'Offre', libelle: 'Mémoire environnemental (démarche RSE)' }));
+  assert.strictEqual(f.pieces.length, 8);
+  assert.strictEqual(f.pieces[7].libelle, 'Mémoire environnemental (démarche RSE)');
+  assert.match(A.apiPieceOffreAjouter(id, { categorie: 'Annexe', libelle: 'x' }).erreur, /Catégorie attendue/);
+  assert.match(A.apiPieceOffreAjouter(id, { categorie: 'Offre', libelle: ' ' }).erreur, /obligatoire/);
+  const memoire = f.pieces.find((p) => p.libelle === 'Mémoire technique').id;
+  const ae = f.pieces.find((p) => p.libelle === 'Acte d\'engagement').id;
+  f = ok(A.apiPieceOffreMaj(id, memoire, { etat: 'prête' }));
+  f = ok(A.apiPieceOffreMaj(id, ae, { etat: 'en cours' }));
+  assert.match(A.apiPieceOffreMaj(id, ae, { etat: 'terminée' }).erreur, /État attendu/);
+  assert.deepStrictEqual(f.piecesResume, { total: 8, pretes: 1, deposees: 0, aFaire: 6, enCours: 1 });
+  f = ok(A.apiPieceOffreSupprimer(id, f.pieces.find((p) => p.libelle === 'CV de l\'équipe').id));
+  assert.strictEqual(f.pieces.length, 7);
+  // Pièce d'une autre affaire : refus
+  const autre = A.Affaires_creer({ acheteur: 'X', objet: 'Y' }).id;
+  assert.match(A.apiPieceOffreMaj(autre, memoire, { etat: 'prête' }).erreur, /introuvable/);
+  // Passage en Déposée : pièces prêtes ou en cours → déposée ; à faire inchangées
+  f = ok(A.apiAffaireStatut(id, 'Déposée', { montant_ht: 40800, jours_reponse: 4, date_depot: '2026-12-03' }, ''));
+  assert.strictEqual(f.pieces.find((p) => p.id === memoire).etat, 'déposée');
+  assert.strictEqual(f.pieces.find((p) => p.id === ae).etat, 'déposée');
+  assert.strictEqual(f.piecesResume.deposees, 2);
+  assert.strictEqual(f.piecesResume.aFaire, 5);
 });
 
 // ——— Module Estimation, étape 0 : deux classeurs, deux fichiers ———
@@ -316,7 +356,7 @@ test('estimation (étape 1) : écran Estimation et onglet de la fiche affaire', 
   assert.strictEqual(acc.estimations[0].acheteur, 'Commune de Digne-les-Bains');
   assert.strictEqual(A.apiEstAffaire(id).data.length, 1);
   assert.strictEqual(A.apiEstAffaire('KA-2099-999').data.length, 0);
-  assert.strictEqual(A.apiEtat().data.onglets.length, 11 + 10);
+  assert.strictEqual(A.apiEtat().data.onglets.length, 12 + 10);
 });
 
 // ——— Module Estimation, étape 2 : index Insee ———
@@ -1276,7 +1316,7 @@ test('fluidité : l\'accueil en un seul appel', () => {
   const r = brut(env.ctx.apiAccueil());
   assert.ok(r.ok, r.erreur);
   assert.deepStrictEqual(Object.keys(r.data).sort(), ['ca', 'etat', 'fiscal', 'suivi', 'tableau']);
-  assert.strictEqual(r.data.etat.onglets.length, 21); // 11 onglets du suivi + 10 du module Estimation
+  assert.strictEqual(r.data.etat.onglets.length, 22); // 12 onglets du suivi + 10 du module Estimation
 });
 
 test('fluidité : relances recalculées après un changement de statut, pas à la lecture', () => {
