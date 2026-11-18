@@ -1,8 +1,9 @@
 /**
  * E-mail du matin (§ 6) : du lundi au vendredi à 7 h vers le compte Kompa.
  * Rubriques : nouveaux avis PACA, nouveaux avis France, échéances à 7 jours, relances à faire,
- * indicateurs. Rubriques vides masquées ; pas d'envoi si les quatre premières sont vides,
- * sauf le lundi (récapitulatif).
+ * indicateurs. Rubriques vides masquées. Sans nouvel avis, échéance ni relance : e-mail « aucun nouvel avis »
+ * avec le bilan de la collecte du matin (paramètre email.si_rien, oui par défaut — décision du 18/11/2026) ;
+ * avec email.si_rien = non, pas d'envoi sauf le lundi (récapitulatif).
  *
  * Les e-mails n'acceptent pas les variables CSS : les couleurs de la charte (tokens.css)
  * sont reprises ici en valeurs.
@@ -36,7 +37,8 @@ function Email_envoyer_(quand, force) {
   var dernier = props.getProperty('EMAIL_DERNIER_ENVOI');
   var mail = Email_construire(quand, dernier ? new Date(dernier) : null);
   var lundi = jour === 'lun' && Params_texte('email.recap_lundi', 'oui') === 'oui';
-  if (!mail.contenu && !lundi && !force) {
+  var siRien = Params_texte('email.si_rien', 'oui') === 'oui';
+  if (!mail.contenu && !lundi && !force && !siRien) {
     console.log('E-mail du matin : rien à signaler, pas d\'envoi.');
     return { envoye: false, motif: 'rubriques vides' };
   }
@@ -115,8 +117,10 @@ function Email_construire(quand, depuis) {
   if (typeof Est_alerteEmail_ === 'function') { try { alerteEst = Est_alerteEmail_(); } catch (e) { alerteEst = ''; } }
   if (alerteEst) corps += section('Module Estimation', 1, '<tr><td style="padding:8px 0;color:' + C.rouille + '">' + h(alerteEst) + '</td></tr>');
   var contenu = !!corps;
+  var bilanVeille = Email_bilanVeille_(quand);
   if (!contenu) {
-    corps = '<tr><td style="padding:24px 24px 0;color:' + C.gris + '">Rien de nouveau depuis le dernier envoi : pas de nouvel avis, pas d\'échéance dans les 7 jours, pas de relance à faire.</td></tr>';
+    corps = '<tr><td style="padding:24px 24px 0;color:' + C.gris + '">Rien de nouveau depuis le dernier envoi : pas de nouvel avis, pas d\'échéance dans les 7 jours, pas de relance à faire.' +
+      '<div style="margin-top:8px;font-size:13px;' + (bilanVeille.alerte ? 'color:' + C.rouille + ';font-weight:600' : '') + '">' + h(bilanVeille.texte) + '</div></td></tr>';
   }
 
   // Indicateurs
@@ -136,7 +140,8 @@ function Email_construire(quand, depuis) {
 
   var dateTxt = Utilities.formatDate(quand, APP.FUSEAU, 'dd/MM/yyyy');
   var nbAvis = avisPaca.length + horsPaca.length;
-  var sujet = APP.NOM + ' — ' + dateTxt + ' — ' + nbAvis + (nbAvis > 1 ? ' nouveaux' : ' nouvel') + ' avis · ' + echeances.length + ' échéance' + (echeances.length > 1 ? 's' : '');
+  var sujet = APP.NOM + ' — ' + dateTxt + ' — ' + (nbAvis ? nbAvis + (nbAvis > 1 ? ' nouveaux' : ' nouvel') + ' avis' : 'aucun nouvel avis') +
+    ' · ' + echeances.length + ' échéance' + (echeances.length > 1 ? 's' : '');
 
   var html = '<!DOCTYPE html><html lang="fr"><body style="margin:0;background:' + C.brume + ';font-family:\'IBM Plex Sans\',Arial,sans-serif;color:' + C.encre + '">' +
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:' + C.brume + '"><tr><td align="center" style="padding:16px 8px">' +
@@ -154,11 +159,40 @@ function Email_construire(quand, depuis) {
     .concat(avisFrance.length ? ['NOUVEAUX AVIS HORS ' + paca + ' (présentiel à vérifier)'].concat(avisFrance.map(function (a) { return '- [' + a.pre_score + '] ' + a.acheteur + ' — ' + a.objet + ' — ' + a.lien; })).concat(['']) : [])
     .concat(echeances.length ? ['ÉCHÉANCES À 7 JOURS'].concat(echeances.map(function (e) { return '- ' + jr(e.date) + ' ' + e.libelle + ' — ' + e.acheteur; })).concat(['']) : [])
     .concat(relances.length ? ['RELANCES À FAIRE'].concat(relances.map(function (r) { return '- ' + jr(r.date_prevue) + ' ' + r.type + ' — ' + r.acheteur; })).concat(['']) : [])
+    .concat(contenu ? [] : ['Rien de nouveau depuis le dernier envoi.', bilanVeille.texte, ''])
     .concat(alerteEst ? ['MODULE ESTIMATION', '- ' + alerteEst, ''] : [])
     .concat(['Ouvrir l\'app : ' + url]).join('\n');
 
   return { sujet: sujet, html: html, texte: texte, contenu: contenu,
     nombres: { avisPaca: avisPaca.length, avisFrance: horsPaca.length, echeances: echeances.length, relances: relances.length } };
+}
+
+/**
+ * Bilan de la collecte du jour (onglet Journal moteur) : preuve que la veille a tourné.
+ * Sans collecte enregistrée le jour de l'envoi : alerte (déclencheur absent ou en erreur).
+ */
+function Email_bilanVeille_(quand) {
+  var jour = jourIso_(quand);
+  var lignes = Db_lire(TABLES.JOURNAL_MOTEUR).filter(function (l) {
+    var d = date_(l.date) || (l.date ? new Date(l.date) : null);
+    return d && !isNaN(d.getTime()) && jourIso_(d) === jour && d <= quand;
+  });
+  var derniere = function (source) {
+    var l = lignes.filter(function (x) { return x.source === source; });
+    return l[l.length - 1] || null;
+  };
+  var boamp = derniere(SOURCE_BOAMP), gmail = derniere(SOURCE_GMAIL);
+  if (!boamp) {
+    return { alerte: true, texte: 'Aucune collecte de la veille enregistrée aujourd\'hui avant cet envoi : vérifiez les déclencheurs (accueil de l\'app, carte « État du socle »).' };
+  }
+  var n = function (v) { return Number(v) || 0; };
+  var heure = Utilities.formatDate(date_(boamp.date) || new Date(boamp.date), APP.FUSEAU, 'HH:mm').replace(':', ' h ');
+  var t = 'Veille de ce matin (' + heure + ') : ' + n(boamp.avis_lus) + ' avis lus au BOAMP — ' + n(boamp.exclus) + ' écartés par les filtres, ' +
+    n(boamp.doublons) + ' déjà connus, ' + n(boamp.avis_retenus) + ' nouveau' + (n(boamp.avis_retenus) > 1 ? 'x' : '') +
+    (gmail ? ' ; ' + n(gmail.avis_lus) + ' alerte' + (n(gmail.avis_lus) > 1 ? 's' : '') + ' e-mail de plateforme' : '') + '.';
+  var erreurs = [boamp, gmail].filter(function (x) { return x && String(x.erreurs || '').trim(); });
+  if (erreurs.length) t += ' Erreur : ' + erreurs.map(function (x) { return x.source + ' — ' + x.erreurs; }).join(' ; ');
+  return { alerte: !!erreurs.length, texte: t };
 }
 
 function Email_urlApp_() {

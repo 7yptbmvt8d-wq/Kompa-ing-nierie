@@ -105,6 +105,7 @@ var PARAMETRES_DEFAUT = [
   ['email.destinataire', '', 'Adresse de réception (vide = compte Kompa : kompa.ingenierie@gmail.com)'],
   ['email.jours', 'lun;mar;mer;jeu;ven', 'Jours d\'envoi (pas le week-end)'],
   ['email.recap_lundi', 'oui', 'Envoi le lundi même si toutes les rubriques sont vides'],
+  ['email.si_rien', 'oui', 'Envoi chaque jour ouvré même sans nouvel avis, échéance ni relance (« aucun nouvel avis », avec le bilan de la collecte du matin)'],
 
   // Listes de valeurs (§ 4, 9)
   ['liste.statuts_affaire', 'En étude;Go;No-go;Abandonnée;Déposée;Gagnée;Perdue;Sans suite;Soldée',

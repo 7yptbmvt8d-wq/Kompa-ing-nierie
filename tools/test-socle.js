@@ -1020,13 +1020,30 @@ test('e-mail du matin : rubriques, objet, pas d\'envoi le week-end, récap du lu
   assert.strictEqual(env.ctx.MailApp.envois[0].name, 'Kompa Affaires');
 });
 
-test('e-mail du matin : rien à signaler → pas d\'envoi, sauf le lundi', () => {
+test('e-mail du matin : rien à signaler → « aucun nouvel avis » avec le bilan de la collecte ; email.si_rien = non → lundi seulement', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });
   const A = env.ctx;
+  // Mardi 17/11/2026 sans collecte enregistrée : envoi quand même, avec une alerte
+  const sansCollecte = brut(A.Email_envoyer_(new Date(2026, 10, 17, 7), false));
+  assert.strictEqual(sansCollecte.envoye, true);
+  assert.match(sansCollecte.sujet, /— aucun nouvel avis · 0 échéance$/);
+  assert.match(A.MailApp.envois[0].htmlBody, /Aucune collecte de la veille enregistrée aujourd'hui/);
+  // Mercredi 18/11/2026 : collecte de 6 h 11 (32 lus, 24 écartés, 8 connus, 0 nouveau)
+  A.Db_insererPlusieurs(A.TABLES.JOURNAL_MOTEUR, [
+    { date: new Date(2026, 10, 18, 6, 11), source: 'BOAMP', avis_lus: 32, avis_retenus: 0, exclus: 24, doublons: 8, erreurs: '' },
+    { date: new Date(2026, 10, 18, 6, 11), source: 'Alerte e-mail', avis_lus: 0, avis_retenus: 0, exclus: 0, doublons: 0, erreurs: '' }
+  ]);
+  assert.strictEqual(brut(A.Email_envoyer_(new Date(2026, 10, 18, 7), false)).envoye, true);
+  assert.match(A.MailApp.envois[1].htmlBody, /Rien de nouveau/);
+  assert.match(A.MailApp.envois[1].htmlBody, /Veille de ce matin \(06 h 11\) : 32 avis lus au BOAMP — 24 écartés par les filtres, 8 déjà connus, 0 nouveau ; 0 alerte e-mail de plateforme\./);
+  assert.match(A.MailApp.envois[1].body, /Veille de ce matin/);
+  // Ancien comportement sur demande : pas d'envoi un mardi vide, envoi le lundi
+  A.Params_enregistrer('email.si_rien', 'non'); A.Params_cache_ = null;
   assert.strictEqual(brut(A.Email_envoyer_(new Date(2026, 10, 17, 7), false)).envoye, false); // mardi
   assert.strictEqual(brut(A.Email_envoyer_(new Date(2026, 10, 16, 7), false)).envoye, true);  // lundi
-  assert.match(A.MailApp.envois[0].htmlBody, /Rien de nouveau/);
+  assert.match(A.MailApp.envois[2].htmlBody, /Rien de nouveau/);
+  A.MailApp.envois.splice(0, 2);
   A.Params_enregistrer('email.destinataire', 'autre@example.com');
   A.Params_cache_ = null;
   A.Email_envoyerTest();
