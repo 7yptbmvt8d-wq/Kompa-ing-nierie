@@ -314,4 +314,36 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .actions-ligne { display: flex; align-items: center; gap: var(--kompa-s4); flex-wrap: wrap; margin-bottom: var(--kompa-s5); }
 .table-indices tr.est-arretee td { color: var(--kompa-gris); }
 .historique-index { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--kompa-s1) var(--kompa-s4); font-size: var(--kompa-fs-small); padding: var(--kompa-s2) 0; }
+
+/* Fiche affaire : synthèse, volets, sous-onglets, journal (organisation du 18/11/2026) */
+.synthese { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--kompa-filet); border: var(--kompa-filet-fin); border-radius: var(--kompa-radius); overflow: hidden; margin: 0 0 var(--kompa-s5); }
+.synthese > div { background: var(--kompa-blanc); padding: var(--kompa-s3) var(--kompa-s4); min-width: 0; }
+.synthese__etiq { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--kompa-gris); font-weight: 600; }
+.synthese__val { font-weight: 600; color: var(--kompa-ardoise); margin-top: 2px; overflow-wrap: anywhere; }
+.synthese__action { background: var(--kompa-brume) !important; }
+.synthese__action .synthese__val { color: var(--kompa-rouille); }
+.jours { font-family: var(--kompa-font-mono); font-size: 12px; color: var(--kompa-gris); font-weight: 400; }
+.volets { display: flex; align-items: stretch; border-bottom: 2px solid var(--kompa-ardoise); overflow-x: auto; }
+.volet { flex: 0 0 auto; border: 0; background: transparent; padding: var(--kompa-s3) var(--kompa-s5) var(--kompa-s2); cursor: pointer; text-align: left; border-radius: var(--kompa-radius-sm) var(--kompa-radius-sm) 0 0; color: var(--kompa-gris); font: inherit; }
+.volet__nom { display: block; font-size: 18px; font-weight: 700; }
+.volet__etapes { display: block; font-size: 12px; font-family: var(--kompa-font-mono); }
+.volet__ici { margin-left: var(--kompa-s2); font-size: 11px; font-family: var(--kompa-font-mono); font-weight: 600; color: var(--kompa-rouille); }
+.volet[aria-selected="true"] { background: var(--kompa-ardoise); color: var(--kompa-texte-inverse); }
+.volet[aria-selected="true"] .volet__etapes { color: var(--kompa-texte-inverse-2); }
+.volet[aria-selected="true"] .volet__ici { color: var(--kompa-rouille-clair); }
+.volet.est-inactif:not([aria-selected="true"]) { opacity: .6; }
+.volets__journal { margin-left: auto; align-self: center; }
+.sous-onglets { display: flex; gap: var(--kompa-s5); border-bottom: var(--kompa-filet-fin); margin: 0 0 var(--kompa-s5); overflow-x: auto; }
+.sous-onglets button { flex: 0 0 auto; border: 0; background: none; padding: var(--kompa-s3) 0 var(--kompa-s2); cursor: pointer; color: var(--kompa-gris); font: inherit; font-weight: 500; border-bottom: 3px solid transparent; }
+.sous-onglets button[aria-selected="true"] { color: var(--kompa-ardoise); border-bottom-color: var(--kompa-rouille); }
+.sous-onglets__codes { font-family: var(--kompa-font-mono); font-size: 12px; color: var(--kompa-gris); }
+.fiche-bloc { margin-bottom: var(--kompa-s6); }
+.fiche-bloc__titre { font-size: 13px !important; letter-spacing: .12em; text-transform: uppercase; color: var(--kompa-ardoise); border-top: var(--kompa-filet-section); padding-top: var(--kompa-s2); margin: 0 0 var(--kompa-s3) !important; }
+.tiroir-journal { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100%); background: var(--kompa-blanc); border-left: var(--kompa-filet-fin); box-shadow: -8px 0 24px rgba(11, 18, 32, .12); padding: var(--kompa-s5); overflow-y: auto; z-index: 30; }
+.tiroir-journal__tete { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--kompa-s4); }
+.tiroir-journal__tete h2 { margin: 0; }
+@media (max-width: 760px) {
+  .synthese { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .synthese__action { grid-column: 1 / -1; }
+}
 </style>

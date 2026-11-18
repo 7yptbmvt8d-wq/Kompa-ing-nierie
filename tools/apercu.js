@@ -134,21 +134,28 @@ function assembler() {
   // Fiche Mouthe, onglet Résultat
   await p.click('tr[data-ouvrir="KA-2026-001"]');
   await p.waitForSelector('.fiche-tete');
-  await p.click('[data-onglet="resultat"]');
+  // Affaire perdue : la fiche s'ouvre sur Appel d'offres › Résultat
+  await p.waitForSelector('[data-sous="resultat"][aria-selected="true"]');
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-mouthe-resultat.png'), fullPage: true });
-  await p.click('[data-onglet="journal"]');
-  await p.screenshot({ path: path.join(sortie, 'pc-fiche-mouthe-journal.png'), fullPage: true });
-  // Onglet Offre : aides sous les champs
-  await p.click('[data-onglet="offre"]');
+  await p.click('[data-journal]');
+  await p.waitForSelector('#tiroir-journal:not([hidden])');
+  await p.screenshot({ path: path.join(sortie, 'pc-fiche-mouthe-journal.png') });
+  await p.click('[data-fermer-journal]');
+  // Sous-onglet Offre : aides sous les champs
+  await p.click('[data-sous="offre"]');
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-aides-offre.png'), fullPage: true });
-  // Onglet Pièces : dépôt de deux fichiers dans le dossier proposé
-  await p.click('[data-onglet="pieces"]');
-  await p.waitForSelector('[data-depot]');
-  await p.setInputFiles('#piece-fichiers', [
+  // Volet Mission en aperçu (affaire non gagnée)
+  await p.click('[data-volet="mission"]');
+  await p.waitForSelector('[data-sous="livrables"][aria-selected="true"]');
+  await p.click('[data-volet="ao"]');
+  await p.waitForSelector('[data-sous="resultat"][aria-selected="true"]');
+  // Pièces du sous-onglet Résultat : dépôt de deux fichiers dans « 06 Résultat »
+  await p.waitForSelector('[data-pieces="resultat"] [data-depot]');
+  await p.setInputFiles('#piece-fichiers-resultat', [
     { name: 'Rapport de programmation.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(184000, 1) },
     { name: 'Notes de visite.docx', mimeType: 'application/octet-stream', buffer: Buffer.alloc(23000, 1) }
   ]);
-  await p.waitForSelector('.pieces__liste li >> text=Notes de visite.docx');
+  await p.waitForSelector('[data-pieces="resultat"] .pieces__liste li >> text=Notes de visite.docx');
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-pieces.png'), fullPage: true });
   // Nouvelle affaire → fiche → No-go avec motif obligatoire
   await p.click('a[href="#affaires"]');
@@ -165,7 +172,7 @@ function assembler() {
   await p.click('dialog.dialogue button[type=submit]');
   await p.waitForSelector('.fiche-tete .statut:has-text("No-go")');
   // Bloc Offre : enregistrement
-  await p.click('[data-onglet="offre"]');
+  await p.click('[data-sous="offre"]');
   await p.fill('#offre-prix_jour', '600');
   await p.click('#p-offre button[type=submit]');
   await p.waitForFunction(() => document.querySelector('#offre-prix_jour') && document.querySelector('#offre-prix_jour').value === '600' && document.querySelector('#p-offre button[type=submit]').disabled);
@@ -182,7 +189,7 @@ function assembler() {
   await p.fill('#p-jours_reponse', '3');
   await p.click('dialog.dialogue button[type=submit]');
   await p.waitForSelector('.fiche-tete .statut:has-text("Déposée")');
-  await p.click('[data-onglet="journal"]');
+  await p.click('[data-journal]');
   await p.fill('#note-texte', 'Offre déposée sur la plateforme.');
   await p.click('form[data-note] button[type=submit]');
   await p.waitForSelector('.notes:has-text("Offre déposée sur la plateforme.")');

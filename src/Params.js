@@ -126,7 +126,7 @@ var PARAMETRES_DEFAUT = [
   ['drive.sous_dossiers_etude', '01 DCE;02 Questions et visite', 'Sous-dossiers créés avec l\'affaire (En étude)'],
   ['drive.sous_dossiers_go', '03 Candidature;04 Offre;05 Dépôt', 'Sous-dossiers créés au passage en Go'],
   ['drive.sous_dossiers_resultat', '06 Résultat', 'Sous-dossiers créés au résultat (gagnée, perdue, sans suite)'],
-  ['drive.sous_dossiers_gagnee', '07 Exécution;08 Facturation', 'Sous-dossiers créés au passage en Gagnée'],
+  ['drive.sous_dossiers_gagnee', '07 Exécution;08 Facturation;09 Estimations', 'Sous-dossiers créés au passage en Gagnée (volet Mission : Livrables, Facturation, Estimations, dans cet ordre)'],
 
   // Sauvegarde (§ 2)
   ['sauvegarde.nb_copies', '8', 'Nombre de copies hebdomadaires conservées dans Drive'],
@@ -192,7 +192,8 @@ var MIGRATIONS_PARAMETRES = [
 
 /** Valeurs ajoutées aux listes existantes, même modifiées (sans doublon, sans retirer les vôtres). */
 var AJOUTS_PARAMETRES = [
-  ['veille.plateformes_domaines', 'ampmetropole.fr;safetender.com;ville-gap.fr;maregionsud.fr;departement13.fr;laprovencemarchespublics.com']
+  ['veille.plateformes_domaines', 'ampmetropole.fr;safetender.com;ville-gap.fr;maregionsud.fr;departement13.fr;laprovencemarchespublics.com'],
+  ['drive.sous_dossiers_gagnee', '09 Estimations']
 ];
 
 function Params_migrer_() {

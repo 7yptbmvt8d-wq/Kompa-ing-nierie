@@ -145,14 +145,21 @@ function Drive_pieces(idAffaire) {
   var a = Affaires_get_(idAffaire);
   var dossier = Drive_dossierAffaire_(a);
   if (!dossier) return { url: '', dossiers: [], parDefaut: '', tailleMax: PIECE_TAILLE_MAX };
+  // Étape de chaque sous-dossier (etude, go, resultat, gagnee) et son rang dans la liste du paramètre :
+  // la fiche range ainsi chaque dossier dans son sous-onglet (Consultation, Offre, Résultat, Livrables…).
+  var etapes = {};
+  Object.keys(ETAPES_DRIVE).forEach(function (e) {
+    Params_liste(ETAPES_DRIVE[e]).forEach(function (nom, i) { etapes[nom] = { etape: e, rang: i }; });
+  });
   var dossiers = [], it = dossier.getFolders();
   while (it.hasNext()) {
     var d = it.next();
-    dossiers.push({ nom: d.getName(), url: d.getUrl(), fichiers: Drive_fichiers_(d) });
+    var et = etapes[d.getName()] || { etape: '', rang: -1 };
+    dossiers.push({ nom: d.getName(), url: d.getUrl(), fichiers: Drive_fichiers_(d), etape: et.etape, rang: et.rang });
   }
   dossiers.sort(function (x, y) { return x.nom < y.nom ? -1 : x.nom > y.nom ? 1 : 0; });
   var racine = Drive_fichiers_(dossier);
-  if (racine.length) dossiers.unshift({ nom: '', url: dossier.getUrl(), fichiers: racine });
+  if (racine.length) dossiers.unshift({ nom: '', url: dossier.getUrl(), fichiers: racine, etape: '', rang: -1 });
   var defaut = Drive_dossierDefaut_(a.statut);
   if (!dossiers.some(function (d) { return d.nom === defaut; })) defaut = dossiers.length ? dossiers[dossiers.length - 1].nom : '';
   return { url: dossier.getUrl(), dossiers: dossiers, parDefaut: defaut, tailleMax: PIECE_TAILLE_MAX };

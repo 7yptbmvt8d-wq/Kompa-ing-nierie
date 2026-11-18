@@ -1,4 +1,4 @@
-/* Kompa Affaires 1.3.1 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
+/* Kompa Affaires 1.4.0 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
 
 // ════════ Setup.js ════════
 
@@ -1026,7 +1026,7 @@ function arrondi_(n) {
 
 var APP = {
   NOM: 'Kompa Affaires',
-  VERSION: '1.3.1',
+  VERSION: '1.4.0',
   CLASSEUR: 'Kompa Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
@@ -1708,14 +1708,21 @@ function Drive_pieces(idAffaire) {
   var a = Affaires_get_(idAffaire);
   var dossier = Drive_dossierAffaire_(a);
   if (!dossier) return { url: '', dossiers: [], parDefaut: '', tailleMax: PIECE_TAILLE_MAX };
+  // Étape de chaque sous-dossier (etude, go, resultat, gagnee) et son rang dans la liste du paramètre :
+  // la fiche range ainsi chaque dossier dans son sous-onglet (Consultation, Offre, Résultat, Livrables…).
+  var etapes = {};
+  Object.keys(ETAPES_DRIVE).forEach(function (e) {
+    Params_liste(ETAPES_DRIVE[e]).forEach(function (nom, i) { etapes[nom] = { etape: e, rang: i }; });
+  });
   var dossiers = [], it = dossier.getFolders();
   while (it.hasNext()) {
     var d = it.next();
-    dossiers.push({ nom: d.getName(), url: d.getUrl(), fichiers: Drive_fichiers_(d) });
+    var et = etapes[d.getName()] || { etape: '', rang: -1 };
+    dossiers.push({ nom: d.getName(), url: d.getUrl(), fichiers: Drive_fichiers_(d), etape: et.etape, rang: et.rang });
   }
   dossiers.sort(function (x, y) { return x.nom < y.nom ? -1 : x.nom > y.nom ? 1 : 0; });
   var racine = Drive_fichiers_(dossier);
-  if (racine.length) dossiers.unshift({ nom: '', url: dossier.getUrl(), fichiers: racine });
+  if (racine.length) dossiers.unshift({ nom: '', url: dossier.getUrl(), fichiers: racine, etape: '', rang: -1 });
   var defaut = Drive_dossierDefaut_(a.statut);
   if (!dossiers.some(function (d) { return d.nom === defaut; })) defaut = dossiers.length ? dossiers[dossiers.length - 1].nom : '';
   return { url: dossier.getUrl(), dossiers: dossiers, parDefaut: defaut, tailleMax: PIECE_TAILLE_MAX };
@@ -2731,7 +2738,7 @@ var PARAMETRES_DEFAUT = [
   ['drive.sous_dossiers_etude', '01 DCE;02 Questions et visite', 'Sous-dossiers créés avec l\'affaire (En étude)'],
   ['drive.sous_dossiers_go', '03 Candidature;04 Offre;05 Dépôt', 'Sous-dossiers créés au passage en Go'],
   ['drive.sous_dossiers_resultat', '06 Résultat', 'Sous-dossiers créés au résultat (gagnée, perdue, sans suite)'],
-  ['drive.sous_dossiers_gagnee', '07 Exécution;08 Facturation', 'Sous-dossiers créés au passage en Gagnée'],
+  ['drive.sous_dossiers_gagnee', '07 Exécution;08 Facturation;09 Estimations', 'Sous-dossiers créés au passage en Gagnée (volet Mission : Livrables, Facturation, Estimations, dans cet ordre)'],
 
   // Sauvegarde (§ 2)
   ['sauvegarde.nb_copies', '8', 'Nombre de copies hebdomadaires conservées dans Drive'],
@@ -2797,7 +2804,8 @@ var MIGRATIONS_PARAMETRES = [
 
 /** Valeurs ajoutées aux listes existantes, même modifiées (sans doublon, sans retirer les vôtres). */
 var AJOUTS_PARAMETRES = [
-  ['veille.plateformes_domaines', 'ampmetropole.fr;safetender.com;ville-gap.fr;maregionsud.fr;departement13.fr;laprovencemarchespublics.com']
+  ['veille.plateformes_domaines', 'ampmetropole.fr;safetender.com;ville-gap.fr;maregionsud.fr;departement13.fr;laprovencemarchespublics.com'],
+  ['drive.sous_dossiers_gagnee', '09 Estimations']
 ];
 
 function Params_migrer_() {

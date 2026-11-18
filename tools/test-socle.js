@@ -1330,7 +1330,12 @@ test('Drive : dossier racine / année / affaire, sous-dossiers selon l\'étape, 
   assert.deepStrictEqual(enfants(dossier), ['01 DCE', '02 Questions et visite', '03 Candidature', '04 Offre', '05 Dépôt']);
   A.Affaires_changerStatut(id, 'Déposée', { montant_ht: 1000, jours_reponse: 1 });
   A.Affaires_changerStatut(id, 'Gagnée', { date_notification: '2026-12-01', montant_notifie: 1000 });
-  assert.deepStrictEqual(enfants(dossier), ['01 DCE', '02 Questions et visite', '03 Candidature', '04 Offre', '05 Dépôt', '06 Résultat', '07 Exécution', '08 Facturation']);
+  assert.deepStrictEqual(enfants(dossier), ['01 DCE', '02 Questions et visite', '03 Candidature', '04 Offre', '05 Dépôt', '06 Résultat', '07 Exécution', '08 Facturation', '09 Estimations']);
+  // Chaque dossier connaît son étape (rangement dans les sous-onglets de la fiche)
+  const p = brut(A.apiPieces(id).data);
+  const et = (n) => p.dossiers.find((d) => d.nom === n);
+  assert.deepStrictEqual([et('01 DCE').etape, et('04 Offre').etape, et('06 Résultat').etape, et('09 Estimations').etape], ['etude', 'go', 'resultat', 'gagnee']);
+  assert.deepStrictEqual([et('07 Exécution').rang, et('08 Facturation').rang, et('09 Estimations').rang], [0, 1, 2]);
   // Deuxième affaire : même racine, même dossier d'année
   A.Affaires_creer({ acheteur: 'EPCI', objet: 'AMO' }, { date: '2026-11-13' });
   assert.strictEqual(dossiers().filter((d) => d.nom === 'Kompa Affaires — Dossiers').length, 1);

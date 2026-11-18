@@ -1,4 +1,4 @@
-/* Kompa Affaires — module Estimation 1.3.1 — fichier généré par tools/build.js depuis src/Est*.js. Ne pas modifier ici. */
+/* Kompa Affaires — module Estimation 1.4.0 — fichier généré par tools/build.js depuis src/Est*.js. Ne pas modifier ici. */
 
 // ════════ EstConfig.js ════════
 
@@ -15,7 +15,7 @@
  */
 
 /** Doit être égale à APP.VERSION (Code.gs) : sinon l'accueil signale une mise à jour incomplète. */
-var EST_VERSION = '1.3.1';
+var EST_VERSION = '1.4.0';
 
 /**
  * Tables du module, toutes dans le classeur EST. Mêmes conventions que le suivi :
