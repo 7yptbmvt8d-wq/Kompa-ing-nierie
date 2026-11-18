@@ -29,6 +29,8 @@ function assembler() {
     return r[m];
   } }) } };
   </script>`;
+  // doGet() ajoute la balise viewport (addMetaTag) : on la reproduit pour l'aperçu téléphone.
+  html = html.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">');
   return html.replace('<script>', pont + '\n<script>');
 }
 
@@ -330,6 +332,22 @@ function assembler() {
     const deborde = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     assert.ok(!deborde, 'débordement horizontal à 1280 px : ' + ecran);
   }
+
+  // Téléphone : l'Accueil (tableau de bord) tient dans la largeur de l'écran, sans défilement horizontal
+  const tel = await ouvrir({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+  await tel.page.waitForSelector('#tableau-de-bord .tuiles');
+  await tel.page.waitForSelector('#carte-ca table');
+  await tel.page.waitForSelector('#carte-etat dl');
+  const debordeTel = await tel.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  assert.ok(debordeTel <= 0, 'Accueil sur téléphone : débordement horizontal de ' + debordeTel + ' px');
+  const colonnes = await tel.page.evaluate(() => getComputedStyle(document.querySelector('.tuiles')).gridTemplateColumns.split(' ').length);
+  assert.strictEqual(colonnes, 2, 'tuiles du tableau de bord sur 2 colonnes au téléphone');
+  await tel.page.screenshot({ path: path.join(sortie, 'tel-accueil.png'), fullPage: true });
+  // Les autres écrans gardent la mise en page ordinateur
+  await tel.page.click('nav a[href="#affaires"]');
+  await tel.page.waitForTimeout(300);
+  assert.ok(await tel.page.evaluate(() => document.body.scrollWidth >= 1024), 'Affaires : mise en page ordinateur au téléphone');
+  assert.deepStrictEqual(tel.erreurs, [], 'erreurs JavaScript au téléphone : ' + tel.erreurs.join(' | '));
 
   await navigateur.close();
   const erreurs = pc.erreurs;

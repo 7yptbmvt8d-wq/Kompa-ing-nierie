@@ -3585,10 +3585,12 @@ function Veille_procedure_(libelle) {
 
 function doGet() {
   verifierAcces_();
-  // Application pour ordinateur (Windows, macOS, ChromeOS) : pas de version mobile (décision du 12/11/2026).
+  // Application pour ordinateur (Windows, macOS, ChromeOS). Sur téléphone, seul l'Accueil (tableau de bord)
+  // est adapté à l'écran (décision du 18/11/2026) ; les autres écrans gardent la mise en page ordinateur.
   var sortie = HtmlService.createTemplateFromFile('Index')
     .evaluate()
-    .setTitle(APP.NOM);
+    .setTitle(APP.NOM)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
   try {
     sortie.setFaviconUrl(Params_texte('app.favicon_url', '') || APP.FAVICON);
   } catch (e) {

@@ -305,6 +305,7 @@
     document.title = (param || ECRANS[nom].titre) + ' — Kompa Affaires';
     jetonEcran++;
     var el = $('#ecran');
+    document.body.setAttribute('data-ecran', nom); // Styles.html : mise en page téléphone de l'Accueil seulement
     ECRANS[nom].rendu(el, param);
     if (pousser && historique) historique.push({ ecran: chemin }, {}, chemin);
     window.scrollTo(0, 0);

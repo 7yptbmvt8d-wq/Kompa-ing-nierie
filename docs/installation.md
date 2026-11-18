@@ -57,7 +57,7 @@ Revenir à l'**Éditeur** (icône `< >` à gauche).
 
 ## E. Ouvrir l'app
 
-L'app est conçue pour ordinateur (pas de version mobile) ; elle s'ouvre dans n'importe quel navigateur récent, connecté au compte Kompa. Pour l'avoir comme une application (icône, fenêtre à part) :
+L'app est conçue pour ordinateur ; sur téléphone, seul l'Accueil (tableau de bord) est adapté à l'écran. Elle s'ouvre dans n'importe quel navigateur récent, connecté au compte Kompa. Pour l'avoir comme une application (icône, fenêtre à part) :
 
 | Appareil | Navigateur | Raccourci |
 |---|---|---|

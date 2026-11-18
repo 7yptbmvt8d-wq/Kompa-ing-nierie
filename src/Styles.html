@@ -372,4 +372,25 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .cellule-lien input { min-width: 10rem; }
 .ajout-piece #ajout-liv-tranche { flex: 0 0 5rem; }
 .ajout-piece #ajout-liv-date { flex: 0 0 auto; width: auto; }
+/* ——— Téléphone : seul l'Accueil (tableau de bord) est adapté. Les autres écrans gardent
+   la mise en page ordinateur (largeur 1024 px, défilement horizontal). ——— */
+@media (max-width: 760px) {
+  body[data-ecran="accueil"] { min-width: 0; }
+  body[data-ecran="accueil"] .entete__barre { gap: var(--kompa-s3); padding: 0 var(--kompa-s4); min-height: 52px; }
+  body[data-ecran="accueil"] .marque svg { height: 26px; }
+  body[data-ecran="accueil"] .marque__nom { display: none; }
+  body[data-ecran="accueil"] main { padding: var(--kompa-s4); }
+  body[data-ecran="accueil"] .pied { padding: var(--kompa-s4); }
+  body[data-ecran="accueil"] .tableau-tete { flex-wrap: wrap; gap: 0 var(--kompa-s4); }
+  body[data-ecran="accueil"] .tuiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--kompa-s2); }
+  body[data-ecran="accueil"] .tuile { padding: var(--kompa-s2) var(--kompa-s3); }
+  body[data-ecran="accueil"] .grille,
+  body[data-ecran="accueil"] .grille--tableau { grid-template-columns: minmax(0, 1fr); }
+  body[data-ecran="accueil"] .carte--large { grid-column: auto; }
+  body[data-ecran="accueil"] .carte { padding: var(--kompa-s4); }
+  body[data-ecran="accueil"] .barre { grid-template-columns: minmax(0, 8rem) minmax(0, 1fr) 28px; gap: var(--kompa-s2); }
+  body[data-ecran="accueil"] .ca-chiffres { gap: var(--kompa-s4); }
+  body[data-ecran="accueil"] .liste-def { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); }
+  body[data-ecran="accueil"] .liste-def dt { white-space: normal; }
+}
 </style>
