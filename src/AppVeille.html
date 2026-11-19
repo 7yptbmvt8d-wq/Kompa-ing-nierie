@@ -95,7 +95,9 @@
       '<td class="mono">' + jour(a.date_parution) + '</td>' +
       '<td>' + esc(a.acheteur) + (a.departement ? ' <span class="mono legende">(' + esc(a.departement) + ')</span>' : '') +
         '<div class="legende">' + esc(a.type_acheteur) + '</div></td>' +
-      '<td class="objet-veille">' + esc(a.objet) + '<div class="legende">' + esc(a.source) + (a.procedure ? ' · ' + esc(a.procedure) : '') +
+      '<td class="objet-veille">' + esc(a.objet) +
+        (/Bâtiment à vérifier/.test(a.score_detail || '') ? ' <span class="statut statut--alerte" title="L\'objet ne cite aucun mot du bâtiment : vérifiez sur l\'avis que la mission porte sur des bâtiments.">bâtiment à vérifier</span>' : '') +
+        '<div class="legende">' + esc(a.source) + (a.procedure ? ' · ' + esc(a.procedure) : '') +
         (a.montant_estime ? ' · <span class="mono">' + K.euros(Number(a.montant_estime)) + '</span>' : '') + ' · ' +
         liens.map(function (u, i) { return '<a href="' + esc(u) + '" target="_blank" rel="noopener" data-externe>' + (i ? 'lien ' + (i + 1) : 'Voir l\'avis') + '</a>'; }).join(' · ') +
       '</div></td>' +

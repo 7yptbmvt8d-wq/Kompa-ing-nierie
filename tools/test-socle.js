@@ -888,6 +888,31 @@ test('veille : filtres § 3.2 (maîtrise d\'œuvre exclue, AMO gardée)', () => 
   assert.strictEqual(g.garde, false);
 });
 
+test('veille : AMO « bâtiment à vérifier » plafonnée à « possible », mention dans le détail ; paramètre à non → écartée', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const ctx = A.Veille_contexte_();
+  ctx.aujourdhui = new Date(2026, 10, 12);
+  const avis = { objet: 'Assistance technique à maîtrise d\'ouvrage pour les marchés de travaux', cpv: '71241000', departement: '13', departements: ['13'], type_acheteur: 'Commune', date_limite: new Date(2026, 11, 10) };
+  const f = brut(A.Veille_filtrer_(Object.assign({}, avis), ctx));
+  assert.deepStrictEqual(f, { garde: true, batimentAVerifier: true });
+  const s = brut(A.Veille_scorer_(Object.assign({ batimentAVerifier: true }, avis), ctx));
+  assert.ok(s.pre_score >= 60, 'score de « à étudier »');
+  assert.strictEqual(s.classement, 'possible');
+  assert.strictEqual(s.statut, 'nouveau');
+  assert.match(s.score_detail, /Bâtiment à vérifier/);
+  assert.strictEqual(s.batimentAVerifier, undefined);
+  // Mention dans l'e-mail du matin
+  A.Db_inserer(A.TABLES.AVIS, Object.assign({ source: 'BOAMP', id_source: 'g1', acheteur: 'Ville de Gardanne', lien: 'https://www.boamp.fr/g1', zone: 'PACA-Corse', cree_le: new Date() }, s));
+  assert.match(A.Email_construire(new Date()).html, /bâtiment à vérifier/);
+  // Paramètre veille.batiment_amo_souple = non : écartée comme avant
+  A.Params_enregistrer('veille.batiment_amo_souple', 'non');
+  A.Params_cache_ = null;
+  const ctx2 = A.Veille_contexte_();
+  assert.strictEqual(A.Veille_filtrer_(Object.assign({}, avis), ctx2).motif, 'hors domaine bâtiment');
+});
+
 test('veille : pré-score § 3.4 et classement', () => {
   const env = veilleEnv();
   const ctx = env.ctx.Veille_contexte_();
@@ -1580,7 +1605,7 @@ test('page : titre « Kompa Affaires » et icône Kompa dans l\'onglet', () => {
 
 const PACA = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'boamp-paca-corse.json'), 'utf8'));
 
-test('filtres PACA-Corse : 29 avis du domaine bâtiment gardés sur 137', () => {
+test('filtres PACA-Corse : 29 avis du domaine bâtiment + 11 AMO « bâtiment à vérifier » gardés sur 137', () => {
   const env = creerEnvironnement({ boamp: PACA });
   env.ctx.installer({ exercice: false });
   const ctx = env.ctx.Veille_contexte_();
@@ -1588,8 +1613,15 @@ test('filtres PACA-Corse : 29 avis du domaine bâtiment gardés sur 137', () => 
     const r = PACA.results.find((x) => x.objet.indexOf(idObjet) >= 0);
     return env.ctx.Veille_filtrer_(env.ctx.Veille_depuisBoamp_(r, ctx), ctx).garde;
   };
-  const gardes = PACA.results.filter((r) => env.ctx.Veille_filtrer_(env.ctx.Veille_depuisBoamp_(r, ctx), ctx).garde);
-  assert.strictEqual(gardes.length, 29);
+  const filtre = (r) => env.ctx.Veille_filtrer_(env.ctx.Veille_depuisBoamp_(r, ctx), ctx);
+  const gardes = PACA.results.filter((r) => filtre(r).garde);
+  assert.strictEqual(gardes.length, 40);
+  assert.strictEqual(gardes.filter((r) => filtre(r).batimentAVerifier).length, 11);
+  // Assouplissement : AMO explicite sans mot du bâtiment → gardée, bâtiment à vérifier
+  ['Assistance technique à maîtrise d\'ouvrage pour les marchés de travaux - 13120 - Gardanne', 'compétences "Cadre de Vie" de la CASA',
+    'lancement des consultations de la maitrise d\'oeuvre', 'Programmation De La Construction D\'Une Nouvelle'].forEach((o) => assert.ok(garde(o), 'devrait être gardé (à vérifier) : ' + o));
+  // … sauf domaines hors sujet (débroussaillement, enfance, Jeux olympiques)
+  ['PMPFCI DES ALPILLES', 'PIDAF DE LA CASSB', 'politique enfance-famill', 'Jeux Olympiques 2030'].forEach((o) => assert.ok(!garde(o), 'devrait être exclu : ' + o));
   // Gardés : AMO bâtiment des communes et collectivités
   ['programmation d\'une nouvelle cantine', 'groupe scolaire et la cuisine centrale', 'RÉNOVATION DE LA PISCINE JEAN MARET',
     'réalisation d\'une cuisine centrale', 'accompagnement foncier pour un projet de collège', 'MUSEE D’ART ET D’HISTOIRE',
@@ -1633,7 +1665,7 @@ test('migration : anciennes valeurs par défaut mises à jour, valeurs modifiée
   A.Db_maj(A.TABLES.PARAMETRES, 'veille.exclusions', { valeur: 'mes exclusions à moi' });
   A.Db_insererPlusieurs(A.TABLES.AVIS, [
     { source: 'BOAMP', id_source: 'm1', acheteur: 'Commune', objet: 'AMO programmation d\'une école', zone: 'PACA', departement: '13', statut: 'nouveau', classement: 'à étudier' },
-    { source: 'BOAMP', id_source: 'm2', acheteur: 'Syndicat', objet: 'AMO schéma directeur eau potable', zone: 'PACA', departement: '83', statut: 'nouveau', classement: 'à étudier' }
+    { source: 'BOAMP', id_source: 'm2', acheteur: 'Syndicat', objet: 'Assistance technique schéma directeur eau potable', zone: 'PACA', departement: '83', statut: 'nouveau', classement: 'à étudier' }
   ]);
   A.Params_cache_ = null;
   const r = brut(A.installer({ exercice: false }));

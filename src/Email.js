@@ -127,7 +127,9 @@ function Email_construire(quand, depuis) {
           bouton(url + '#affaire/' + e.id_affaire, 'Ouvrir l\'offre') + '</div>';
       }).join('') + '</div></td></tr>';
   }
-  if (avisPaca.length) corps += section('Nouveaux avis ' + paca, avisPaca.length, avisPaca.map(function (a) { return ligneAvis(a, ''); }).join(''));
+  if (avisPaca.length) corps += section('Nouveaux avis ' + paca, avisPaca.length, avisPaca.map(function (a) {
+    return ligneAvis(a, /Bâtiment à vérifier/.test(a.score_detail || '') ? 'bâtiment à vérifier' : '');
+  }).join(''));
   if (avisFrance.length || autresFrance) corps += section('Nouveaux avis hors ' + paca + ' à étudier', avisFrance.length,
     avisFrance.map(function (a) { return ligneAvis(a, 'présentiel à vérifier'); }).join('') +
     (autresFrance ? '<tr><td colspan="3" style="padding:10px 0;color:' + C.gris + ';font-size:13px">+ ' + autresFrance + ' autre' + (autresFrance > 1 ? 's' : '') +

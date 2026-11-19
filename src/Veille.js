@@ -44,6 +44,8 @@ function Veille_contexte_() {
     motsBatiment: Params_liste('veille.mots_batiment').map(Veille_norm_),
     equipements: Params_liste('veille.equipements').map(Veille_norm_),
     batimentRequis: Params_texte('veille.batiment_requis', 'oui').toLowerCase() === 'oui',
+    batimentAmoSouple: Params_texte('veille.batiment_amo_souple', 'oui').toLowerCase() === 'oui',
+    exclusionsAVerifier: Params_liste('veille.exclusions_a_verifier').map(Veille_norm_),
     horsZone: Params_texte('veille.hors_zone', 'non').toLowerCase() === 'oui',
     exclusionMoe: Veille_norm_(Params_texte('veille.exclusion_moe', '')),
     exceptionMoe: Veille_norm_(Params_texte('veille.exception_moe', '')),
@@ -68,6 +70,7 @@ function Veille_executer_(source, lire, ctx) {
     bruts.forEach(function (a) {
       var f = Veille_filtrer_(a, ctx);
       if (!f.garde) { bilan.exclus++; return; }
+      if (f.batimentAVerifier) a.batimentAVerifier = true;
       var d = Veille_doublon_(a, ctx.existants.concat(nouveaux));
       if (d) {
         bilan.doublons++;
@@ -281,7 +284,16 @@ function Veille_filtrer_(a, ctx) {
     return m.length <= 4 ? new RegExp('\\b' + m + '\\b').test(texte) : texte.indexOf(m) >= 0;
   });
   if (!(cpvOk || descOk || motOk)) return { garde: false, motif: 'hors CPV et mots-clés' };
-  if (ctx.batimentRequis && !Veille_contientMot_(objet, ctx.motsBatiment)) return { garde: false, motif: 'hors domaine bâtiment' };
+  if (ctx.batimentRequis && !Veille_contientMot_(objet, ctx.motsBatiment)) {
+    // Assouplissement (19/11/2026) : une AMO explicite sans mot du bâtiment (« assistance technique à maîtrise
+    // d'ouvrage pour les marchés de travaux », « AMO cadre de vie ») est gardée en « possible », bâtiment à vérifier.
+    if (ctx.batimentAmoSouple && /assistance (technique )?a (la )?maitrise d.?ouvrage|\bamo\b/.test(objet)) {
+      var hs = Veille_contientMot_(objet, ctx.exclusionsAVerifier);
+      if (hs) return { garde: false, motif: 'hors domaine bâtiment (' + hs + ')' };
+      return { garde: true, batimentAVerifier: true };
+    }
+    return { garde: false, motif: 'hors domaine bâtiment' };
+  }
   return { garde: true };
 }
 
@@ -381,18 +393,22 @@ function Veille_scorer_(a, ctx) {
   };
   var total = detail.zone + detail.mission + detail.delai + detail.acheteur + detail.montant;
   var classement = total >= p('seuil_etudier', 60) ? 'à étudier' : total >= p('seuil_possible', 40) ? 'possible' : 'archivé';
+  // Domaine bâtiment non cité dans l'objet : au mieux « possible », jamais « à étudier »
+  if (a.batimentAVerifier && classement === 'à étudier') classement = 'possible';
 
   a.zone = paca ? ctx.libellePaca : ctx.libelleFrance;
   if (paca && ctx.paca.indexOf(a.departement) < 0) a.departement = deps.filter(function (d) { return ctx.paca.indexOf(d) >= 0; })[0];
   a.pre_score = total;
   a.score_detail = 'Zone ' + detail.zone + ' · Mission ' + detail.mission + ' · Délai ' + detail.delai +
-    (jours === null ? ' (date inconnue)' : ' (' + jours + ' j)') + ' · Acheteur ' + detail.acheteur + ' · Montant ' + detail.montant;
+    (jours === null ? ' (date inconnue)' : ' (' + jours + ' j)') + ' · Acheteur ' + detail.acheteur + ' · Montant ' + detail.montant +
+    (a.batimentAVerifier ? ' · Bâtiment à vérifier (objet sans mot du bâtiment)' : '');
   a.alerte_delai = jours !== null && jours < 10 ? 'oui' : '';
   a.classement = classement;
   a.statut = classement === 'archivé' ? 'archivé' : 'nouveau';
   delete a.departements;
   delete a.descripteurs;
   delete a.texte;
+  delete a.batimentAVerifier;
   return a;
 }
 
