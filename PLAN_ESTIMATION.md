@@ -302,3 +302,16 @@ Répondez « défauts OK », ou corrigez seulement les points à changer.
 | Q12 | TVA | Taux par zone, modifiable par estimation : 20 % par défaut ; 10 % en Corse pour les travaux immobiliers (taux propre à la Corse, à confirmer) |
 | Q13 | Format DPGF | Numérotation `lot.sous-lot.article` (02.03.01) ; mise en page Kompa, identique au chiffrage du skill |
 | Q15 | Ordre | Celui du plan révisé (import DPGF avant l'assistant) |
+
+## 6. Décisions du 19/11/2026 : module rendu utilisable (v1.5.0)
+
+Les DPGF reçues ne donnent qu'un **montant par article**, sans quantité ni prix unitaire. Plutôt que l'import complet (§ 2.6), trois étapes livrées ensemble :
+
+| Étape | Livré | Reporté |
+|---|---|---|
+| 4. Bibliothèque | Écran Estimation › Bibliothèque : collage des postes d'un marché attribué (libellé + montant HT), lot deviné par mots-clés (paramètre `est.classement_lots`) puis vérifié, une observation par lot (ratio € HT/m² de référence), aucune entreprise ni opération ; annulation d'un import ; ratios par typologie et nature, actualisés au dernier index du lot | Lecture d'un fichier .xlsx, prix unitaires, quantités types, contrôle des PU aberrants |
+| 5. Estimation | Assistant au ratio : affaire, phase, typologie, nature, surface, département, kloc (kdép proposé selon le département), date des travaux (projection), lots ; aperçu ; indice A, B… par phase ; PU modifiable ligne par ligne (source « saisie ») ; estimation figée ; suppression d'un brouillon | Mode détaillé (quantités × PU), duplication d'une phase |
+| 6. Export | .xlsx au format DPGF (formules Quantité × PU, total, aléas, TVA, TTC ; mentions d'index, de K et de fiabilité), déposé dans « 09 Estimations » sans écraser (suffixe (2)…), note au journal de l'affaire | — |
+
+Lots ajoutés : DG (dispositions générales), DEM (démolitions), EQUIP (équipements spécifiques), sans index propre (BT01 en neuf, BT50 en réhabilitation).
+Seuil d'anonymat : un ratio fondé sur moins de 3 marchés reste utilisable, signalé et en fiabilité C (paramètre `est.ratio_sous_seuil` = oui ; « non » pour le masquer).

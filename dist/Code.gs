@@ -1,4 +1,4 @@
-/* Kompa Affaires 1.4.0 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
+/* Kompa Affaires 1.5.0 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
 
 // ════════ Setup.js ════════
 
@@ -1070,7 +1070,7 @@ function arrondi_(n) {
 
 var APP = {
   NOM: 'Kompa Affaires',
-  VERSION: '1.4.0',
+  VERSION: '1.5.0',
   CLASSEUR: 'Kompa Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',

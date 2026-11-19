@@ -100,3 +100,68 @@ function apiEstActualiser(pu, m0, lot, nature, moisCible) {
     return Est_actualiser_(n, m0, { lot: lot, nature: nature, moisCible: moisCible || null });
   });
 }
+
+// ——— Bibliothèque de ratios (étape 4) ———
+
+/** Imports, listes du formulaire d'import. */
+function apiEstBibliotheque() {
+  return repondre_(function () {
+    var f = Est_formulaire_('');
+    return { imports: Est_imports_(), typologies: f.typologies, natures: f.natures, lots: f.lots };
+  });
+}
+
+/** Analyse des lignes collées : postes reconnus (lot deviné) et lignes écartées. Rien n'est enregistré. */
+function apiEstAnalyserPostes(texte) {
+  return repondre_(function () { return Est_analyserPostes_(texte); });
+}
+
+function apiEstImporter(donnees) {
+  return repondre_(function () { var imp = Est_importer_(donnees); return { id: imp.id, imports: Est_imports_() }; });
+}
+
+function apiEstAnnulerImport(id) {
+  return repondre_(function () { Est_annulerImport_(id); return { imports: Est_imports_() }; });
+}
+
+/** Ratios d'une typologie et d'une nature, actualisés au dernier index. */
+function apiEstRatios(typologie, nature) {
+  return repondre_(function () { return Est_ratios_(typologie, nature, null); });
+}
+
+// ——— Estimation au ratio (étape 5) ———
+
+function apiEstFormulaire(idAffaire) {
+  return repondre_(function () { return Est_formulaire_(idAffaire); });
+}
+
+/** Aperçu sans enregistrement. */
+function apiEstApercu(d) {
+  return repondre_(function () { return Est_calculer_(d); });
+}
+
+function apiEstCreer(d) {
+  return repondre_(function () { return Est_creerEstimation_(d); });
+}
+
+function apiEstEstimation(id) {
+  return repondre_(function () { return Est_estimationComplete_(id); });
+}
+
+function apiEstLigneMaj(idLigne, champs) {
+  return repondre_(function () { return Est_ligneMaj_(idLigne, champs); });
+}
+
+function apiEstFiger(id) {
+  return repondre_(function () { return Est_figer_(id); });
+}
+
+function apiEstSupprimer(id) {
+  return repondre_(function () { return Est_supprimerEstimation_(id); });
+}
+
+// ——— Export .xlsx (étape 6) ———
+
+function apiEstExporter(id) {
+  return repondre_(function () { var r = Est_exporter_(id); r.estimation = Est_estimationComplete_(id); return r; });
+}

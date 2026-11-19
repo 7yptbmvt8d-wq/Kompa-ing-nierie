@@ -11,7 +11,7 @@
  */
 
 /** Doit être égale à APP.VERSION (Code.gs) : sinon l'accueil signale une mise à jour incomplète. */
-var EST_VERSION = '1.4.0';
+var EST_VERSION = '1.5.0';
 
 /**
  * Tables du module, toutes dans le classeur EST. Mêmes conventions que le suivi :
@@ -43,9 +43,9 @@ var EST_TABLES = {
     onglet: 'Estimations', classeur: 'EST', cle: 'id', prefixe: 'ES',
     colonnes: ['id', 'id_affaire', 'phase', 'indice', 'typologie', 'nature', 'surface_sdp', 'surface_vrd', 'surfaces_autres',
       'k', 'k_detail', 'mode', 'mois_indice_bt', 'mois_indice_tp', 'projection_taux', 'date_travaux',
-      'tva', 'aleas_pct', 'total_ht', 'total_ttc', 'statut', 'commentaire'],
+      'tva', 'aleas_pct', 'total_ht', 'total_ttc', 'statut', 'commentaire', 'departement', 'export_url'],
     nombres: ['surface_sdp', 'surface_vrd', 'k', 'projection_taux', 'tva', 'aleas_pct', 'total_ht', 'total_ttc'],
-    texteBrut: ['id_affaire', 'indice', 'mois_indice_bt', 'mois_indice_tp']
+    texteBrut: ['id_affaire', 'indice', 'mois_indice_bt', 'mois_indice_tp', 'departement', 'date_travaux']
   },
   INDICES: {
     onglet: 'Index Insee', classeur: 'EST', cle: 'code',
@@ -68,6 +68,18 @@ var EST_TABLES = {
       'source', 'id_source', 'fiabilite', 'commentaire'],
     nombres: ['quantite', 'pu_m0', 'indice_m0', 'indice_valeur', 'coef_actualisation', 'coef_k', 'pu_ht', 'total_ht'],
     texteBrut: ['num_article', 'm0', 'indice_mois']
+  },
+  // Bibliothèque (étape 4) : un import = les postes d'un marché attribué, sans entreprise, site ni opération.
+  IMPORTS: {
+    onglet: 'Imports', classeur: 'EST', cle: 'id', prefixe: 'IM',
+    colonnes: ['id', 'date', 'typologie', 'nature', 'departement', 'm0', 'surface', 'nb_postes', 'total_ht', 'commentaire', 'statut'],
+    nombres: ['surface', 'nb_postes', 'total_ht'], texteBrut: ['departement', 'm0'], horodatages: ['date']
+  },
+  // Une observation par lot et par import : montant HT du lot, ratio en € HT par m² de référence.
+  OBSERVATIONS: {
+    onglet: 'Observations', classeur: 'EST', cle: 'id', prefixe: 'OB',
+    colonnes: ['id', 'id_import', 'typologie', 'nature', 'departement', 'm0', 'lot', 'postes', 'montant_ht', 'surface', 'ratio', 'statut'],
+    nombres: ['montant_ht', 'surface', 'ratio'], texteBrut: ['departement', 'm0', 'lot']
   }
 };
 

@@ -1,4 +1,4 @@
-/* Kompa Affaires — module Estimation 1.4.0 — fichier généré par tools/build.js depuis src/Est*.js. Ne pas modifier ici. */
+/* Kompa Affaires — module Estimation 1.5.0 — fichier généré par tools/build.js depuis src/Est*.js. Ne pas modifier ici. */
 
 // ════════ EstConfig.js ════════
 
@@ -15,7 +15,7 @@
  */
 
 /** Doit être égale à APP.VERSION (Code.gs) : sinon l'accueil signale une mise à jour incomplète. */
-var EST_VERSION = '1.4.0';
+var EST_VERSION = '1.5.0';
 
 /**
  * Tables du module, toutes dans le classeur EST. Mêmes conventions que le suivi :
@@ -47,9 +47,9 @@ var EST_TABLES = {
     onglet: 'Estimations', classeur: 'EST', cle: 'id', prefixe: 'ES',
     colonnes: ['id', 'id_affaire', 'phase', 'indice', 'typologie', 'nature', 'surface_sdp', 'surface_vrd', 'surfaces_autres',
       'k', 'k_detail', 'mode', 'mois_indice_bt', 'mois_indice_tp', 'projection_taux', 'date_travaux',
-      'tva', 'aleas_pct', 'total_ht', 'total_ttc', 'statut', 'commentaire'],
+      'tva', 'aleas_pct', 'total_ht', 'total_ttc', 'statut', 'commentaire', 'departement', 'export_url'],
     nombres: ['surface_sdp', 'surface_vrd', 'k', 'projection_taux', 'tva', 'aleas_pct', 'total_ht', 'total_ttc'],
-    texteBrut: ['id_affaire', 'indice', 'mois_indice_bt', 'mois_indice_tp']
+    texteBrut: ['id_affaire', 'indice', 'mois_indice_bt', 'mois_indice_tp', 'departement', 'date_travaux']
   },
   INDICES: {
     onglet: 'Index Insee', classeur: 'EST', cle: 'code',
@@ -72,6 +72,18 @@ var EST_TABLES = {
       'source', 'id_source', 'fiabilite', 'commentaire'],
     nombres: ['quantite', 'pu_m0', 'indice_m0', 'indice_valeur', 'coef_actualisation', 'coef_k', 'pu_ht', 'total_ht'],
     texteBrut: ['num_article', 'm0', 'indice_mois']
+  },
+  // Bibliothèque (étape 4) : un import = les postes d'un marché attribué, sans entreprise, site ni opération.
+  IMPORTS: {
+    onglet: 'Imports', classeur: 'EST', cle: 'id', prefixe: 'IM',
+    colonnes: ['id', 'date', 'typologie', 'nature', 'departement', 'm0', 'surface', 'nb_postes', 'total_ht', 'commentaire', 'statut'],
+    nombres: ['surface', 'nb_postes', 'total_ht'], texteBrut: ['departement', 'm0'], horodatages: ['date']
+  },
+  // Une observation par lot et par import : montant HT du lot, ratio en € HT par m² de référence.
+  OBSERVATIONS: {
+    onglet: 'Observations', classeur: 'EST', cle: 'id', prefixe: 'OB',
+    colonnes: ['id', 'id_import', 'typologie', 'nature', 'departement', 'm0', 'lot', 'postes', 'montant_ht', 'surface', 'ratio', 'statut'],
+    nombres: ['montant_ht', 'surface', 'ratio'], texteBrut: ['departement', 'm0', 'lot']
   }
 };
 
@@ -186,6 +198,266 @@ function apiEstActualiser(pu, m0, lot, nature, moisCible) {
     if (!Est_mois_(m0)) throw new Error('Mois M0 : format MM/AAAA attendu (ex. 03/2024).');
     return Est_actualiser_(n, m0, { lot: lot, nature: nature, moisCible: moisCible || null });
   });
+}
+
+// ——— Bibliothèque de ratios (étape 4) ———
+
+/** Imports, listes du formulaire d'import. */
+function apiEstBibliotheque() {
+  return repondre_(function () {
+    var f = Est_formulaire_('');
+    return { imports: Est_imports_(), typologies: f.typologies, natures: f.natures, lots: f.lots };
+  });
+}
+
+/** Analyse des lignes collées : postes reconnus (lot deviné) et lignes écartées. Rien n'est enregistré. */
+function apiEstAnalyserPostes(texte) {
+  return repondre_(function () { return Est_analyserPostes_(texte); });
+}
+
+function apiEstImporter(donnees) {
+  return repondre_(function () { var imp = Est_importer_(donnees); return { id: imp.id, imports: Est_imports_() }; });
+}
+
+function apiEstAnnulerImport(id) {
+  return repondre_(function () { Est_annulerImport_(id); return { imports: Est_imports_() }; });
+}
+
+/** Ratios d'une typologie et d'une nature, actualisés au dernier index. */
+function apiEstRatios(typologie, nature) {
+  return repondre_(function () { return Est_ratios_(typologie, nature, null); });
+}
+
+// ——— Estimation au ratio (étape 5) ———
+
+function apiEstFormulaire(idAffaire) {
+  return repondre_(function () { return Est_formulaire_(idAffaire); });
+}
+
+/** Aperçu sans enregistrement. */
+function apiEstApercu(d) {
+  return repondre_(function () { return Est_calculer_(d); });
+}
+
+function apiEstCreer(d) {
+  return repondre_(function () { return Est_creerEstimation_(d); });
+}
+
+function apiEstEstimation(id) {
+  return repondre_(function () { return Est_estimationComplete_(id); });
+}
+
+function apiEstLigneMaj(idLigne, champs) {
+  return repondre_(function () { return Est_ligneMaj_(idLigne, champs); });
+}
+
+function apiEstFiger(id) {
+  return repondre_(function () { return Est_figer_(id); });
+}
+
+function apiEstSupprimer(id) {
+  return repondre_(function () { return Est_supprimerEstimation_(id); });
+}
+
+// ——— Export .xlsx (étape 6) ———
+
+function apiEstExporter(id) {
+  return repondre_(function () { var r = Est_exporter_(id); r.estimation = Est_estimationComplete_(id); return r; });
+}
+
+
+// ════════ EstBibliotheque.js ════════
+
+/**
+ * Module Estimation — bibliothèque de ratios (étape 4, version simplifiée décidée le 19/11/2026).
+ *
+ * Les DPGF reçues ne donnent qu'un montant par article (pas de quantités) : on importe les postes
+ * (macro-lots) d'un marché attribué, chacun rattaché à un lot, avec la surface de référence de l'opération.
+ * Chaque lot donne une observation : ratio = montant HT / surface (€ HT/m²).
+ * Aucune donnée d'entreprise, de site ni d'opération n'est saisie ni conservée.
+ */
+
+/** Texte comparable : minuscules, sans accents ni ligatures. */
+function Est_norm_(s) {
+  return String(s || '').toLowerCase().replace(/œ/g, 'oe').replace(/æ/g, 'ae')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’']/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/** Mots-clés de classement par lot (paramètre est.classement_lots) : [{ lot, mot }]. */
+function Est_motsLots_() {
+  var out = [];
+  Est_paramListe_('est.classement_lots').forEach(function (paire) {
+    var i = paire.indexOf(':');
+    if (i <= 0) return;
+    var lot = paire.slice(0, i).trim().toUpperCase();
+    paire.slice(i + 1).split(',').forEach(function (m) { if (m.trim()) out.push({ lot: lot, mot: Est_norm_(m) }); });
+  });
+  return out;
+}
+
+/** Lot le plus probable pour un libellé de poste : mot-clé le plus long trouvé en début de mot ; '' sinon. */
+function Est_devinerLot_(libelle, mots, lotsActifs) {
+  var t = ' ' + Est_norm_(libelle) + ' ';
+  var meilleur = null;
+  (mots || Est_motsLots_()).forEach(function (m) {
+    if (lotsActifs && !lotsActifs[m.lot]) return;
+    if (t.indexOf(' ' + m.mot) >= 0 && (!meilleur || m.mot.length > meilleur.mot.length)) meilleur = m;
+  });
+  return meilleur ? meilleur.lot : '';
+}
+
+/** Montant lu dans une cellule (« 66 261,00 € », « 1 206 153.80 ») ; null si ce n'en est pas un. */
+function Est_montant_(cellule) {
+  var s = String(cellule || '').replace(/[\s  €]/g, '');
+  if (!s || /%/.test(s) || !/^-?[\d.,]+$/.test(s)) return null;
+  if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.');
+  else if ((s.match(/\./g) || []).length > 1) s = s.replace(/\./g, '');
+  var n = Number(s);
+  return isFinite(n) ? n : null;
+}
+
+/**
+ * Lignes collées (copie d'un tableur ou texte « poste ; montant ») → postes { libelle, montant, lot }.
+ * Une cellule égale à un code de lot fixe le lot ; sinon il est deviné par mots-clés.
+ * Montant = plus grand nombre de la ligne (les n° de lot, % et ratios sont plus petits).
+ * Les lignes de total, de TVA et sans montant sont écartées et comptées.
+ */
+function Est_analyserPostes_(texte) {
+  var lots = {};
+  Db_lire(EST_TABLES.LOTS).forEach(function (l) { if (l.actif === 'oui') lots[String(l.code).toUpperCase()] = l; });
+  var mots = Est_motsLots_();
+  var postes = [], ecartees = [];
+  String(texte || '').split(/\r?\n/).forEach(function (ligne, i) {
+    if (!ligne.trim()) return;
+    var cellules = ligne.split(/\t|;/).map(function (c) { return c.trim(); }).filter(String);
+    var montants = [], textes = [], lotFixe = '';
+    cellules.forEach(function (c) {
+      var n = Est_montant_(c);
+      if (n !== null) { montants.push(n); return; }
+      if (lots[c.toUpperCase()]) { lotFixe = c.toUpperCase(); return; }
+      if (/[a-zà-ÿ]/i.test(c) && !/%/.test(c)) textes.push(c);
+    });
+    var libelle = textes[0] || '';
+    if (/^(sous[- ]?)?total|^tva\b|^montant total|\bttc\b/i.test(Est_norm_(libelle))) { ecartees.push({ ligne: i + 1, texte: ligne, motif: 'ligne de total' }); return; }
+    var montant = montants.length ? Math.max.apply(null, montants) : null;
+    if (!libelle || !(montant > 0)) { ecartees.push({ ligne: i + 1, texte: ligne, motif: libelle ? 'pas de montant' : 'pas de libellé' }); return; }
+    postes.push({ libelle: libelle.slice(0, 120), montant: Est_arrondi_(montant), lot: lotFixe || Est_devinerLot_(libelle, mots, lots) });
+  });
+  return { postes: postes, ecartees: ecartees };
+}
+
+/** Contrôle les données d'un marché (import) ; lève une erreur lisible. */
+function Est_validerMarche_(d) {
+  var typo = Db_trouver(EST_TABLES.TYPOLOGIES, d.typologie);
+  if (!typo || typo.actif !== 'oui') throw new Error('Typologie inconnue ou inactive.');
+  if (Est_paramListe_('est.natures').indexOf(d.nature) < 0) throw new Error('Nature attendue parmi : ' + Est_paramListe_('est.natures').join(', ') + '.');
+  var dep = String(d.departement || '').trim().toUpperCase();
+  if (/^\d$/.test(dep)) dep = '0' + dep;
+  if (!/^(\d{2,3}|2A|2B)$/.test(dep)) throw new Error('Département : 2 ou 3 caractères attendus (ex. 04, 2B, 974).');
+  var m0 = Est_mois_(d.m0);
+  if (!m0) throw new Error('Mois M0 : format MM/AAAA attendu (mois de remise des offres).');
+  var surface = Number(String(d.surface).replace(/\s/g, '').replace(',', '.'));
+  if (!(surface > 0)) throw new Error('Surface de référence : nombre de m² supérieur à 0 attendu.');
+  return { typologie: typo.code, nature: d.nature, departement: dep, m0: m0, surface: surface };
+}
+
+/**
+ * Enregistre un import : les postes sont additionnés par lot (une observation par lot).
+ * donnees : { typologie, nature, departement, m0, surface, commentaire, postes: [{ libelle, montant, lot }] }.
+ */
+function Est_importer_(donnees) {
+  var m = Est_validerMarche_(donnees);
+  var postes = (donnees.postes || []).filter(function (p) { return p && String(p.libelle || '').trim(); });
+  if (!postes.length) throw new Error('Aucun poste à enregistrer.');
+  var parLot = {}, ordre = [];
+  postes.forEach(function (p, i) {
+    var lot = String(p.lot || '').toUpperCase();
+    var l = Db_trouver(EST_TABLES.LOTS, lot);
+    if (!l || l.actif !== 'oui') throw new Error('Poste « ' + p.libelle + ' » : choisissez un lot.');
+    var montant = Number(String(p.montant).replace(/\s/g, '').replace(',', '.'));
+    if (!(montant > 0)) throw new Error('Poste « ' + p.libelle + ' » : montant supérieur à 0 attendu.');
+    if (!parLot[lot]) { parLot[lot] = { montant: 0, postes: [] }; ordre.push(lot); }
+    parLot[lot].montant += montant;
+    parLot[lot].postes.push(String(p.libelle).trim().slice(0, 60));
+  });
+  var total = ordre.reduce(function (s, lot) { return s + parLot[lot].montant; }, 0);
+  var imp = Db_inserer(EST_TABLES.IMPORTS, {
+    date: new Date(), typologie: m.typologie, nature: m.nature, departement: m.departement, m0: m.m0, surface: m.surface,
+    nb_postes: postes.length, total_ht: Est_arrondi_(total), commentaire: String(donnees.commentaire || '').trim().slice(0, 200), statut: 'actif'
+  });
+  Db_insererPlusieurs(EST_TABLES.OBSERVATIONS, ordre.map(function (lot) {
+    return {
+      id_import: imp.id, typologie: m.typologie, nature: m.nature, departement: m.departement, m0: m.m0, lot: lot,
+      postes: parLot[lot].postes.join(' ; ').slice(0, 300), montant_ht: Est_arrondi_(parLot[lot].montant), surface: m.surface,
+      ratio: Est_arrondi_(parLot[lot].montant / m.surface), statut: 'actif'
+    };
+  }));
+  Est_journal_('import', 'ok', imp.id + ' : ' + postes.length + ' postes, ' + ordre.length + ' lots, ' + Est_fr_(Est_arrondi_(total)) + ' € HT');
+  return imp;
+}
+
+/** Annule un import : ses observations ne servent plus aux ratios (conservées pour la trace). */
+function Est_annulerImport_(id) {
+  var imp = Db_trouver(EST_TABLES.IMPORTS, id);
+  if (!imp) throw new Error('Import introuvable : ' + id);
+  if (imp.statut === 'annulé') return imp;
+  Db_lire(EST_TABLES.OBSERVATIONS).filter(function (o) { return String(o.id_import) === String(id); })
+    .forEach(function (o) { Db_maj(EST_TABLES.OBSERVATIONS, o.id, { statut: 'annulé' }); });
+  Est_journal_('import', 'annulé', String(id));
+  return Db_maj(EST_TABLES.IMPORTS, id, { statut: 'annulé' });
+}
+
+/** Imports (les plus récents d'abord) avec leurs observations. */
+function Est_imports_() {
+  var obs = Db_lire(EST_TABLES.OBSERVATIONS);
+  return Db_lire(EST_TABLES.IMPORTS).map(function (i) {
+    var c = Est_versClient_('IMPORTS', i);
+    c.observations = obs.filter(function (o) { return String(o.id_import) === String(i.id); }).map(function (o) { return Est_versClient_('OBSERVATIONS', o); });
+    return c;
+  }).sort(function (a, b) { return String(b.id).localeCompare(String(a.id), 'fr', { numeric: true }); });
+}
+
+/**
+ * Ratios par lot pour une typologie et une nature (neuf ou réhabilitation, toutes intensités confondues).
+ * Chaque observation est actualisée au même mois (index du lot) avant le calcul de la médiane.
+ * Renvoie [{ lot, libelle, n, mediane, min, max, indice, moisIndice, nonActualisees, fiabilite, sousSeuil, utilisable, departements }].
+ */
+function Est_ratios_(typologie, nature, moisCible) {
+  var rehab = Est_estRehab_(nature);
+  var seuil = Est_paramNombre_('est.seuil_anonymat', 3);
+  var sousSeuilOk = String(Est_param_('est.ratio_sous_seuil', 'oui')).toLowerCase() === 'oui';
+  var lots = {};
+  Db_lire(EST_TABLES.LOTS).forEach(function (l) { lots[l.code] = l; });
+  var groupes = {};
+  Db_lire(EST_TABLES.OBSERVATIONS).forEach(function (o) {
+    if (o.statut !== 'actif' || String(o.typologie) !== String(typologie) || Est_estRehab_(o.nature) !== rehab) return;
+    (groupes[o.lot] = groupes[o.lot] || []).push(o);
+  });
+  return Object.keys(groupes).map(function (lot) {
+    var obs = groupes[lot];
+    var indice = '', moisIndice = '', nonAct = 0, recents = true;
+    var valeurs = obs.map(function (o) {
+      var a = Est_actualiser_(Number(o.ratio), o.m0, { lot: lot, nature: nature, moisCible: moisCible || null });
+      indice = a.indice;
+      if (a.recent) moisIndice = a.recent.mois;
+      if (a.statut !== 'ok') nonAct++;
+      if (a.recent && Est_ecartMois_(Est_mois_(o.m0), a.recent.mois) > 36) recents = false;
+      return a.statut === 'ok' ? Number(o.ratio) * a.coef : Number(o.ratio);
+    });
+    var st = Est_stats_(valeurs);
+    var imports = {}, deps = {};
+    obs.forEach(function (o) { imports[o.id_import] = true; deps[o.departement] = true; });
+    var n = Object.keys(imports).length;
+    var memeZone = Object.keys(deps).length === 1;
+    var sousSeuil = n < seuil;
+    return {
+      lot: lot, libelle: lots[lot] ? lots[lot].libelle : lot, ordre: lots[lot] ? Number(lots[lot].ordre) || 0 : 999,
+      n: n, mediane: Est_arrondi_(st.mediane), min: Est_arrondi_(st.min), max: Est_arrondi_(st.max),
+      indice: indice, moisIndice: moisIndice, nonActualisees: nonAct,
+      fiabilite: n < 5 ? 'C' : (recents && memeZone ? 'A' : 'B'),
+      sousSeuil: sousSeuil, utilisable: !sousSeuil || sousSeuilOk, departements: Object.keys(deps).sort()
+    };
+  }).sort(function (a, b) { return a.ordre - b.ordre; });
 }
 
 
@@ -406,6 +678,316 @@ function Est_totaux_(lignes, aleasPct, tvaPct) {
   var htAleas = ht + aleas;
   var tva = htAleas * (Number(tvaPct) || 0) / 100;
   return { ht: ht, aleas: aleas, htAleas: htAleas, tva: tva, ttc: htAleas + tva };
+}
+
+
+// ════════ EstEstimation.js ════════
+
+/**
+ * Module Estimation — estimation au ratio (étape 5, mode ratio ; le mode détaillé viendra avec les prix unitaires).
+ *
+ * Montant d'un lot = médiane du ratio (€ HT/m², actualisée au dernier index du lot) × surface × projection × K.
+ * Puis aléas de la phase et TVA du département. Une estimation est un brouillon tant qu'elle n'est pas figée ;
+ * figée, elle n'est plus modifiable (l'export reste identique).
+ */
+
+/** Lettre d'indice suivante pour une affaire et une phase (A, B… Z, puis AA). */
+function Est_indiceSuivant_(idAffaire, phase) {
+  var lettres = Db_lire(EST_TABLES.ESTIMATIONS).filter(function (e) {
+    return String(e.id_affaire) === String(idAffaire) && String(e.phase) === String(phase);
+  }).map(function (e) { return String(e.indice || ''); });
+  if (!lettres.length) return 'A';
+  var max = lettres.sort(function (a, b) { return a.length - b.length || a.localeCompare(b); }).pop();
+  return max === 'Z' ? 'AA' : (max.length === 1 ? String.fromCharCode(max.charCodeAt(0) + 1) : max + 'A');
+}
+
+/**
+ * Calcule une estimation sans l'enregistrer (aperçu) : renvoie { entete, lignes, totaux, k, avertissements }.
+ * d : { id_affaire, phase, typologie, nature, departement, surface, k_ids: [...], mois_indice (AAAA-MM ou ''),
+ *       date_travaux (MM/AAAA ou ''), lots: [codes], tva (facultatif) }.
+ */
+function Est_calculer_(d) {
+  var a = Affaires_get_(d.id_affaire);
+  if (Est_paramListe_('est.phases').indexOf(d.phase) < 0) throw new Error('Phase attendue parmi : ' + Est_paramListe_('est.phases').join(', ') + '.');
+  var m = Est_validerMarche_({ typologie: d.typologie, nature: d.nature, departement: d.departement, m0: '01/2000', surface: d.surface });
+  var lotsChoisis = (d.lots || []).map(function (x) { return String(x).toUpperCase(); });
+  if (!lotsChoisis.length) throw new Error('Choisissez au moins un lot.');
+  var k = Est_calculerK_(d.k_ids || []);
+  var moisIndice = d.mois_indice ? Est_mois_(d.mois_indice) : '';
+  var travaux = d.date_travaux ? Est_mois_(d.date_travaux) : '';
+  if (d.date_travaux && !travaux) throw new Error('Date des travaux : format MM/AAAA attendu.');
+  var ratios = {};
+  Est_ratios_(m.typologie, m.nature, moisIndice || null).forEach(function (r) { ratios[r.lot] = r; });
+  var lots = {};
+  Db_lire(EST_TABLES.LOTS).forEach(function (l) { lots[l.code] = l; });
+  var avert = [];
+  lotsChoisis.sort(function (x, y) { return ((lots[x] || {}).ordre || 999) - ((lots[y] || {}).ordre || 999); });
+  var lignes = lotsChoisis.map(function (code, i) {
+    var lot = lots[code];
+    if (!lot) throw new Error('Lot inconnu : ' + code);
+    var r = ratios[code];
+    var base = {
+      lot: code, num_article: ('0' + (i + 1)).slice(-2), designation: lot.libelle, unite: 'm²', quantite: m.surface,
+      coef_k: k.k, source: 'ratio', fiabilite: 'C'
+    };
+    if (!r || !r.utilisable || !(r.mediane > 0)) {
+      avert.push(code + ' : ' + (!r ? 'aucun marché importé pour cette typologie et cette nature' : 'ratio masqué (moins de ' + Est_param_('est.seuil_anonymat', '3') + ' marchés)') + ', PU à saisir.');
+      return Object.assign(base, {
+        pu_m0: 0, m0: '', indice: '', indice_mois: '', indice_valeur: '', coef_actualisation: 1, pu_ht: 0, total_ht: 0,
+        source: 'saisie', id_source: '', commentaire: 'Pas de ratio : PU à saisir.'
+      });
+    }
+    var proj = travaux && r.moisIndice ? Est_projection_(r.moisIndice, travaux) : { coef: 1, mois: 0 };
+    var valeur = r.moisIndice ? Est_valeurIndice_(r.indice, r.moisIndice) : null;
+    var pu = Est_arrondi_(r.mediane * proj.coef * k.k);
+    if (r.sousSeuil) avert.push(code + ' : ratio fondé sur ' + r.n + ' marché(s), sous le seuil de ' + Est_param_('est.seuil_anonymat', '3') + ' : à confirmer.');
+    if (r.nonActualisees) avert.push(code + ' : ' + r.nonActualisees + ' observation(s) non actualisée(s) (index du mois M0 absent).');
+    return Object.assign(base, {
+      pu_m0: r.mediane, m0: r.moisIndice, indice: r.indice, indice_mois: r.moisIndice, indice_valeur: valeur ? valeur.valeur : '',
+      coef_actualisation: Est_arrondi_(proj.coef, 4), pu_ht: pu, total_ht: Est_arrondi_(pu * m.surface),
+      id_source: r.n + ' marché(s)', fiabilite: r.fiabilite,
+      commentaire: 'Médiane de ' + r.n + ' marché(s) (' + Est_fr_(r.min) + ' à ' + Est_fr_(r.max) + ' €/m²), actualisée ' + r.indice + ' ' +
+        Est_moisLisible_(r.moisIndice) + (proj.mois ? ' ; projection ' + Est_moisLisible_(travaux) + ' × ' + Est_fr_(proj.coef, 4) : '') +
+        ' ; K ' + Est_fr_(k.k, 4)
+    });
+  });
+  var tva = d.tva !== undefined && d.tva !== '' && d.tva !== null ? Number(String(d.tva).replace(',', '.')) : Est_tvaPour_(m.departement);
+  var aleas = Est_aleasPct_(d.phase);
+  return {
+    entete: {
+      id_affaire: a.id, phase: d.phase, typologie: m.typologie, nature: m.nature, departement: m.departement, surface_sdp: m.surface,
+      k: k.k, k_detail: k.detail.map(function (x) { return x.facteur + ' ' + x.modalite + ' (' + Est_fr_(x.coefficient) + ')'; }).join(' + '),
+      mode: 'ratio', mois_indice_bt: lignes.filter(function (l) { return l.indice_mois; }).map(function (l) { return l.indice_mois; }).sort().pop() || '',
+      date_travaux: travaux, tva: tva, aleas_pct: aleas
+    },
+    lignes: lignes, totaux: Est_totaux_(lignes, aleas, tva), k: k, avertissements: avert
+  };
+}
+
+/** Crée l'estimation (brouillon) et ses lignes. Renvoie l'estimation complète. */
+function Est_creerEstimation_(d) {
+  var c = Est_calculer_(d);
+  var e = Db_inserer(EST_TABLES.ESTIMATIONS, Object.assign({}, c.entete, {
+    indice: Est_indiceSuivant_(c.entete.id_affaire, c.entete.phase), statut: 'brouillon',
+    total_ht: Est_arrondi_(c.totaux.htAleas), total_ttc: Est_arrondi_(c.totaux.ttc),
+    commentaire: c.avertissements.join(' ').slice(0, 500)
+  }));
+  Db_insererPlusieurs(EST_TABLES.LIGNES, c.lignes.map(function (l) { return Object.assign({ id_estimation: e.id }, l); }));
+  Est_journal_('estimation', 'créée', e.id + ' (' + e.id_affaire + ', ' + e.phase + ' ind ' + e.indice + ')');
+  return Est_estimationComplete_(e.id);
+}
+
+/** Estimation, lignes (ordre des lots), totaux et affaire. */
+function Est_estimationComplete_(id) {
+  var e = Db_trouver(EST_TABLES.ESTIMATIONS, id);
+  if (!e) throw new Error('Estimation introuvable : ' + id);
+  var lignes = Db_lire(EST_TABLES.LIGNES).filter(function (l) { return String(l.id_estimation) === String(id); })
+    .sort(function (x, y) { return String(x.num_article).localeCompare(String(y.num_article), 'fr', { numeric: true }); });
+  var a = Db_trouver(TABLES.AFFAIRES, e.id_affaire) || {};
+  var typo = Db_trouver(EST_TABLES.TYPOLOGIES, e.typologie) || {};
+  return {
+    estimation: Est_versClient_('ESTIMATIONS', e),
+    lignes: lignes.map(function (l) { return Est_versClient_('LIGNES', l); }),
+    totaux: Est_totaux_(lignes, e.aleas_pct, e.tva),
+    affaire: { id: a.id || e.id_affaire, acheteur: a.acheteur || '', objet: a.objet || '' },
+    typologie: typo.libelle || e.typologie
+  };
+}
+
+function Est_estimationModifiable_(id) {
+  var e = Db_trouver(EST_TABLES.ESTIMATIONS, id);
+  if (!e) throw new Error('Estimation introuvable : ' + id);
+  if (e.statut === 'figée') throw new Error('Estimation figée : créez un nouvel indice pour la modifier.');
+  return e;
+}
+
+/** Met à jour les totaux enregistrés d'une estimation après une modification de ligne. */
+function Est_recalculerTotaux_(id) {
+  var c = Est_estimationComplete_(id);
+  Db_maj(EST_TABLES.ESTIMATIONS, id, { total_ht: Est_arrondi_(c.totaux.htAleas), total_ttc: Est_arrondi_(c.totaux.ttc) });
+  return Est_estimationComplete_(id);
+}
+
+/** Modifie une ligne : PU HT, quantité ou désignation. Un PU saisi remplace le ratio (source « saisie », fiabilité C). */
+function Est_ligneMaj_(idLigne, champs) {
+  var l = Db_trouver(EST_TABLES.LIGNES, idLigne);
+  if (!l) throw new Error('Ligne introuvable : ' + idLigne);
+  Est_estimationModifiable_(l.id_estimation);
+  var maj = {};
+  var nombre = function (v, nom) {
+    var n = Number(String(v).replace(/[\s €]/g, '').replace(',', '.'));
+    if (!isFinite(n) || n < 0) throw new Error(nom + ' : nombre positif attendu.');
+    return n;
+  };
+  if ('designation' in champs) {
+    var t = String(champs.designation || '').trim();
+    if (!t) throw new Error('Désignation obligatoire.');
+    maj.designation = t.slice(0, 200);
+  }
+  var pu = 'pu_ht' in champs ? Est_arrondi_(nombre(champs.pu_ht, 'PU HT')) : Number(l.pu_ht);
+  var q = 'quantite' in champs ? nombre(champs.quantite, 'Quantité') : Number(l.quantite);
+  if ('pu_ht' in champs && pu !== Number(l.pu_ht)) {
+    maj.source = 'saisie';
+    maj.fiabilite = 'C';
+    maj.commentaire = ('PU saisi' + (l.source === 'ratio' ? ' (ratio : ' + Est_fr_(l.pu_ht) + ' €/m²)' : '') + '. ' + String(l.commentaire || '')).slice(0, 300);
+  }
+  maj.pu_ht = pu;
+  maj.quantite = q;
+  maj.total_ht = Est_arrondi_(pu * q);
+  Db_maj(EST_TABLES.LIGNES, idLigne, maj);
+  return Est_recalculerTotaux_(l.id_estimation);
+}
+
+function Est_figer_(id) {
+  Est_estimationModifiable_(id);
+  Db_maj(EST_TABLES.ESTIMATIONS, id, { statut: 'figée' });
+  return Est_estimationComplete_(id);
+}
+
+/** Supprime une estimation en brouillon et ses lignes. */
+function Est_supprimerEstimation_(id) {
+  Est_estimationModifiable_(id);
+  Db_supprimerSi(EST_TABLES.LIGNES, function (l) { return String(l.id_estimation) === String(id); });
+  Db_supprimerSi(EST_TABLES.ESTIMATIONS, function (e) { return String(e.id) === String(id); });
+  Est_journal_('estimation', 'supprimée', String(id));
+  return true;
+}
+
+/** Données du formulaire « Nouvelle estimation » : listes et valeurs proposées. */
+function Est_formulaire_(idAffaire) {
+  var actifs = function (t) { return Db_lire(t).filter(function (l) { return l.actif === 'oui'; }); };
+  var ordre = function (x, y) { return (Number(x.ordre) || 0) - (Number(y.ordre) || 0); };
+  var k = {};
+  actifs(EST_TABLES.K).forEach(function (l) {
+    var f = Est_estKdep_(l.facteur) ? 'kdép' : String(l.facteur);
+    (k[f] = k[f] || []).push({ id: String(l.id), modalite: String(l.modalite), coefficient: Number(l.coefficient) });
+  });
+  var affaires = Db_lire(TABLES.AFFAIRES).map(function (a) {
+    return { id: a.id, acheteur: a.acheteur, objet: a.objet, departement: String(a.departement || ''), statut: a.statut };
+  }).sort(function (x, y) { return String(y.id).localeCompare(String(x.id), 'fr', { numeric: true }); });
+  var etat = Est_etatIndices_();
+  return {
+    affaires: affaires, choisie: idAffaire || '',
+    phases: Est_paramListe_('est.phases'), natures: Est_paramListe_('est.natures'),
+    typologies: actifs(EST_TABLES.TYPOLOGIES).sort(ordre).map(function (t) { return { code: t.code, libelle: t.libelle }; }),
+    lots: actifs(EST_TABLES.LOTS).sort(ordre).map(function (l) { return { code: l.code, libelle: l.libelle }; }),
+    k: k, kMode: Est_param_('est.k_mode', 'kloc'), tvaZones: Est_paramDico_('est.tva_zones'), tvaDefaut: Est_paramNombre_('est.tva_defaut', 20),
+    aleas: Est_paramDico_('est.aleas'), dernierIndex: etat && etat.bt01 ? etat.bt01.mois : ''
+  };
+}
+
+
+// ════════ EstExport.js ════════
+
+/**
+ * Module Estimation — export .xlsx au format DPGF (étape 6).
+ *
+ * Le classeur est construit dans un Google Sheets temporaire (formules et mise en forme Kompa),
+ * exporté en .xlsx, déposé dans le sous-dossier « 09 Estimations » de l'affaire (paramètre est.dossier_export),
+ * puis le classeur temporaire est mis à la corbeille. Aucun fichier existant n'est écrasé.
+ */
+
+var EST_EXPORT_COULEURS = { ardoise: '#1B263B', brume: '#EEF1F6', filet: '#D5DBE5', rouille: '#B4460E', gris: '#4A5568', blanc: '#FFFFFF' };
+
+/** Nom du fichier : « KA-2026-004 — Estimation APS — ind A.xlsx ». */
+function Est_nomExport_(e) {
+  return e.id_affaire + ' — Estimation ' + e.phase + ' — ind ' + e.indice + '.xlsx';
+}
+
+/** Remplit la feuille : en-tête, lignes par lot, totaux en formules, mentions d'index et de K. */
+function Est_remplirExport_(feuille, c) {
+  var C = EST_EXPORT_COULEURS;
+  var e = c.estimation;
+  var lignes = c.lignes;
+  var fr = function (x, d) { return Est_fr_(x, d === undefined ? 2 : d); };
+  feuille.setName('Estimation');
+  var entete = [
+    ['KOMPA INGÉNIERIE — ESTIMATION ' + String(e.phase).toUpperCase() + ' — IND ' + e.indice],
+    [c.affaire.id + (c.affaire.acheteur ? ' — ' + c.affaire.acheteur : '') + (c.affaire.objet ? ' — ' + c.affaire.objet : '')],
+    ['Typologie : ' + c.typologie + ' · ' + e.nature + ' · département ' + e.departement + ' · surface de référence ' + fr(e.surface_sdp, 0) + ' m² · estimation au ratio']
+  ];
+  feuille.getRange(1, 1, 3, 1).setValues(entete);
+  feuille.getRange(1, 1).setFontSize(14).setFontWeight('bold').setFontColor(C.ardoise);
+  feuille.getRange(2, 1, 2, 1).setFontColor(C.gris);
+  var R0 = 5;
+  feuille.getRange(R0, 1, 1, 6).setValues([['N°', 'Désignation', 'Unité', 'Quantité', 'PU HT (€)', 'Total HT (€)']])
+    .setFontWeight('bold').setFontColor(C.blanc).setBackground(C.ardoise).setHorizontalAlignment('center');
+  var r = R0 + 1;
+  var premiere = r;
+  if (lignes.length) {
+    feuille.getRange(r, 1, lignes.length, 1).setNumberFormat('@'); // n° d'article « 01 » conservé en texte
+    feuille.getRange(r, 1, lignes.length, 5).setValues(lignes.map(function (l) {
+      return [String(l.num_article), String(l.designation), String(l.unite), Number(l.quantite) || 0, Number(l.pu_ht) || 0];
+    }));
+    feuille.getRange(r, 6, lignes.length, 1).setFormulas(lignes.map(function (_, i) { return ['=D' + (r + i) + '*E' + (r + i)]; }));
+    r += lignes.length;
+  }
+  var derniere = r - 1;
+  var totaux = [
+    ['Total HT des lots', '=SUM(F' + premiere + ':F' + Math.max(derniere, premiere) + ')'],
+    ['Aléas et imprévus (' + fr(e.aleas_pct, 1) + ' %)', '=F' + r + '*' + (Number(e.aleas_pct) || 0) / 100],
+    ['TOTAL HT', '=F' + r + '+F' + (r + 1)],
+    ['TVA (' + fr(e.tva, 1) + ' %)', '=F' + (r + 2) + '*' + (Number(e.tva) || 0) / 100],
+    ['TOTAL TTC', '=F' + (r + 2) + '+F' + (r + 3)]
+  ];
+  feuille.getRange(r, 5, totaux.length, 1).setValues(totaux.map(function (t) { return [t[0]]; }));
+  feuille.getRange(r, 6, totaux.length, 1).setFormulas(totaux.map(function (t) { return [t[1]]; }));
+  feuille.getRange(r, 5, totaux.length, 2).setFontWeight('bold').setBackground(C.brume);
+  feuille.getRange(r + 2, 5, 1, 2).setBackground(C.filet);
+  feuille.getRange(r + 4, 5, 1, 2).setBackground(C.ardoise).setFontColor(C.blanc);
+  feuille.getRange(premiere, 4, Math.max(derniere - premiere + 1, 1), 3).setNumberFormat('#,##0.00');
+  feuille.getRange(r, 6, totaux.length, 1).setNumberFormat('#,##0.00');
+  // Mentions : index, K, sources et fiabilités
+  var n = r + totaux.length + 1;
+  var mentions = [['Méthode et sources']].concat([
+    ['Montant d\'un lot = médiane du ratio (€ HT/m², marchés importés de même typologie et même nature) actualisée au dernier index du lot × surface × projection × K.'],
+    ['Coefficient de localisation K = ' + fr(e.k, 4) + ' : ' + (e.k_detail || '—')],
+    [e.date_travaux ? 'Projection jusqu\'à la date des travaux ' + Est_moisLisible_(e.date_travaux) + ' (paramètre est.projection_taux).' : 'Pas de projection à la date des travaux.']
+  ]).concat(lignes.map(function (l) {
+    return [l.num_article + ' ' + l.designation + ' — ' + (l.source === 'ratio' ? 'ratio, ' : 'PU saisi, ') + 'fiabilité ' + l.fiabilite +
+      (l.indice ? ' — ' + l.indice + ' ' + Est_moisLisible_(l.indice_mois) + (l.indice_valeur !== '' ? ' = ' + fr(l.indice_valeur, 1) : '') : '') +
+      (l.commentaire ? ' — ' + l.commentaire : '')];
+  })).concat([['Fiabilité : A = prix de marché de moins de 3 ans, même zone ; B = plus ancien ou autre zone ; C = moins de 5 marchés ou saisie libre.'],
+    ['Estimation établie le ' + Utilities.formatDate(new Date(), APP.FUSEAU, 'dd/MM/yyyy') + ' — statut : ' + e.statut + ' — ' + e.id + '.']]);
+  feuille.getRange(n, 1, mentions.length, 1).setValues(mentions);
+  feuille.getRange(n, 1).setFontWeight('bold').setFontColor(C.ardoise);
+  feuille.getRange(n + 1, 1, mentions.length - 1, 1).setFontColor(C.gris).setFontSize(9);
+  feuille.getRange(1, 1, n + mentions.length, 6).setFontFamily('Arial');
+  feuille.setColumnWidth(1, 60);
+  feuille.setColumnWidth(2, 360);
+  feuille.setColumnWidth(3, 60);
+  feuille.setColumnWidth(4, 90);
+  feuille.setColumnWidth(5, 170);
+  feuille.setColumnWidth(6, 120);
+  feuille.setFrozenRows(R0);
+  return { premiere: premiere, derniere: derniere, totaux: r };
+}
+
+/** Exporte l'estimation en .xlsx dans le dossier Drive de l'affaire. Renvoie { nom, url, dossier }. */
+function Est_exporter_(id) {
+  var c = Est_estimationComplete_(id);
+  var e = c.estimation;
+  var a = Affaires_get_(e.id_affaire);
+  var dossier = Drive_dossierAffaireOuCreer_(a);
+  var nomDossier = Est_param_('est.dossier_export', '09 Estimations');
+  var cible = Drive_sousDossier_(dossier, nomDossier);
+  var temp = SpreadsheetApp.create('Export temporaire ' + e.id);
+  try {
+    Est_remplirExport_(temp.getSheets()[0], c);
+    SpreadsheetApp.flush();
+    var rep = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + temp.getId() + '/export?format=xlsx', {
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true
+    });
+    if (rep.getResponseCode() !== 200) throw new Error('Export .xlsx refusé par Google (HTTP ' + rep.getResponseCode() + ').');
+    var nom = Drive_nomLibre_(cible, Est_nomExport_(e));
+    var fichier = cible.createFile(rep.getBlob().setName(nom));
+    Db_maj(EST_TABLES.ESTIMATIONS, id, { export_url: fichier.getUrl() });
+    Affaires_ajouterNote(a.id, 'Estimation exportée : ' + nomDossier + ' / ' + nom);
+    Est_journal_('export', 'ok', id + ' → ' + nom);
+    return { nom: nom, url: fichier.getUrl(), dossier: nomDossier };
+  } finally {
+    try { DriveApp.getFileById(temp.getId()).setTrashed(true); } catch (err) { /* déjà supprimé */ }
+  }
 }
 
 
@@ -635,11 +1217,16 @@ var EST_PARAMS_DEFAUT = [
   ['est.projection_taux', '2023-2025:2,70;2026-2028:5,10;suite:5,10', 'Taux prévisionnels d\'évolution du BT01 (% par an, par période) pour la projection jusqu\'à la date des travaux — note SID « projection du BT01 », édition juin 2023 ; « suite » = au-delà'],
   ['est.indices_jour', '20', 'Jour du mois de la mise à jour automatique des index Insee (parution au JO vers le 15)'],
   ['est.indices_depuis', '2015-01', 'Premier mois chargé lors de la première récupération d\'un index'],
+  ['est.ratio_sous_seuil', 'oui', 'Utiliser un ratio fondé sur moins de marchés que est.seuil_anonymat : oui (signalé, fiabilité C) ou non (ratio masqué)'],
+  ['est.dossier_export', '09 Estimations', 'Sous-dossier Drive de l\'affaire où l\'export .xlsx est déposé'],
+  ['est.classement_lots', 'DG:dispositions générales,installation de chantier,nettoyage,propreté,prorata;DEM:démolition,désamiantage,dépollution,curage;TER:terrassement;GO:gros œuvre,gros-œuvre,maçonnerie,béton,fondation;CHARP:charpente,structure métallique,ossature;COUV:couverture,bardage,toiture;ETAN:étanchéité;FAC:façade,ravalement;MEN-EXT:menuiseries extérieures,menuiserie extérieure;SERR:serrurerie,métallerie,porte de hangar,portes de hangar,portail;PLAT:plâtrerie,cloison,doublage,faux plafond,plafonds;MEN-INT:menuiseries intérieures,menuiserie intérieure,menuiseries;REV-SOL:revêtements de sols,revêtement de sol,carrelage,céramique,sols souples;PEINT:peinture,revêtements muraux;PLB:plomberie,sanitaire;CVC:génie climatique,chauffage,ventilation,climatisation,cvc;ELE:électricité,électrique,courants;ASC:ascenseur;VRD:vrd,voirie,réseaux divers;EQUIP:équipements,équipement', 'Classement des postes collés à l\'import : lot:mot,mot;… (premier mot reconnu, le plus long l\'emporte)'],
   ['est.fiabilite', 'A:Prix de marché de moins de 3 ans, même région;B:Prix de marché plus ancien ou d\'une autre région;C:Ratio sur moins de 5 marchés ou saisie libre', 'Échelle de fiabilité des prix']
 ];
 
 /** Lots et index associés (validés le 15/11/2026, § 5.3 Q4 bis). [code, libellé, famille, index, ordre] */
 var EST_LOTS_DEFAUT = [
+  ['DG', 'Dispositions générales, installations de chantier', 'batiment', '', 5],
+  ['DEM', 'Démolitions, curage, dépollution', 'batiment', '', 8],
   ['TER', 'Terrassements', 'batiment', 'BT02', 10],
   ['GO', 'Gros œuvre', 'batiment', 'BT06', 20],
   ['CHARP', 'Charpente', 'batiment', 'BT16b', 30],
@@ -656,7 +1243,8 @@ var EST_LOTS_DEFAUT = [
   ['CVC', 'Chauffage, ventilation, climatisation', 'batiment', 'BT40', 140],
   ['ELE', 'Électricité', 'batiment', 'BT47', 150],
   ['ASC', 'Ascenseurs', 'batiment', 'BT48', 160],
-  ['VRD', 'Voirie et réseaux divers', 'vrd', 'TP08', 170]
+  ['VRD', 'Voirie et réseaux divers', 'vrd', 'TP08', 170],
+  ['EQUIP', 'Équipements spécifiques', 'batiment', '', 180]
 ];
 
 /**

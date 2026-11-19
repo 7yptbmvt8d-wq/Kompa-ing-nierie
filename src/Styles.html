@@ -374,6 +374,23 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .cellule-lien input { min-width: 10rem; }
 .ajout-piece #ajout-liv-tranche { flex: 0 0 5rem; }
 .ajout-piece #ajout-liv-date { flex: 0 0 auto; width: auto; }
+/* ——— Module Estimation : assistant, bibliothèque, estimation ——— */
+.assistant fieldset { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius); padding: var(--kompa-s4); margin: 0 0 var(--kompa-s4); }
+.assistant legend { font-weight: 600; color: var(--kompa-ardoise); padding: 0 var(--kompa-s2); }
+.assistant .label { display: block; color: var(--kompa-gris); font-size: var(--kompa-fs-small); font-weight: 500; margin-bottom: var(--kompa-s1); }
+.lots-est { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--kompa-s2) var(--kompa-s4); }
+.lot-est { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--kompa-s1) var(--kompa-s2); padding: var(--kompa-s2); border-radius: var(--kompa-radius-sm); background: var(--kompa-brume); cursor: pointer; }
+.lot-est .legende { flex-basis: 100%; padding-left: 22px; }
+.champ-pu { width: 8rem; text-align: right; }
+.table-est td, .table-postes td { vertical-align: middle; }
+.table-est td.legende { max-width: 26rem; }
+.table-postes input[data-p="libelle"] { min-width: 18rem; }
+.table-postes input[data-p="montant"] { width: 9rem; text-align: right; }
+.avert-est { margin: var(--kompa-s3) 0; font-size: var(--kompa-fs-small); }
+.avert-est summary { cursor: pointer; color: var(--kompa-rouille); font-weight: 600; }
+.tete-est h2 { margin-bottom: var(--kompa-s1); }
+.tete-est p { margin: 0 0 var(--kompa-s1); }
+
 /* ——— Vue smartphone (AppMobile.html) : tableau de bord seul, une colonne, sans défilement horizontal ——— */
 .retour-mobile { display: none; flex: 0 0 auto; border: 1px solid var(--kompa-texte-inverse-2); border-radius: var(--kompa-radius-sm); background: none; color: var(--kompa-texte-inverse); font: inherit; font-size: 15px; font-weight: 600; padding: var(--kompa-s2) var(--kompa-s4); min-height: 44px; cursor: pointer; }
 body.ecran-petit:not(.mode-mobile) .retour-mobile { display: block; }

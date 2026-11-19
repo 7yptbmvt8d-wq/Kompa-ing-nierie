@@ -331,6 +331,57 @@ function assembler() {
   assert.match(await p.textContent('[data-resultat-calcul]'), /BT47 09\/2026/);
   await p.locator('#calculette').screenshot({ path: path.join(sortie, 'pc-estimation-calculette.png') });
 
+  // ——— Module Estimation (étape 4) : bibliothèque — import des postes d'un marché attribué ———
+  await p.click('.sous-nav a[href="#estimation/bibliotheque"]');
+  await p.waitForSelector('#i-texte');
+  await p.selectOption('#i-typo', 'MIL');
+  await p.selectOption('#i-nature', 'Réhabilitation lourde');
+  await p.fill('#i-dep', '2B');
+  await p.fill('#i-m0', '05/2026');
+  await p.fill('#i-surface', '790');
+  await p.fill('#i-texte', ['Dispositions générales\t66 261 €', 'Gros œuvre\t902 319 €', 'Plâtrerie\t36 962 €', 'Électricité\t262 714,34 €',
+    'Cahier des charges DANZ\t22 294,59 €', 'Plomberie\t73 672,50 €', 'Génie climatique\t41 422,50 €', 'Bardage - couverture (atelier)\t466 760 €',
+    'Portes de hangar\t248 860 €', 'Total\t2 121 266 €'].join('\n'));
+  await p.click('[data-import] button[type=submit]');
+  await p.waitForSelector('tr[data-poste]');
+  assert.strictEqual(await p.locator('tr[data-poste]').count(), 9);
+  await p.locator('tr[data-poste]').nth(4).locator('[data-p="lot"]').selectOption('ELE'); // DANZ : lot non reconnu
+  await p.screenshot({ path: path.join(sortie, 'pc-estimation-import.png'), fullPage: true });
+  await p.click('[data-enregistrer-import]');
+  await p.waitForSelector('[data-imports] tr[data-import]');
+  await p.waitForSelector('[data-ratios] .table-ratios');
+  assert.match(await p.textContent('[data-ratios]'), /Gros œuvre/);
+  assert.strictEqual(A.Db_lire(A.EST_TABLES.OBSERVATIONS).length, 8);
+  await p.screenshot({ path: path.join(sortie, 'pc-estimation-bibliotheque.png'), fullPage: true });
+
+  // ——— Étape 5 : nouvelle estimation au ratio ———
+  await p.click('.sous-nav a[href="#estimation"]');
+  await p.click('a[href="#estimation/nouvelle"]');
+  await p.waitForSelector('[data-assistant]');
+  await p.selectOption('#e-affaire', w1);
+  await p.selectOption('#e-typo', 'MIL');
+  await p.selectOption('#e-nature', 'Réhabilitation lourde');
+  await p.waitForSelector('.lots-est input[value="GO"]:checked');
+  assert.strictEqual(await p.inputValue('#e-dep'), '04');
+  await p.fill('#e-surface', '500');
+  await p.fill('#e-travaux', '06/2027');
+  await p.click('[data-apercu]');
+  await p.waitForSelector('[data-resultat-apercu] .table-est');
+  await p.screenshot({ path: path.join(sortie, 'pc-estimation-assistant.png'), fullPage: true });
+  await p.click('[data-assistant] button[type=submit]');
+  await p.waitForSelector('.tete-est');
+  const est = A.Db_lire(A.EST_TABLES.ESTIMATIONS)[0];
+  assert.deepStrictEqual([est.id_affaire, est.indice, est.statut, est.departement], [w1, 'A', 'brouillon', '04']);
+  await p.fill('tr[data-ligne] [data-pu] >> nth=0', '180');
+  await p.press('tr[data-ligne] [data-pu] >> nth=0', 'Tab');
+  await p.waitForSelector('#toast:has-text("PU enregistré")');
+  assert.strictEqual(A.Db_lire(A.EST_TABLES.LIGNES).find((l) => l.num_article === '01').pu_ht, 180);
+  // ——— Étape 6 : export .xlsx vers « 09 Estimations » ———
+  await p.click('[data-exporter]');
+  await p.waitForSelector('#toast:has-text("Fichier déposé")');
+  assert.ok(env.fichiersDrive.some((x) => x.nom === w1 + ' — Estimation APS — ind A.xlsx' && x.dossier.getName() === '09 Estimations'));
+  await p.screenshot({ path: path.join(sortie, 'pc-estimation-resultat.png'), fullPage: true });
+
   // Petit portable (1280 px) : pas de débordement de la page
   await p.setViewportSize({ width: 1280, height: 800 });
   for (const ecran of ['#accueil', '#veille', '#affaires', '#echeancier', '#enseignements', '#parametres']) {

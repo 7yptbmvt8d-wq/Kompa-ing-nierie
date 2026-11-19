@@ -99,7 +99,7 @@ test('apiEtat renvoie l\'état du classeur, sérialisable', () => {
   env.ctx.installer({ exercice: false });
   const r = env.ctx.apiEtat();
   assert.ok(r.ok, r.erreur);
-  assert.strictEqual(r.data.onglets.length, 23); // 13 onglets du suivi + 10 du module Estimation
+  assert.strictEqual(r.data.onglets.length, 25); // 13 onglets du suivi + 12 du module Estimation
   assert.ok(r.data.onglets.every((o) => o.present));
   assert.strictEqual(r.data.onglets.find((o) => o.nom === 'Paramètres').lignes, env.ctx.PARAMETRES_DEFAUT.length);
 });
@@ -354,8 +354,8 @@ test('estimation (étape 1) : onglets du classeur EST et référentiels initiaux
   const r = env.ctx.installer({ exercice: false });
   const est = Object.values(env.classeurs)[1];
   assert.deepStrictEqual(est.getSheets().map((f) => f.getName()),
-    ['Paramètres', 'Lots', 'Familles d\'ouvrage', 'Typologies', 'Coefficient K', 'Estimations', 'Index Insee', 'Valeurs des index', 'Journal du module', 'Lignes d\'estimation']);
-  assert.deepStrictEqual(brut(r.estimation.ajouts), { parametres: 14, lots: 17, typologies: 10, k: 114, index: 66 });
+    ['Paramètres', 'Lots', 'Familles d\'ouvrage', 'Typologies', 'Coefficient K', 'Estimations', 'Index Insee', 'Valeurs des index', 'Journal du module', 'Lignes d\'estimation', 'Imports', 'Observations']);
+  assert.deepStrictEqual(brut(r.estimation.ajouts), { parametres: 17, lots: 20, typologies: 10, k: 114, index: 66 });
   const A = env.ctx;
   assert.strictEqual(A.Db_trouver(A.EST_TABLES.LOTS, 'ELE').indice, 'BT47');
   assert.strictEqual(A.Db_trouver(A.EST_TABLES.LOTS, 'CHARP').indice, 'BT16b');
@@ -383,11 +383,11 @@ test('estimation (étape 1) : édition des référentiels contrôlée', () => {
   ok(A.apiEstRefAjouter('K', { facteur: 'klieu', modalite: 'Essai', coefficient: '-0,02' })); // ajouts négatifs admis
   ko(A.apiEstRefModifier('K', k.id, { coefficient: 'abc' }), /nombre attendu/);
   // Codes : majuscules, unicité
-  const lot = ok(A.apiEstRefAjouter('LOTS', { code: 'dem', libelle: 'Démolition, désamiantage', famille: 'batiment', indice: 'bt50', ordre: '5' }));
-  assert.strictEqual(lot.code, 'DEM');
+  const lot = ok(A.apiEstRefAjouter('LOTS', { code: 'desam', libelle: 'Désamiantage', famille: 'batiment', indice: 'bt50', ordre: '1' }));
+  assert.strictEqual(lot.code, 'DESAM');
   assert.strictEqual(lot.indice, 'BT50');
   assert.strictEqual(lot.actif, 'oui');
-  ko(A.apiEstRefAjouter('LOTS', { code: 'DEM', libelle: 'doublon' }), /existe déjà/);
+  ko(A.apiEstRefAjouter('LOTS', { code: 'DEM', libelle: 'doublon' }), /existe déjà/); // lot par défaut
   ko(A.apiEstRefAjouter('LOTS', { code: 'X', famille: 'route' }), /parmi batiment, vrd/);
   // Famille d'ouvrage : lot existant obligatoire
   ko(A.apiEstRefAjouter('FAMILLES', { code: 'F1', lot: 'INCONNU', libelle: 'x' }), /Lot inconnu/);
@@ -399,7 +399,7 @@ test('estimation (étape 1) : édition des référentiels contrôlée', () => {
   ko(A.apiEstRefModifier('LOTS', 'NEXISTEPAS', { libelle: 'x' }), /introuvable/);
   // Lecture pour l'écran : ordre respecté, description des colonnes
   const refs = ok(A.apiEstReferentiels());
-  assert.strictEqual(refs.LOTS.lignes[0].code, 'DEM'); // ordre 5
+  assert.strictEqual(refs.LOTS.lignes[0].code, 'DESAM'); // ordre 1
   assert.ok(refs.K.colonnes.some((c) => c.nom === 'coefficient' && c.type === 'nombre'));
   assert.strictEqual(refs.PARAMS.sansAjout, true);
 });
@@ -415,7 +415,169 @@ test('estimation (étape 1) : écran Estimation et onglet de la fiche affaire', 
   assert.strictEqual(acc.estimations[0].acheteur, 'Commune de Digne-les-Bains');
   assert.strictEqual(A.apiEstAffaire(id).data.length, 1);
   assert.strictEqual(A.apiEstAffaire('KA-2099-999').data.length, 0);
-  assert.strictEqual(A.apiEtat().data.onglets.length, 13 + 10);
+  assert.strictEqual(A.apiEtat().data.onglets.length, 13 + 12);
+});
+
+// ——— Module Estimation, étapes 4 à 6 : bibliothèque, estimation au ratio, export ———
+
+const POSTES_SCORPION = [
+  '2\tDispositions générales\t66 261 €\t2,6 %\t84 €', '2\tDémolitions\t40 774 €', '2\tGros œuvre\t902 319 €', '2\tPlâtrerie\t36 962 €',
+  '2\tRevêtements céramiques\t18 699,80 €', '2\tMenuiseries\t73 738 €', '2\tÉquipements (atelier)\t65 420 €', '2\tNettoyage\t1 980 €',
+  '3\tDispositions générales\t847,08 €', '3\tÉlectricité\t262 714,34 €', '3\tCahier des charges DANZ\t22 294,59 €',
+  '4\tDispositions générales\t19 372,50 €', '4\tPlomberie\t73 672,50 €', '4\tGénie climatique\t41 422,50 €',
+  '5\tDispositions générales\t41 000 €', '5\tBardage - couverture (atelier)\t466 760 €', '5\tStructure métallique - couverture de l\'aire de lavage\t151 900 €',
+  '5\tPortes de hangar\t248 860 €', '\tTotal lots 2 à 5\t2 534 997 €'
+].join('\n');
+const envEstimation = () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  env.ctx.Est_indicesMettreAJour();
+  return env;
+};
+const okE = (r) => { assert.ok(r.ok, r.erreur); return brut(r.data); };
+
+test('bibliothèque (étape 4) : postes collés, lots devinés, total écarté ; import anonyme par lot ; annulation', () => {
+  const env = envEstimation();
+  const A = env.ctx;
+  const an = okE(A.apiEstAnalyserPostes(POSTES_SCORPION));
+  assert.strictEqual(an.postes.length, 18);
+  assert.deepStrictEqual(an.ecartees.map((e) => e.motif), ['ligne de total']);
+  const lot = (lib) => an.postes.find((p) => p.libelle === lib);
+  assert.deepStrictEqual([lot('Dispositions générales').montant, lot('Revêtements céramiques').montant], [66261, 18699.8]); // plus grand nombre, % ignorés
+  assert.deepStrictEqual(['Démolitions', 'Gros œuvre', 'Plâtrerie', 'Revêtements céramiques', 'Menuiseries', 'Nettoyage', 'Génie climatique', 'Bardage - couverture (atelier)', 'Portes de hangar']
+    .map((l) => lot(l).lot), ['DEM', 'GO', 'PLAT', 'REV-SOL', 'MEN-INT', 'DG', 'CVC', 'COUV', 'SERR']);
+  assert.strictEqual(lot('Cahier des charges DANZ').lot, ''); // non reconnu : à choisir
+  assert.strictEqual(lot("Structure métallique - couverture de l'aire de lavage").lot, 'CHARP'); // mot le plus long
+  // Lot manquant : refus
+  assert.match(A.apiEstImporter({ typologie: 'MIL', nature: 'Réhabilitation lourde', departement: '2B', m0: '05/2026', surface: '790', postes: an.postes }).erreur, /DANZ.*choisissez un lot/);
+  assert.match(A.apiEstImporter({ typologie: 'MIL', nature: 'Réhabilitation lourde', departement: '2B', m0: '2026', surface: '790', postes: [] }).erreur, /Mois M0/);
+  const postes = an.postes.map((p) => Object.assign(p, { lot: p.lot || 'ELE' }));
+  const r = okE(A.apiEstImporter({ typologie: 'MIL', nature: 'Réhabilitation lourde', departement: '2b', m0: '05/2026', surface: '790', commentaire: 'atelier + aire de lavage', postes }));
+  assert.match(r.id, /^IM-/);
+  const imp = r.imports[0];
+  assert.strictEqual(imp.total_ht, 2534997.31);
+  assert.strictEqual(imp.departement, '2B');
+  assert.strictEqual(imp.observations.length, 13); // un lot = une observation (4 lignes DG + nettoyage → DG)
+  const dg = imp.observations.find((o) => o.lot === 'DG');
+  assert.strictEqual(dg.montant_ht, 129460.58);
+  assert.strictEqual(dg.ratio, 163.87);
+  // Aucune donnée d'entreprise : seules les colonnes prévues
+  assert.deepStrictEqual(Object.keys(A.Db_lire(A.EST_TABLES.OBSERVATIONS)[0]).filter((k) => !['cree_le', 'modifie_le'].includes(k)),
+    ['id', 'id_import', 'typologie', 'nature', 'departement', 'm0', 'lot', 'postes', 'montant_ht', 'surface', 'ratio', 'statut']);
+  // Ratios : actualisés (index du lot, 05/2026 → 09/2026), même famille de nature, fiabilité C, sous le seuil mais utilisables
+  const ratios = okE(A.apiEstRatios('MIL', 'Réhabilitation légère'));
+  const go = ratios.find((x) => x.lot === 'GO');
+  assert.strictEqual(go.n, 1);
+  assert.strictEqual(go.indice, 'BT06');
+  assert.strictEqual(go.moisIndice, '2026-09');
+  assert.ok(go.mediane > 1142.18 && go.mediane < 1160, 'médiane actualisée ' + go.mediane);
+  assert.deepStrictEqual([go.fiabilite, go.sousSeuil, go.utilisable], ['C', true, true]);
+  assert.strictEqual(ratios.find((x) => x.lot === 'DG').indice, 'BT50'); // lot sans index, réhabilitation
+  assert.deepStrictEqual(okE(A.apiEstRatios('MIL', 'Neuf')), []);
+  assert.deepStrictEqual(okE(A.apiEstRatios('ECOLE', 'Réhabilitation lourde')), []);
+  A.Est_refModifier_('PARAMS', 'est.ratio_sous_seuil', { valeur: 'non' });
+  assert.strictEqual(okE(A.apiEstRatios('MIL', 'Réhabilitation lourde'))[0].utilisable, false);
+  // Annulation : observations écartées des ratios, conservées pour la trace
+  const ann = okE(A.apiEstAnnulerImport(r.id));
+  assert.strictEqual(ann.imports[0].statut, 'annulé');
+  assert.ok(ann.imports[0].observations.every((o) => o.statut === 'annulé'));
+  assert.deepStrictEqual(okE(A.apiEstRatios('MIL', 'Réhabilitation lourde')), []);
+});
+
+test('estimation au ratio (étape 5) : K, projection, aléas, TVA Corse ; lot sans ratio à saisir ; indice ; figée', () => {
+  const env = envEstimation();
+  const A = env.ctx;
+  const postes = okE(A.apiEstAnalyserPostes(POSTES_SCORPION)).postes.map((p) => Object.assign(p, { lot: p.lot || 'ELE' }));
+  okE(A.apiEstImporter({ typologie: 'MIL', nature: 'Réhabilitation lourde', departement: '2B', m0: '05/2026', surface: '790', postes }));
+  const aff = A.Affaires_creer({ acheteur: 'Commune test', objet: 'Atelier', departement: '2A' }).id;
+  const f = okE(A.apiEstFormulaire(aff));
+  assert.strictEqual(f.choisie, aff);
+  assert.deepStrictEqual(f.phases, ['Programme', 'APS', 'APD', 'DCE']);
+  const kdep = f.k['kdép'].find((x) => x.modalite.startsWith('2A')).id; // 1,03
+  const kalt = f.k.kalt.find((x) => x.coefficient === 0.05).id;
+  const d = { id_affaire: aff, phase: 'APS', typologie: 'MIL', nature: 'Réhabilitation lourde', departement: '2A', surface: '500',
+    k_ids: [kdep, kalt], date_travaux: '06/2027', lots: ['GO', 'ELE', 'ASC'] };
+  assert.match(A.apiEstApercu(Object.assign({}, d, { k_ids: [kalt] })).erreur, /kdép/);
+  assert.match(A.apiEstApercu(Object.assign({}, d, { lots: [] })).erreur, /au moins un lot/);
+  const ap = okE(A.apiEstApercu(d));
+  assert.strictEqual(ap.k.k, 1.08);
+  const go = ap.lignes.find((l) => l.lot === 'GO');
+  const ratioGo = okE(A.apiEstRatios('MIL', 'Réhabilitation lourde')).find((x) => x.lot === 'GO').mediane;
+  assert.strictEqual(go.coef_actualisation, 1.0383); // 9 mois × 5,10 % / 12
+  assert.strictEqual(go.pu_ht, Math.round(ratioGo * 1.03825 * 1.08 * 100) / 100);
+  assert.strictEqual(go.total_ht, Math.round(go.pu_ht * 500 * 100) / 100);
+  assert.match(go.commentaire, /Médiane de 1 marché\(s\).*BT06 09\/2026 ; projection 06\/2027/);
+  const asc = ap.lignes.find((l) => l.lot === 'ASC');
+  assert.deepStrictEqual([asc.pu_ht, asc.source, asc.fiabilite], [0, 'saisie', 'C']);
+  assert.ok(ap.avertissements.some((a) => /^ASC : aucun marché importé/.test(a)));
+  assert.strictEqual(ap.entete.tva, 10); // Corse
+  assert.strictEqual(ap.entete.aleas_pct, 10); // APS
+  assert.ok(Math.abs(ap.totaux.ttc - (go.total_ht + ap.lignes.find((l) => l.lot === 'ELE').total_ht) * 1.1 * 1.1) < 0.01);
+  assert.strictEqual(A.Db_lire(A.EST_TABLES.ESTIMATIONS).length, 0); // aperçu : rien d'enregistré
+  // Création : indice A puis B pour la même phase
+  const c = okE(A.apiEstCreer(d));
+  assert.deepStrictEqual([c.estimation.indice, c.estimation.statut, c.estimation.mode, c.lignes.length], ['A', 'brouillon', 'ratio', 3]);
+  assert.deepStrictEqual(c.lignes.map((l) => l.num_article + ' ' + l.lot), ['01 GO', '02 ELE', '03 ASC']);
+  assert.strictEqual(okE(A.apiEstCreer(d)).estimation.indice, 'B');
+  assert.strictEqual(okE(A.apiEstAffaire(aff)).length, 2);
+  // PU saisi sur le lot sans ratio : source « saisie », totaux recalculés et enregistrés
+  const ligneAsc = c.lignes.find((l) => l.lot === 'ASC');
+  const m = okE(A.apiEstLigneMaj(ligneAsc.id, { pu_ht: '120,50' }));
+  assert.strictEqual(m.lignes.find((l) => l.lot === 'ASC').total_ht, 60250);
+  assert.strictEqual(m.estimation.total_ht, Math.round(m.totaux.htAleas * 100) / 100);
+  assert.match(A.apiEstLigneMaj(ligneAsc.id, { pu_ht: '-3' }).erreur, /positif/);
+  // Figée : plus de modification ni de suppression
+  okE(A.apiEstFiger(c.estimation.id));
+  assert.match(A.apiEstLigneMaj(ligneAsc.id, { pu_ht: '1' }).erreur, /figée/);
+  assert.match(A.apiEstSupprimer(c.estimation.id).erreur, /figée/);
+  // Suppression d'un brouillon et de ses lignes
+  const b = okE(A.apiEstAffaire(aff)).find((e) => e.indice === 'B');
+  okE(A.apiEstSupprimer(b.id));
+  assert.strictEqual(A.Db_lire(A.EST_TABLES.LIGNES).filter((l) => l.id_estimation === b.id).length, 0);
+});
+
+test('export .xlsx (étape 6) : formules, dépôt dans « 09 Estimations » sans écraser, classeur temporaire supprimé', () => {
+  const env = envEstimation();
+  const A = env.ctx;
+  const postes = okE(A.apiEstAnalyserPostes(POSTES_SCORPION)).postes.map((p) => Object.assign(p, { lot: p.lot || 'ELE' }));
+  okE(A.apiEstImporter({ typologie: 'MIL', nature: 'Réhabilitation lourde', departement: '2B', m0: '05/2026', surface: '790', postes }));
+  const aff = A.Affaires_creer({ acheteur: 'Commune test', objet: 'Atelier', departement: '2B' }).id;
+  const f = okE(A.apiEstFormulaire(aff));
+  const c = okE(A.apiEstCreer({ id_affaire: aff, phase: 'APD', typologie: 'MIL', nature: 'Réhabilitation lourde', departement: '2B', surface: '600',
+    k_ids: [f.k['kdép'].find((x) => x.modalite.startsWith('2B')).id], lots: ['DG', 'GO', 'ELE'] }));
+  const ex = okE(A.apiEstExporter(c.estimation.id));
+  assert.strictEqual(ex.nom, aff + ' — Estimation APD — ind A.xlsx');
+  assert.strictEqual(ex.dossier, '09 Estimations');
+  assert.ok(ex.estimation.estimation.export_url);
+  const fichier = env.fichiersDrive.find((x) => x.nom === ex.nom);
+  assert.strictEqual(fichier.dossier.getName(), '09 Estimations');
+  assert.ok(A.UrlFetchApp.appels.some((u) => /export\?format=xlsx/.test(u)));
+  assert.strictEqual(A.DriveApp.corbeille.length, 1); // classeur temporaire à la corbeille
+  // Feuille temporaire : 3 lignes de lot (formules Quantité × PU) puis totaux en formules
+  const temp = Object.values(env.classeurs).find((s) => /^Export temporaire/.test(s.getName()));
+  const fl = temp.getSheets()[0];
+  assert.strictEqual(fl.getName(), 'Estimation');
+  assert.deepStrictEqual(fl.lignes[5].slice(0, 5), ['01', 'Dispositions générales, installations de chantier', 'm²', 600, ex.estimation.lignes[0].pu_ht]);
+  assert.strictEqual(fl.formules['6,6'], '=D6*E6');
+  assert.strictEqual(fl.formules['9,6'], '=SUM(F6:F8)');
+  assert.strictEqual(fl.formules['10,6'], '=F9*0.07'); // aléas APD
+  assert.strictEqual(fl.formules['12,6'], '=F11*0.1'); // TVA Corse
+  assert.match(fl.lignes.map((l) => (l || [])[0]).join('\n'), /Coefficient de localisation K = 1/);
+  // Second export : nouveau nom, aucun écrasement ; note au journal de l'affaire
+  const ex2 = okE(A.apiEstExporter(c.estimation.id));
+  assert.strictEqual(ex2.nom, aff + ' — Estimation APD — ind A (2).xlsx');
+  assert.match(A.Affaires_get_(aff).notes, /Estimation exportée : 09 Estimations \/ .*ind A \(2\)\.xlsx/);
+  // Export refusé par Google : erreur lisible, classeur temporaire tout de même supprimé
+  const env2 = creerEnvironnement({ exportHttp: 403 });
+  env2.ctx.installer({ exercice: false });
+  env2.ctx.Est_indicesMettreAJour();
+  const B = env2.ctx;
+  const aff2 = B.Affaires_creer({ acheteur: 'X', objet: 'Y', departement: '04' }).id;
+  const f2 = okE(B.apiEstFormulaire(aff2));
+  const c2 = okE(B.apiEstCreer({ id_affaire: aff2, phase: 'APS', typologie: 'MIL', nature: 'Neuf', departement: '04', surface: '100',
+    k_ids: [f2.k['kdép'].find((x) => x.modalite.startsWith('04')).id], lots: ['GO'] }));
+  assert.match(B.apiEstExporter(c2.estimation.id).erreur, /HTTP 403/);
+  assert.strictEqual(B.DriveApp.corbeille.length, 1);
 });
 
 // ——— Module Estimation, étape 2 : index Insee ———
@@ -433,7 +595,9 @@ test('index Insee : 66 séries chargées (idbank vérifiés), 4 arrêtées, déc
   const t = env.declencheurs.find((x) => x.getHandlerFunction() === 'estIndicesMensuel');
   assert.ok(t);
   // chaque lot pointe vers un index connu
-  A.Db_lire(A.EST_TABLES.LOTS).forEach((l) => assert.ok(A.Db_trouver(A.EST_TABLES.INDICES, l.indice), l.code + ' → ' + l.indice));
+  // Lots sans index (DG, DEM, EQUIP) : index par défaut selon la nature (BT01 neuf, BT50 réhabilitation)
+  assert.deepStrictEqual(A.Db_lire(A.EST_TABLES.LOTS).filter((l) => !l.indice).map((l) => l.code), ['DG', 'DEM', 'EQUIP']);
+  A.Db_lire(A.EST_TABLES.LOTS).filter((l) => l.indice).forEach((l) => assert.ok(A.Db_trouver(A.EST_TABLES.INDICES, l.indice), l.code + ' → ' + l.indice));
 });
 
 test('index Insee : lecture d\'une vraie réponse SDMX de la BDM (BT01, BT50, TP01)', () => {
@@ -1429,7 +1593,7 @@ test('fluidité : l\'accueil en un seul appel', () => {
   const r = brut(env.ctx.apiAccueil());
   assert.ok(r.ok, r.erreur);
   assert.deepStrictEqual(Object.keys(r.data).sort(), ['ca', 'etat', 'fiscal', 'suivi', 'tableau']);
-  assert.strictEqual(r.data.etat.onglets.length, 23); // 13 onglets du suivi + 10 du module Estimation
+  assert.strictEqual(r.data.etat.onglets.length, 25); // 13 onglets du suivi + 12 du module Estimation
 });
 
 test('fluidité : relances recalculées après un changement de statut, pas à la lecture', () => {

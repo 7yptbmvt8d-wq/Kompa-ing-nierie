@@ -19,11 +19,16 @@ var EST_PARAMS_DEFAUT = [
   ['est.projection_taux', '2023-2025:2,70;2026-2028:5,10;suite:5,10', 'Taux prévisionnels d\'évolution du BT01 (% par an, par période) pour la projection jusqu\'à la date des travaux — note SID « projection du BT01 », édition juin 2023 ; « suite » = au-delà'],
   ['est.indices_jour', '20', 'Jour du mois de la mise à jour automatique des index Insee (parution au JO vers le 15)'],
   ['est.indices_depuis', '2015-01', 'Premier mois chargé lors de la première récupération d\'un index'],
+  ['est.ratio_sous_seuil', 'oui', 'Utiliser un ratio fondé sur moins de marchés que est.seuil_anonymat : oui (signalé, fiabilité C) ou non (ratio masqué)'],
+  ['est.dossier_export', '09 Estimations', 'Sous-dossier Drive de l\'affaire où l\'export .xlsx est déposé'],
+  ['est.classement_lots', 'DG:dispositions générales,installation de chantier,nettoyage,propreté,prorata;DEM:démolition,désamiantage,dépollution,curage;TER:terrassement;GO:gros œuvre,gros-œuvre,maçonnerie,béton,fondation;CHARP:charpente,structure métallique,ossature;COUV:couverture,bardage,toiture;ETAN:étanchéité;FAC:façade,ravalement;MEN-EXT:menuiseries extérieures,menuiserie extérieure;SERR:serrurerie,métallerie,porte de hangar,portes de hangar,portail;PLAT:plâtrerie,cloison,doublage,faux plafond,plafonds;MEN-INT:menuiseries intérieures,menuiserie intérieure,menuiseries;REV-SOL:revêtements de sols,revêtement de sol,carrelage,céramique,sols souples;PEINT:peinture,revêtements muraux;PLB:plomberie,sanitaire;CVC:génie climatique,chauffage,ventilation,climatisation,cvc;ELE:électricité,électrique,courants;ASC:ascenseur;VRD:vrd,voirie,réseaux divers;EQUIP:équipements,équipement', 'Classement des postes collés à l\'import : lot:mot,mot;… (premier mot reconnu, le plus long l\'emporte)'],
   ['est.fiabilite', 'A:Prix de marché de moins de 3 ans, même région;B:Prix de marché plus ancien ou d\'une autre région;C:Ratio sur moins de 5 marchés ou saisie libre', 'Échelle de fiabilité des prix']
 ];
 
 /** Lots et index associés (validés le 15/11/2026, § 5.3 Q4 bis). [code, libellé, famille, index, ordre] */
 var EST_LOTS_DEFAUT = [
+  ['DG', 'Dispositions générales, installations de chantier', 'batiment', '', 5],
+  ['DEM', 'Démolitions, curage, dépollution', 'batiment', '', 8],
   ['TER', 'Terrassements', 'batiment', 'BT02', 10],
   ['GO', 'Gros œuvre', 'batiment', 'BT06', 20],
   ['CHARP', 'Charpente', 'batiment', 'BT16b', 30],
@@ -40,7 +45,8 @@ var EST_LOTS_DEFAUT = [
   ['CVC', 'Chauffage, ventilation, climatisation', 'batiment', 'BT40', 140],
   ['ELE', 'Électricité', 'batiment', 'BT47', 150],
   ['ASC', 'Ascenseurs', 'batiment', 'BT48', 160],
-  ['VRD', 'Voirie et réseaux divers', 'vrd', 'TP08', 170]
+  ['VRD', 'Voirie et réseaux divers', 'vrd', 'TP08', 170],
+  ['EQUIP', 'Équipements spécifiques', 'batiment', '', 180]
 ];
 
 /**

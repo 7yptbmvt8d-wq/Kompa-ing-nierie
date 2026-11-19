@@ -1,23 +1,34 @@
 <script>
-/* Kompa Affaires — module Estimation : écran Estimation (liste, référentiels). */
+/* Kompa Affaires — module Estimation : estimations au ratio, bibliothèque, index Insee, référentiels. */
 (function () {
   'use strict';
   var K = window.KA;
   var $ = K.$, $$ = K.$$, esc = K.esc;
 
   function onglets(actif) {
-    var o = [['', 'Estimations'], ['indices', 'Index Insee'], ['referentiels', 'Référentiels']];
+    var o = [['', 'Estimations'], ['bibliotheque', 'Bibliothèque'], ['indices', 'Index Insee'], ['referentiels', 'Référentiels']];
     return '<nav class="sous-nav" aria-label="Module Estimation">' + o.map(function (x) {
       return '<a href="#estimation' + (x[0] ? '/' + x[0] : '') + '"' + (x[0] === actif ? ' aria-current="page"' : '') + '>' + x[1] + '</a>';
     }).join('') + '</nav>';
   }
 
   function ecranEstimation(el, param) {
-    var vue = ['referentiels', 'indices'].indexOf(param) >= 0 ? param : '';
+    param = String(param || '');
+    var vue = ['referentiels', 'indices', 'bibliotheque'].indexOf(param) >= 0 ? param : '';
     el.innerHTML = K.titre('Estimation des travaux', 'Estimations reliées aux affaires par le n° KA ; données dans le classeur « Kompa Estimation — données ».') +
       onglets(vue) + '<div id="est-contenu"><div class="chargement">Lecture…</div></div>';
     var zone = $('#est-contenu', el);
-    if (vue === 'indices') {
+    if (param.indexOf('nouvelle') === 0) {
+      var idAffaire = param.split(':')[1] || '';
+      K.charger('est-form:' + idAffaire, 'apiEstFormulaire', [idAffaire], function (f) { rendreFormulaire(zone, f); },
+        function (e) { zone.innerHTML = K.bandeauErreur(e); });
+    } else if (/^ES-/.test(param)) {
+      K.charger('est:' + param, 'apiEstEstimation', [param], function (c) { rendreEstimation(zone, c); },
+        function (e) { zone.innerHTML = K.bandeauErreur(e); });
+    } else if (vue === 'bibliotheque') {
+      K.charger('est-biblio', 'apiEstBibliotheque', [], function (b) { rendreBibliotheque(zone, b); },
+        function (e) { zone.innerHTML = K.bandeauErreur(e); });
+    } else if (vue === 'indices') {
       K.charger('est-indices', 'apiEstIndices', [], function (d) { rendreIndices(zone, d); },
         function (e) { zone.innerHTML = K.bandeauErreur(e); });
     } else if (vue === 'referentiels') {
@@ -31,16 +42,17 @@
 
   // ——— Liste des estimations ———
   function rendreListe(zone, d) {
+    var bouton = '<div class="actions-ligne"><a class="bouton" href="#estimation/nouvelle">Nouvelle estimation</a>' +
+      '<span class="legende">Estimation au ratio : typologie, surface, coefficient de localisation, date des travaux → montant par lot. Les ratios viennent de la <a href="#estimation/bibliotheque">bibliothèque</a>.</span></div>';
     if (!d.estimations.length) {
-      zone.innerHTML = '<div class="vide-etat"><p><strong>Aucune estimation pour l\'instant.</strong></p>' +
-        '<p class="legende">L\'assistant de création (typologie → surfaces → coefficient K → actualisation → résultat par lot) arrive avec l\'étape 5 du plan. ' +
-        'Vous pouvez déjà vérifier les <a href="#estimation/referentiels">référentiels</a> : lots et index, typologies, coefficient K, paramètres.</p></div>';
+      zone.innerHTML = bouton + '<div class="vide-etat"><p><strong>Aucune estimation pour l\'instant.</strong></p>' +
+        '<p class="legende">Commencez par importer les postes d\'un ou plusieurs marchés attribués dans la <a href="#estimation/bibliotheque">bibliothèque</a>, puis créez une estimation.</p></div>';
       return;
     }
-    zone.innerHTML = '<div class="tableau-conteneur"><table><thead><tr><th scope="col">N°</th><th scope="col">Affaire</th><th scope="col">Phase</th>' +
+    zone.innerHTML = bouton + '<div class="tableau-conteneur"><table><thead><tr><th scope="col">N°</th><th scope="col">Affaire</th><th scope="col">Phase</th>' +
       '<th scope="col">Typologie</th><th scope="col" class="num">Total HT</th><th scope="col">Statut</th></tr></thead><tbody>' +
       d.estimations.map(function (e) {
-        return '<tr><td class="mono">' + esc(e.id) + '</td><td><a href="#affaire/' + esc(e.id_affaire) + '">' + esc(e.id_affaire) + '</a> ' +
+        return '<tr><td class="mono"><a href="#estimation/' + esc(e.id) + '">' + esc(e.id) + '</a></td><td><a href="#affaire/' + esc(e.id_affaire) + '">' + esc(e.id_affaire) + '</a> ' +
           '<span class="legende">' + esc(e.acheteur) + '</span></td><td>' + esc(e.phase) + ' · ind ' + esc(e.indice) + '</td>' +
           '<td>' + esc(e.typologie) + '</td><td class="num mono">' + (e.total_ht === '' ? '' : K.euros(e.total_ht)) + '</td><td>' + esc(e.statut) + '</td></tr>';
       }).join('') + '</tbody></table></div>';
@@ -212,14 +224,289 @@
   // ——— Onglet « Estimations » de la fiche affaire ———
   K.estimationsAffaire = function (zone, idAffaire) {
     K.charger('est-affaire:' + idAffaire, 'apiEstAffaire', [idAffaire], function (liste) {
-      zone.innerHTML = liste.length
+      var nouvelle = '<p><a class="bouton" href="#estimation/nouvelle:' + esc(idAffaire) + '" data-nouvelle-estimation>Nouvelle estimation</a></p>';
+      zone.innerHTML = (liste.length
         ? '<ul class="liste-simple">' + liste.map(function (e) {
-            return '<li><span class="mono">' + esc(e.id) + '</span> · ' + esc(e.phase) + ' ind ' + esc(e.indice) + ' · ' + esc(e.statut) +
-              (e.total_ht === '' ? '' : ' · <span class="mono">' + K.euros(e.total_ht) + ' HT</span>') + '</li>';
+            return '<li><a class="mono" href="#estimation/' + esc(e.id) + '">' + esc(e.id) + '</a> · ' + esc(e.phase) + ' ind ' + esc(e.indice) + ' · ' + esc(e.statut) +
+              (e.total_ht === '' ? '' : ' · <span class="mono">' + K.euros(e.total_ht) + ' HT</span>') +
+              (e.export_url ? ' · <a href="' + esc(e.export_url) + '" target="_blank" rel="noopener">fichier .xlsx</a>' : '') + '</li>';
           }).join('') + '</ul>'
-        : '<p class="vide">Aucune estimation pour cette affaire.</p><p class="legende">La création d\'estimation arrive avec l\'étape 5 du module (écran <a href="#estimation">Estimation</a>).</p>';
+        : '<p class="vide">Aucune estimation pour cette affaire.</p>') + nouvelle;
     }, function (e) { zone.innerHTML = K.bandeauErreur(e); });
   };
+
+  // ——— Outils d'affichage ———
+  var eur2 = function (x) { return x === '' || x === null || x === undefined ? '' : Number(x).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0€'; };
+  var options = function (liste, choisi, val, lib) {
+    return liste.map(function (x) {
+      var v = val ? x[val] : x, l = lib ? lib(x) : x;
+      return '<option value="' + esc(v) + '"' + (String(v) === String(choisi) ? ' selected' : '') + '>' + esc(l) + '</option>';
+    }).join('');
+  };
+  var FIAB = { A: 'statut--ok', B: 'statut--encours', C: 'statut--alerte' };
+  var fiab = function (f) { return f ? '<span class="statut ' + (FIAB[f] || 'statut--neutre') + '">' + esc(f) + '</span>' : ''; };
+
+  // ——— Bibliothèque : ratios, import d'un marché, imports ———
+  function rendreBibliotheque(zone, b) {
+    var natures = b.natures, typos = b.typologies;
+    zone.innerHTML =
+      '<section class="groupe-param" id="biblio-ratios"><h2>Ratios</h2>' +
+        '<p class="legende">Médiane des marchés importés de même typologie et de même nature (neuf ou réhabilitation), actualisée au dernier index du lot. Fiabilité C sous 5 marchés.</p>' +
+        '<div class="form-grille form-grille--4"><div class="champ-bloc"><label for="r-typo">Typologie</label><select class="champ" id="r-typo">' + options(typos, '', 'code', function (t) { return t.libelle; }) + '</select></div>' +
+        '<div class="champ-bloc"><label for="r-nature">Nature</label><select class="champ" id="r-nature">' + options(natures, natures[1] || natures[0]) + '</select></div></div>' +
+        '<div data-ratios aria-live="polite"></div></section>' +
+      '<section class="groupe-param" id="biblio-import"><h2>Importer un marché attribué</h2>' +
+        '<p class="legende">Copiez les postes du marché (libellé et montant HT des attributaires, un poste par ligne), depuis un tableur ou un texte « poste ; montant ». ' +
+        'Chaque poste est rattaché à un lot ; les postes d\'un même lot sont additionnés. <strong>Ne saisissez ni entreprise, ni site, ni nom d\'opération.</strong></p>' +
+        '<form class="form-grille form-grille--4" data-import novalidate>' +
+          '<div class="champ-bloc"><label for="i-typo">Typologie</label><select class="champ" id="i-typo">' + options(typos, '', 'code', function (t) { return t.libelle; }) + '</select></div>' +
+          '<div class="champ-bloc"><label for="i-nature">Nature</label><select class="champ" id="i-nature">' + options(natures, natures[1] || natures[0]) + '</select></div>' +
+          '<div class="champ-bloc"><label for="i-dep">Département</label><input class="champ mono" id="i-dep" placeholder="ex. 2B"></div>' +
+          '<div class="champ-bloc"><label for="i-m0">Mois des offres (M0)</label><input class="champ mono" id="i-m0" placeholder="MM/AAAA"></div>' +
+          '<div class="champ-bloc"><label for="i-surface">Surface de référence (m²)</label><input class="champ mono num" id="i-surface" inputmode="decimal" placeholder="SDP ou m² aménagés"></div>' +
+          '<div class="champ-bloc champ-bloc--large"><label for="i-comm">Commentaire (facultatif)</label><input class="champ" id="i-comm" maxlength="200" placeholder="ex. réhabilitation atelier + aire de lavage, site occupé"></div>' +
+          '<div class="champ-bloc champ-bloc--large"><label for="i-texte">Postes collés</label><textarea class="champ mono" id="i-texte" rows="8" placeholder="Dispositions générales\t66 261\nGros œuvre\t902 319\nÉlectricité\t262 714,34"></textarea></div>' +
+          '<div class="bloc-form__actions"><button class="bouton" type="submit">Analyser les postes</button></div>' +
+        '</form><div data-postes></div></section>' +
+      '<section class="groupe-param" id="biblio-imports"><h2>Marchés importés</h2><div data-imports></div></section>';
+
+    var chargerRatios = function () {
+      var z = $('[data-ratios]', zone);
+      z.innerHTML = '<div class="chargement">Calcul…</div>';
+      K.appel('apiEstRatios', $('#r-typo', zone).value, $('#r-nature', zone).value).then(function (r) {
+        z.innerHTML = r.length ? '<div class="tableau-conteneur"><table class="table-ratios"><thead><tr><th scope="col">Lot</th><th scope="col" class="num">Marchés</th>' +
+          '<th scope="col" class="num">Médiane € HT/m²</th><th scope="col" class="num">Min</th><th scope="col" class="num">Max</th><th scope="col">Index</th><th scope="col">Fiabilité</th></tr></thead><tbody>' +
+          r.map(function (x) {
+            return '<tr><td><span class="mono">' + esc(x.lot) + '</span> ' + esc(x.libelle) + '</td><td class="num mono">' + x.n + '</td>' +
+              '<td class="num mono"><strong>' + eur2(x.mediane) + '</strong></td><td class="num mono">' + eur2(x.min) + '</td><td class="num mono">' + eur2(x.max) + '</td>' +
+              '<td class="mono">' + esc(x.indice) + ' ' + mois(x.moisIndice) + (x.nonActualisees ? ' <span class="statut statut--alerte">' + x.nonActualisees + ' non actualisée(s)</span>' : '') + '</td>' +
+              '<td>' + fiab(x.fiabilite) + (x.sousSeuil ? ' <span class="legende">sous le seuil' + (x.utilisable ? '' : ', masqué') + '</span>' : '') + '</td></tr>';
+          }).join('') + '</tbody></table></div>'
+          : '<p class="vide">Aucun marché importé pour cette typologie et cette nature.</p>';
+      }).catch(function (e) { z.innerHTML = K.bandeauErreur(e); });
+    };
+    $('#r-typo', zone).addEventListener('change', chargerRatios);
+    $('#r-nature', zone).addEventListener('change', chargerRatios);
+    chargerRatios();
+
+    var rendreImports = function (imports) {
+      var z = $('[data-imports]', zone);
+      z.innerHTML = imports.length ? '<div class="tableau-conteneur"><table><thead><tr><th scope="col">Import</th><th scope="col">Typologie · nature</th><th scope="col">Dép.</th>' +
+        '<th scope="col">M0</th><th scope="col" class="num">Surface</th><th scope="col" class="num">Total HT</th><th scope="col">Lots</th><th scope="col">Statut</th><th scope="col"><span class="seul-lecteur">Action</span></th></tr></thead><tbody>' +
+        imports.map(function (i) {
+          return '<tr data-import="' + esc(i.id) + '"' + (i.statut === 'annulé' ? ' class="est-arretee"' : '') + '><td class="mono">' + esc(i.id) + (i.commentaire ? '<div class="legende">' + esc(i.commentaire) + '</div>' : '') + '</td>' +
+            '<td>' + esc(i.typologie) + ' · ' + esc(i.nature) + '</td><td class="mono">' + esc(i.departement) + '</td><td class="mono">' + mois(i.m0) + '</td>' +
+            '<td class="num mono">' + Number(i.surface).toLocaleString('fr-FR') + ' m²</td><td class="num mono">' + K.euros(i.total_ht) + '</td>' +
+            '<td class="legende">' + i.observations.map(function (o) { return esc(o.lot) + ' ' + eur2(o.ratio) + '/m²'; }).join(' · ') + '</td>' +
+            '<td>' + esc(i.statut) + '</td><td>' + (i.statut === 'actif' ? '<button class="bouton bouton--discret bouton--petit" type="button" data-annuler-import>Annuler</button>' : '') + '</td></tr>';
+        }).join('') + '</tbody></table></div>' : '<p class="vide">Aucun marché importé.</p>';
+      $$('[data-annuler-import]', z).forEach(function (bt) {
+        bt.addEventListener('click', function () {
+          var id = bt.closest('tr').getAttribute('data-import');
+          if (!window.confirm('Annuler l\'import ' + id + ' ? Ses ratios ne seront plus utilisés.')) return;
+          bt.disabled = true;
+          K.appel('apiEstAnnulerImport', id).then(function (r) { K.toast('Import annulé.'); rendreImports(r.imports); chargerRatios(); })
+            .catch(function (e) { bt.disabled = false; K.toast(e.message, true); });
+        });
+      });
+    };
+    rendreImports(b.imports);
+
+    $('[data-import]', zone).addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var z = $('[data-postes]', zone);
+      K.appel('apiEstAnalyserPostes', $('#i-texte', zone).value).then(function (r) {
+        if (!r.postes.length) { z.innerHTML = '<p class="bandeau bandeau--erreur">Aucun poste reconnu : un libellé et un montant par ligne.</p>'; return; }
+        var lotsOpt = function (choisi) { return '<option value="">— lot ? —</option>' + options(b.lots, choisi, 'code', function (l) { return l.code + ' — ' + l.libelle; }); };
+        z.innerHTML = '<h3>Vérifiez le rattachement des postes</h3><div class="tableau-conteneur"><table class="table-postes"><thead><tr><th scope="col">Poste</th><th scope="col">Lot</th>' +
+          '<th scope="col" class="num">Montant HT</th><th scope="col"><span class="seul-lecteur">Retirer</span></th></tr></thead><tbody>' +
+          r.postes.map(function (p) {
+            return '<tr data-poste><td><input class="champ" data-p="libelle" value="' + esc(p.libelle) + '" aria-label="Poste"></td>' +
+              '<td><select class="champ' + (p.lot ? '' : ' est-modifie') + '" data-p="lot" aria-label="Lot">' + lotsOpt(p.lot) + '</select></td>' +
+              '<td><input class="champ mono num" data-p="montant" value="' + esc(String(p.montant).replace('.', ',')) + '" inputmode="decimal" aria-label="Montant HT"></td>' +
+              '<td><button class="bouton bouton--discret bouton--petit" type="button" data-retirer-poste>Retirer</button></td></tr>';
+          }).join('') + '</tbody></table></div>' +
+          (r.ecartees.length ? '<p class="legende">' + r.ecartees.length + ' ligne(s) écartée(s) : ' + r.ecartees.map(function (x) { return 'ligne ' + x.ligne + ' (' + esc(x.motif) + ')'; }).join(', ') + '.</p>' : '') +
+          '<p class="legende" data-total-postes></p><div class="actions-ligne"><button class="bouton" type="button" data-enregistrer-import>Enregistrer l\'import</button></div>';
+        var total = function () {
+          var t = 0;
+          $$('[data-p="montant"]', z).forEach(function (x) { t += Number(String(x.value).replace(/\s/g, '').replace(',', '.')) || 0; });
+          $('[data-total-postes]', z).textContent = $$('tr[data-poste]', z).length + ' poste(s), total ' + eur2(t) + ' HT.';
+        };
+        total();
+        z.addEventListener('input', total);
+        $$('[data-retirer-poste]', z).forEach(function (bt) { bt.addEventListener('click', function () { bt.closest('tr').remove(); total(); }); });
+        $('[data-enregistrer-import]', z).addEventListener('click', function () {
+          var bt = this;
+          var donnees = {
+            typologie: $('#i-typo', zone).value, nature: $('#i-nature', zone).value, departement: $('#i-dep', zone).value,
+            m0: $('#i-m0', zone).value, surface: $('#i-surface', zone).value, commentaire: $('#i-comm', zone).value,
+            postes: $$('tr[data-poste]', z).map(function (tr) {
+              return { libelle: $('[data-p="libelle"]', tr).value, lot: $('[data-p="lot"]', tr).value, montant: $('[data-p="montant"]', tr).value };
+            })
+          };
+          bt.disabled = true;
+          K.appel('apiEstImporter', donnees).then(function (res) {
+            K.toast('Import ' + res.id + ' enregistré.');
+            z.innerHTML = '';
+            $('#i-texte', zone).value = '';
+            rendreImports(res.imports);
+            $('#r-typo', zone).value = donnees.typologie; $('#r-nature', zone).value = donnees.nature;
+            chargerRatios();
+          }).catch(function (e) { bt.disabled = false; K.toast(e.message, true); });
+        });
+      }).catch(function (e) { z.innerHTML = K.bandeauErreur(e); });
+    });
+  }
+
+  // ——— Nouvelle estimation (assistant au ratio) ———
+  function rendreFormulaire(zone, f) {
+    var a0 = f.affaires.filter(function (a) { return a.id === f.choisie; })[0] || f.affaires[0] || {};
+    var facteurs = Object.keys(f.k).filter(function (x) { return x !== 'kdép'; });
+    var selectK = function (fac, choisi) {
+      return '<select class="champ" data-k="' + esc(fac) + '" id="k-' + esc(fac) + '">' + (fac === 'kdép' ? '' : '<option value="">—</option>') +
+        f.k[fac].map(function (m) {
+          return '<option value="' + esc(m.id) + '"' + (m.id === choisi ? ' selected' : '') + '>' + esc(m.modalite) + ' (' + String(m.coefficient).replace('.', ',') + ')</option>';
+        }).join('') + '</select>';
+    };
+    var neutre = function (fac) { var m = f.k[fac].filter(function (x) { return x.coefficient === 0; })[0]; return m ? m.id : ''; };
+    zone.innerHTML = '<form class="assistant" data-assistant novalidate>' +
+      '<fieldset><legend>1. Affaire et typologie</legend><div class="form-grille form-grille--4">' +
+        '<div class="champ-bloc champ-bloc--large"><label for="e-affaire">Affaire</label><select class="champ" id="e-affaire">' +
+          options(f.affaires, a0.id, 'id', function (a) { return a.id + ' — ' + a.acheteur + ' — ' + String(a.objet || '').slice(0, 60); }) + '</select></div>' +
+        '<div class="champ-bloc"><label for="e-phase">Phase</label><select class="champ" id="e-phase">' + options(f.phases, f.phases[1] || f.phases[0]) + '</select></div>' +
+        '<div class="champ-bloc"><label for="e-typo">Typologie</label><select class="champ" id="e-typo">' + options(f.typologies, '', 'code', function (t) { return t.libelle; }) + '</select></div>' +
+        '<div class="champ-bloc"><label for="e-nature">Nature</label><select class="champ" id="e-nature">' + options(f.natures, f.natures[1] || f.natures[0]) + '</select></div>' +
+      '</div></fieldset>' +
+      '<fieldset><legend>2. Surface et lieu</legend><div class="form-grille form-grille--4">' +
+        '<div class="champ-bloc"><label for="e-surface">Surface de référence (m²)</label><input class="champ mono num" id="e-surface" inputmode="decimal" placeholder="SDP"></div>' +
+        '<div class="champ-bloc"><label for="e-dep">Département</label><input class="champ mono" id="e-dep" value="' + esc(a0.departement || '') + '" placeholder="ex. 2B"></div>' +
+      '</div></fieldset>' +
+      '<fieldset><legend>3. Coefficient de localisation (' + esc(f.kMode) + ')</legend><div class="form-grille form-grille--4">' +
+        (f.k['kdép'] ? '<div class="champ-bloc"><label for="k-kdép">kdép (département)</label>' + selectK('kdép', '') + '</div>' : '') +
+        facteurs.map(function (fac) { return '<div class="champ-bloc"><label for="k-' + esc(fac) + '">' + esc(fac) + '</label>' + selectK(fac, neutre(fac)) + '</div>'; }).join('') +
+      '</div></fieldset>' +
+      '<fieldset><legend>4. Actualisation et projection</legend><div class="form-grille form-grille--4">' +
+        '<div class="champ-bloc"><span class="label">Index utilisé</span><p class="legende">Dernier mois publié' + (f.dernierIndex ? ' (' + mois(f.dernierIndex) + ')' : '') + ', index de chaque lot.</p></div>' +
+        '<div class="champ-bloc"><label for="e-travaux">Date des travaux (facultatif)</label><input class="champ mono" id="e-travaux" placeholder="MM/AAAA"></div>' +
+      '</div></fieldset>' +
+      '<fieldset><legend>5. Lots</legend><div data-lots-est><div class="chargement">Lecture des ratios…</div></div></fieldset>' +
+      '<div class="actions-ligne"><button class="bouton bouton--discret" type="button" data-apercu>Aperçu</button><button class="bouton" type="submit">Créer l\'estimation</button></div>' +
+      '</form><div data-resultat-apercu aria-live="polite"></div>';
+    var form = $('[data-assistant]', zone);
+    var choisirKdep = function () {
+      var s = $('#k-kdép', form); if (!s) return;
+      var dep = $('#e-dep', form).value.trim().toUpperCase().replace(/^(\d)$/, '0$1');
+      var m = f.k['kdép'].filter(function (x) { return x.modalite.split(' ')[0].toUpperCase() === dep; })[0];
+      if (m) s.value = m.id;
+    };
+    choisirKdep();
+    $('#e-dep', form).addEventListener('change', choisirKdep);
+    $('#e-affaire', form).addEventListener('change', function () {
+      var a = f.affaires.filter(function (x) { return x.id === $('#e-affaire', form).value; })[0];
+      if (a && a.departement) { $('#e-dep', form).value = a.departement; choisirKdep(); }
+    });
+    var chargerLots = function () {
+      var z = $('[data-lots-est]', form);
+      K.appel('apiEstRatios', $('#e-typo', form).value, $('#e-nature', form).value).then(function (r) {
+        var parLot = {};
+        r.forEach(function (x) { parLot[x.lot] = x; });
+        z.innerHTML = '<p class="legende">Lots cochés d\'office : ceux qui ont un ratio. Un lot sans ratio peut être ajouté, son PU sera à saisir.</p><div class="lots-est">' +
+          f.lots.map(function (l) {
+            var x = parLot[l.code];
+            var ok = x && x.utilisable;
+            return '<label class="lot-est"><input type="checkbox" value="' + esc(l.code) + '"' + (ok ? ' checked' : '') + '> <span class="mono">' + esc(l.code) + '</span> ' + esc(l.libelle) +
+              '<span class="legende">' + (x ? eur2(x.mediane) + '/m² · ' + x.n + ' marché(s) · fiab. ' + esc(x.fiabilite) : 'pas de ratio') + '</span></label>';
+          }).join('') + '</div>';
+      }).catch(function (e) { z.innerHTML = K.bandeauErreur(e); });
+    };
+    $('#e-typo', form).addEventListener('change', chargerLots);
+    $('#e-nature', form).addEventListener('change', chargerLots);
+    chargerLots();
+    var lire = function () {
+      return {
+        id_affaire: $('#e-affaire', form).value, phase: $('#e-phase', form).value, typologie: $('#e-typo', form).value, nature: $('#e-nature', form).value,
+        surface: $('#e-surface', form).value, departement: $('#e-dep', form).value, date_travaux: $('#e-travaux', form).value,
+        k_ids: $$('[data-k]', form).map(function (s) { return s.value; }).filter(String),
+        lots: $$('.lots-est input:checked', form).map(function (c) { return c.value; })
+      };
+    };
+    var sortie = $('[data-resultat-apercu]', zone);
+    $('[data-apercu]', form).addEventListener('click', function () {
+      K.appel('apiEstApercu', lire()).then(function (c) {
+        sortie.innerHTML = '<h2>Aperçu</h2>' + tableLignes(c.lignes, c.totaux, { aleas: c.entete.aleas_pct, tva: c.entete.tva, k: c.k.k }, false) + avertissements(c.avertissements);
+      }).catch(function (e) { sortie.innerHTML = K.bandeauErreur(e); });
+    });
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var bt = $('button[type=submit]', form); bt.disabled = true;
+      K.appel('apiEstCreer', lire()).then(function (c) {
+        K.toast('Estimation ' + c.estimation.id + ' créée.');
+        K.afficher('estimation/' + c.estimation.id, true);
+      }).catch(function (e) { bt.disabled = false; K.toast(e.message, true); });
+    });
+  }
+
+  function avertissements(liste) {
+    return liste && liste.length ? '<details class="avert-est"><summary>' + liste.length + ' point(s) à vérifier</summary><ul>' +
+      liste.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul></details>' : '';
+  }
+
+  /** Tableau des lignes et des totaux ; modifiable = PU HT saisissables. */
+  function tableLignes(lignes, t, p, modifiable) {
+    return '<div class="tableau-conteneur"><table class="table-est"><thead><tr><th scope="col">N°</th><th scope="col">Lot</th><th scope="col" class="num">Quantité</th>' +
+      '<th scope="col" class="num">PU HT</th><th scope="col" class="num">Total HT</th><th scope="col">Fiab.</th><th scope="col">Origine</th></tr></thead><tbody>' +
+      lignes.map(function (l) {
+        return '<tr data-ligne="' + esc(l.id || '') + '"><td class="mono">' + esc(l.num_article) + '</td><td><span class="mono">' + esc(l.lot) + '</span> ' + esc(l.designation) + '</td>' +
+          '<td class="num mono">' + Number(l.quantite).toLocaleString('fr-FR') + ' ' + esc(l.unite) + '</td>' +
+          '<td class="num">' + (modifiable ? '<input class="champ mono num champ-pu" data-pu value="' + esc(String(l.pu_ht).replace('.', ',')) + '" inputmode="decimal" aria-label="PU HT ' + esc(l.lot) + '">' : '<span class="mono">' + eur2(l.pu_ht) + '</span>') + '</td>' +
+          '<td class="num mono"><strong>' + eur2(l.total_ht) + '</strong></td><td>' + fiab(l.fiabilite) + '</td><td class="legende">' + esc(l.commentaire) + '</td></tr>';
+      }).join('') +
+      '<tr class="ligne-total"><td></td><td>Total HT des lots</td><td></td><td></td><td class="num mono">' + eur2(t.ht) + '</td><td colspan="2"></td></tr>' +
+      '<tr><td></td><td>Aléas et imprévus (' + String(p.aleas).replace('.', ',') + ' %)</td><td></td><td></td><td class="num mono">' + eur2(t.aleas) + '</td><td colspan="2"></td></tr>' +
+      '<tr class="ligne-total"><td></td><td><strong>TOTAL HT</strong></td><td></td><td></td><td class="num mono"><strong>' + eur2(t.htAleas) + '</strong></td><td colspan="2" class="legende">K = ' + String(p.k).replace('.', ',') + '</td></tr>' +
+      '<tr><td></td><td>TVA (' + String(p.tva).replace('.', ',') + ' %)</td><td></td><td></td><td class="num mono">' + eur2(t.tva) + '</td><td colspan="2"></td></tr>' +
+      '<tr class="ligne-total"><td></td><td><strong>TOTAL TTC</strong></td><td></td><td></td><td class="num mono"><strong>' + eur2(t.ttc) + '</strong></td><td colspan="2"></td></tr>' +
+      '</tbody></table></div>';
+  }
+
+  // ——— Estimation enregistrée ———
+  function rendreEstimation(zone, c) {
+    var e = c.estimation, modifiable = e.statut !== 'figée';
+    zone.innerHTML = '<div class="tete-est"><h2>' + esc(e.id) + ' — ' + esc(e.phase) + ' ind ' + esc(e.indice) + ' <span class="statut ' + (modifiable ? 'statut--encours' : 'statut--ok') + '">' + esc(e.statut) + '</span></h2>' +
+        '<p><a href="#affaire/' + esc(c.affaire.id) + '" class="mono">' + esc(c.affaire.id) + '</a> ' + esc(c.affaire.acheteur) + ' — ' + esc(c.affaire.objet) + '</p>' +
+        '<p class="legende">' + esc(c.typologie) + ' · ' + esc(e.nature) + ' · département ' + esc(e.departement) + ' · ' + Number(e.surface_sdp).toLocaleString('fr-FR') + ' m² · K ' + String(e.k).replace('.', ',') +
+          ' (' + esc(e.k_detail) + ')' + (e.date_travaux ? ' · travaux ' + mois(e.date_travaux) : '') + '</p></div>' +
+      tableLignes(c.lignes, c.totaux, { aleas: e.aleas_pct, tva: e.tva, k: e.k }, modifiable) +
+      (e.commentaire ? avertissements(String(e.commentaire).split(/\.\s+/).filter(String)) : '') +
+      '<div class="actions-ligne"><button class="bouton" type="button" data-exporter>Exporter en .xlsx vers le Drive</button>' +
+        (modifiable ? '<button class="bouton bouton--discret" type="button" data-figer>Figer</button><button class="bouton bouton--discret" type="button" data-supprimer-est>Supprimer</button>' : '') +
+        (e.export_url ? '<a href="' + esc(e.export_url) + '" target="_blank" rel="noopener">Dernier export</a>' : '') +
+        '<span class="legende">' + (modifiable ? 'Brouillon : PU modifiables. Figée, l\'estimation n\'est plus modifiable.' : 'Estimation figée.') + '</span></div>';
+    $$('[data-pu]', zone).forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        K.appel('apiEstLigneMaj', inp.closest('tr').getAttribute('data-ligne'), { pu_ht: inp.value }).then(function (c2) { K.toast('PU enregistré.'); rendreEstimation(zone, c2); })
+          .catch(function (er) { K.toast(er.message, true); });
+      });
+    });
+    $('[data-exporter]', zone).addEventListener('click', function () {
+      var bt = this; bt.disabled = true; bt.textContent = 'Export…';
+      K.appel('apiEstExporter', e.id).then(function (r) {
+        K.toast('Fichier déposé : ' + r.dossier + ' / ' + r.nom);
+        rendreEstimation(zone, r.estimation);
+      }).catch(function (er) { bt.disabled = false; bt.textContent = 'Exporter en .xlsx vers le Drive'; K.toast(er.message, true); });
+    });
+    var fg = $('[data-figer]', zone);
+    if (fg) fg.addEventListener('click', function () {
+      if (!window.confirm('Figer l\'estimation ' + e.id + ' ? Elle ne sera plus modifiable.')) return;
+      K.appel('apiEstFiger', e.id).then(function (c2) { K.toast('Estimation figée.'); rendreEstimation(zone, c2); }).catch(function (er) { K.toast(er.message, true); });
+    });
+    var sp = $('[data-supprimer-est]', zone);
+    if (sp) sp.addEventListener('click', function () {
+      if (!window.confirm('Supprimer l\'estimation ' + e.id + ' ?')) return;
+      K.appel('apiEstSupprimer', e.id).then(function () { K.toast('Estimation supprimée.'); K.afficher('estimation', true); }).catch(function (er) { K.toast(er.message, true); });
+    });
+  }
 
   K.ecrans.estimation = { titre: 'Estimation', rendu: ecranEstimation };
 })();

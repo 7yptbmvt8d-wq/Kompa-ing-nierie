@@ -37,9 +37,12 @@ function creerFeuille(nom) {
     insertColumnsAfter: (_apres, n) => { f.maxColonnes += n; },
     deleteRow: (r) => { f.lignes.splice(r - 1, 1); },
     setFrozenRows: () => f,
+    formules: {},
     getRange: (r, c, nr = 1, nc = 1) => creerPlage(f, r, c, nr, nc)
   };
-  return f;
+  // Mise en forme de la feuille (setName, setColumnWidth…) : sans effet, chaînable ; setName renomme.
+  f.setName = (n) => { f.nom = n; return f; };
+  return new Proxy(f, { get: (cible, prop) => (prop in cible ? cible[prop] : () => cible) });
 }
 
 function creerPlage(f, r, c, nr, nc) {
@@ -74,14 +77,17 @@ function creerPlage(f, r, c, nr, nc) {
           f.lignes[r - 1 + i][c - 1 + j] = v;
         }
       }
-      return plage;
+      return plage.moi;
     },
-    setNumberFormat: (fmt) => { for (let j = 0; j < nc; j++) f.formats[c + j] = fmt; return plage; }
+    setNumberFormat: (fmt) => { for (let j = 0; j < nc; j++) f.formats[c + j] = fmt; return plage.moi; },
+    // Formules conservées à part (adresse « L,C » → texte), pour les tests d'export
+    setFormulas: (vals) => { vals.forEach((l, i) => l.forEach((v, j) => { f.formules[(r + i) + ',' + (c + j)] = v; })); return plage.moi; }
   };
   // Méthodes de mise en forme (setFontWeight, setBackground…) : sans effet, chaînables.
   const proxy = new Proxy(plage, {
     get: (cible, prop) => (prop in cible ? cible[prop] : () => proxy)
   });
+  plage.moi = proxy;
   return proxy;
 }
 
@@ -168,6 +174,13 @@ function creerEnvironnement(options = {}) {
       fetch: (url) => {
         gas.UrlFetchApp.appels.push(url);
         if (/bdm\.insee\.fr/.test(url)) return inseeSimule(url, options);
+        // Export .xlsx d'un Google Sheets (module Estimation)
+        if (/docs\.google\.com\/spreadsheets\/d\/[^/]+\/export\?format=xlsx/.test(url)) {
+          if (options.exportHttp) return { getResponseCode: () => options.exportHttp, getBlob: () => null };
+          const blob = { octets: [80, 75, 3, 4], type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', nom: 'export.xlsx' };
+          blob.setName = (n) => { blob.nom = n; return blob; };
+          return { getResponseCode: () => 200, getBlob: () => blob };
+        }
         if ((options.echecsHttp || 0) > 0) { options.echecsHttp--; throw new Error('Connection reset by peer'); }
         const offset = Number((url.match(/offset=(\d+)/) || [])[1] || 0);
         const source = options.boamp || { total_count: 0, results: [] };
@@ -187,6 +200,7 @@ function creerEnvironnement(options = {}) {
     ScriptApp: {
       WeekDay: { MONDAY: 'MONDAY' },
       getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/TEST/exec' }),
+      getOAuthToken: () => 'jeton-test',
       getProjectTriggers: () => declencheurs.slice(),
       deleteTrigger: (t) => { declencheurs.splice(declencheurs.indexOf(t), 1); },
       newTrigger: (fn) => {
@@ -241,7 +255,9 @@ function creerEnvironnement(options = {}) {
       },
       _dossiers: {},
       getFolderById: (id) => { const d = gas.DriveApp._dossiers[id]; if (!d) throw new Error('introuvable'); return d; },
+      corbeille: [],
       getFileById: (id) => ({
+        setTrashed: (v) => { if (v) gas.DriveApp.corbeille.push(id); },
         makeCopy: (nom, dossier) => {
           const f = {
             nom, dossier, corbeille: false, cree: new Date(Date.now() + fichiersDrive.length),
