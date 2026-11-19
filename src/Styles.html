@@ -5,7 +5,7 @@
 /* Styles Kompa Affaires — couleurs : variables de Tokens.html uniquement. */
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
-body { min-width: 1024px; }
+body:not(.mode-mobile) { min-width: 1024px; }
 body {
   background: var(--kompa-blanc);
   color: var(--kompa-encre);
@@ -374,25 +374,57 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .cellule-lien input { min-width: 10rem; }
 .ajout-piece #ajout-liv-tranche { flex: 0 0 5rem; }
 .ajout-piece #ajout-liv-date { flex: 0 0 auto; width: auto; }
-/* ——— Téléphone : seul l'Accueil (tableau de bord) est adapté. Les autres écrans gardent
-   la mise en page ordinateur (largeur 1024 px, défilement horizontal). ——— */
-@media (max-width: 760px) {
-  body[data-ecran="accueil"] { min-width: 0; }
-  body[data-ecran="accueil"] .entete__barre { gap: var(--kompa-s3); padding: 0 var(--kompa-s4); min-height: 52px; }
-  body[data-ecran="accueil"] .marque svg { height: 26px; }
-  body[data-ecran="accueil"] .marque__nom { display: none; }
-  body[data-ecran="accueil"] main { padding: var(--kompa-s4); }
-  body[data-ecran="accueil"] .pied { padding: var(--kompa-s4); }
-  body[data-ecran="accueil"] .tableau-tete { flex-wrap: wrap; gap: 0 var(--kompa-s4); }
-  body[data-ecran="accueil"] .tuiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--kompa-s2); }
-  body[data-ecran="accueil"] .tuile { padding: var(--kompa-s2) var(--kompa-s3); }
-  body[data-ecran="accueil"] .grille,
-  body[data-ecran="accueil"] .grille--tableau { grid-template-columns: minmax(0, 1fr); }
-  body[data-ecran="accueil"] .carte--large { grid-column: auto; }
-  body[data-ecran="accueil"] .carte { padding: var(--kompa-s4); }
-  body[data-ecran="accueil"] .barre { grid-template-columns: minmax(0, 8rem) minmax(0, 1fr) 28px; gap: var(--kompa-s2); }
-  body[data-ecran="accueil"] .ca-chiffres { gap: var(--kompa-s4); }
-  body[data-ecran="accueil"] .liste-def { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); }
-  body[data-ecran="accueil"] .liste-def dt { white-space: normal; }
-}
+/* ——— Vue smartphone (AppMobile.html) : tableau de bord seul, une colonne, sans défilement horizontal ——— */
+.retour-mobile { display: none; flex: 0 0 auto; border: 1px solid var(--kompa-texte-inverse-2); border-radius: var(--kompa-radius-sm); background: none; color: var(--kompa-texte-inverse); font: inherit; font-size: 15px; font-weight: 600; padding: var(--kompa-s2) var(--kompa-s4); min-height: 44px; cursor: pointer; }
+body.ecran-petit:not(.mode-mobile) .retour-mobile { display: block; }
+body.ecran-petit .nav { min-width: 0; flex: 1 1 auto; }
+.mob-lien { border: 0; background: none; padding: var(--kompa-s3) var(--kompa-s4); min-height: 44px; font: inherit; font-size: 15px; color: var(--kompa-ardoise); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+body.mode-mobile { min-width: 0; overflow-x: hidden; }
+html:has(body.mode-mobile) { overflow-x: hidden; }
+body.mode-mobile .nav, body.mode-mobile .pied { display: none; }
+body.mode-mobile .entete__barre { padding: 0 var(--kompa-s4); min-height: 52px; gap: var(--kompa-s3); }
+body.mode-mobile .marque svg { height: 28px; }
+body.mode-mobile main { padding: 0 var(--kompa-s4) calc(var(--kompa-s6) + env(safe-area-inset-bottom)); max-width: 560px; }
+.mob { overflow-wrap: anywhere; font-size: 16px; }
+.mob * { min-width: 0; }
+.mob .mono { overflow-wrap: normal; white-space: nowrap; }
+.mob-tete { display: flex; justify-content: space-between; align-items: center; padding: var(--kompa-s4) 0 var(--kompa-s3); }
+.mob-surtitre { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; color: var(--kompa-rouille); }
+.mob-date { font-size: 22px; font-weight: 700; color: var(--kompa-ardoise); line-height: 1.2; }
+.mob-actualiser { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 50%; border: var(--kompa-filet-fin); background: var(--kompa-blanc); color: var(--kompa-ardoise); display: grid; place-items: center; cursor: pointer; }
+.mob-actualiser:active { background: var(--kompa-brume); }
+.mob-alerte { border: 2px solid var(--kompa-rouille); background: #FDF1EA; border-radius: var(--kompa-radius); padding: var(--kompa-s3) var(--kompa-s4); margin-bottom: var(--kompa-s3); font-size: 15px; }
+.mob-alerte__tete { color: var(--kompa-rouille); font-weight: 700; }
+.mob-tuiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--kompa-s2); }
+.mob-tuile { background: var(--kompa-brume); border-radius: var(--kompa-radius); padding: var(--kompa-s3); }
+.mob-tuile__lib { font-size: 13px; color: var(--kompa-gris); line-height: 1.3; }
+.mob-tuile__val { font-size: 22px; font-weight: 600; color: var(--kompa-ardoise); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; }
+.mob-tuile__det { font-size: 12px; color: var(--kompa-gris); line-height: 1.35; margin-top: 2px; }
+.mob-plus { margin: var(--kompa-s2) 0 0; }
+.mob-plus summary { min-height: 44px; display: flex; align-items: center; justify-content: space-between; color: var(--kompa-ardoise); font-weight: 600; font-size: 15px; cursor: pointer; list-style: none; }
+.mob-plus summary::-webkit-details-marker { display: none; }
+.mob-plus summary::after { content: ''; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); margin: 0 6px 4px 0; transition: transform .15s; }
+.mob-plus[open] summary::after { transform: rotate(-135deg); margin-bottom: -4px; }
+.mob-plus[open] summary { margin-bottom: var(--kompa-s2); }
+.mob-carte { border-top: var(--kompa-filet-section); margin-top: var(--kompa-s5); padding-top: var(--kompa-s3); }
+.mob-carte h2 { font-size: 17px; margin: 0 0 var(--kompa-s3); color: var(--kompa-ardoise); }
+.mob-liste { list-style: none; margin: 0; padding: 0; }
+.mob-liste li { padding: var(--kompa-s3) 0; border-bottom: var(--kompa-filet-fin); font-size: 15px; line-height: 1.4; }
+.mob-liste li:last-child { border-bottom: 0; }
+.mob-liste--serree li { padding: var(--kompa-s2) 0; }
+.mob-ligne__tete { display: flex; justify-content: space-between; align-items: center; gap: var(--kompa-s3); }
+.mob-ligne__tete .statut { flex: 0 0 auto; font-size: 12px; }
+.mob-legende { color: var(--kompa-gris); font-size: 13px; }
+.mob-vide { color: var(--kompa-gris); font-size: 15px; margin: 0; }
+.mob-ca { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--kompa-s2); margin-bottom: var(--kompa-s2); }
+.mob-ca__val { font-size: 18px; font-weight: 600; color: var(--kompa-ardoise); overflow: hidden; text-overflow: ellipsis; }
+.mob-ca__val--2 { font-size: 15px; color: var(--kompa-gris); }
+.mob .jauge { margin: var(--kompa-s3) 0; }
+.mob-message { font-size: 14px; margin: 0 0 var(--kompa-s2); }
+.mob-message--alerte { color: var(--kompa-rouille); font-weight: 600; }
+.mob-barres { display: flex; flex-direction: column; gap: var(--kompa-s2); }
+.mob-barre { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) 2rem; align-items: center; gap: var(--kompa-s2); font-size: 15px; }
+.mob-barre .mono { text-align: right; }
+.mob-barre__piste span { display: block; height: 10px; min-width: 2px; background: var(--kompa-ardoise); border-radius: 0 4px 4px 0; }
+.mob-pied { text-align: center; color: var(--kompa-gris); font-size: 12px; margin: var(--kompa-s6) 0 0; }
 </style>

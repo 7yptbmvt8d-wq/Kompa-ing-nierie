@@ -1,0 +1,134 @@
+<script>
+/*
+ * Kompa Affaires — vue smartphone (décision du 19/11/2026) : sur téléphone, l'app n'affiche que
+ * ce tableau de bord, en une colonne, sans tableau ni défilement horizontal. Lecture seule.
+ * Les autres écrans restent sur ordinateur (lien « Version ordinateur » en bas de page).
+ */
+(function () {
+  'use strict';
+  var K = window.KA;
+  var esc = K.esc, $ = K.$;
+
+  var JOURS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  var MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  var ETATS_DECL = { 'déclarée': 'statut--ok', 'en retard': 'statut--ko', 'à déclarer': 'statut--alerte', 'en cours': 'statut--encours' };
+
+  function jour(iso) { var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] : ''; }
+  function pct(x) { return x === null || x === undefined ? '—' : Math.round(x * 100) + ' %'; }
+  function nb(x, d) { return x === null || x === undefined ? '—' : Number(x).toFixed(d || 0).replace('.', ','); }
+  function signe(x, d, suffixe) { return x === null || x === undefined ? '—' : (x > 0 ? '+' : x < 0 ? '−' : '') + nb(Math.abs(x), d) + (suffixe || ''); }
+  function quand(j) { return j < 0 ? 'retard ' + (-j) + ' j' : j === 0 ? 'aujourd\'hui' : j === 1 ? 'demain' : 'J-' + j; }
+
+  function tuile(libelle, valeur, detail) {
+    return '<div class="mob-tuile"><div class="mob-tuile__lib">' + esc(libelle) + '</div><div class="mob-tuile__val mono">' + valeur + '</div>' +
+      (detail ? '<div class="mob-tuile__det">' + detail + '</div>' : '') + '</div>';
+  }
+  function carte(titre, contenu, id) {
+    return '<section class="mob-carte"' + (id ? ' id="' + id + '"' : '') + '><h2>' + esc(titre) + '</h2>' + contenu + '</section>';
+  }
+
+  function rendre(el, d) {
+    var t = d.tableau, ca = d.ca, s = d.suivi, f = d.fiscal;
+    var maintenant = new Date();
+
+    // 1. Alertes : mise à jour incomplète, remises imminentes (J-3 à J0)
+    var alertes = ((d.etat && d.etat.alertes) || []).map(function (a) {
+      return '<div class="mob-alerte"><strong>Mise à jour incomplète.</strong> ' + esc(a) + '</div>';
+    }).join('');
+    var remises = s.echeances.filter(function (e) { return e.type === 'Remise' && e.jours >= 0 && e.jours <= 3; });
+    alertes += remises.map(function (e) {
+      return '<div class="mob-alerte"><div class="mob-alerte__tete">Remise ' + esc(quand(e.jours)) + ' · <span class="mono">' + jour(e.date) + '</span></div>' +
+        '<div><strong>' + esc(e.acheteur) + '</strong></div><div class="mob-legende">' + esc(String(e.objet || '').slice(0, 120)) + '</div></div>';
+    }).join('');
+
+    // 2. Chiffres clés
+    var a = t.attribution;
+    var enCours = t.parStatut.filter(function (x) { return x.actif && x.nombre; }).map(function (x) { return esc(x.statut) + ' ' + x.nombre; }).join(' · ') || 'aucune';
+    var tuiles = '<div class="mob-tuiles">' +
+      tuile('Affaires en cours', nb(t.enCours), enCours) +
+      tuile('CA encaissé ' + ca.annee, K.euros(ca.encaisse), 'engagé ' + K.euros(ca.engage)) +
+      tuile('Taux de Go', pct(t.go.taux), t.go.go + ' / ' + (t.go.go + t.go.nogo) + ' décisions') +
+      tuile('Attribution', pct(a.taux), a.gagnees + ' / ' + (a.gagnees + a.perdues) + ' jugées') +
+      '</div>' +
+      '<details class="mob-plus"><summary>Autres indicateurs (12 mois)</summary><div class="mob-tuiles">' +
+        tuile('Rang moyen', nb(t.rangMoyen, 1), t.rangsConnus + ' rang(s) connu(s)') +
+        tuile('Écart de prix', signe(t.ecartPrixMoyen === null ? null : t.ecartPrixMoyen * 100, 1, ' %'), '+ = plus cher') +
+        tuile('Écart note tech.', signe(t.ecartNoteMoyen, 1), '− = en dessous') +
+        tuile('Coût réponse', t.cout.joursPour10k === null ? '—' : nb(t.cout.joursPour10k, 1) + ' j', 'pour 10 000 € gagnés') +
+      '</div></details>';
+
+    // 3. À faire : échéances à 7 jours, relances
+    var lignesEch = s.echeances.slice().sort(function (x, y) { return x.jours - y.jours; }).map(function (e) {
+      var cls = e.depassee ? 'statut--ko' : e.urgent ? 'statut--alerte' : 'statut--neutre';
+      return '<li><div class="mob-ligne__tete"><span class="mono">' + jour(e.date) + '</span><span class="statut ' + cls + '">' + esc(quand(e.jours)) + '</span></div>' +
+        '<div>' + esc(e.libelle) + '</div><div class="mob-legende">' + esc(e.acheteur) + '</div></li>';
+    }).join('');
+    var lignesRel = s.relances.map(function (r) {
+      return '<li><div class="mob-ligne__tete"><span class="mono">' + jour(r.date_prevue) + '</span><span class="statut statut--neutre">relance</span></div>' +
+        '<div>' + esc(r.type) + '</div><div class="mob-legende">' + esc(r.acheteur) + '</div></li>';
+    }).join('');
+    // Les 5 premières lignes visibles, la suite repliée
+    var lignes = (lignesEch + lignesRel).split('</li>').filter(Boolean).map(function (l) { return l + '</li>'; });
+    var aFaire = !lignes.length ? '<p class="mob-vide">Rien dans les 7 prochains jours.</p>'
+      : '<ul class="mob-liste">' + lignes.slice(0, 5).join('') + '</ul>' +
+        (lignes.length > 5 ? '<details class="mob-plus"><summary>Voir les ' + (lignes.length - 5) + ' autres</summary><ul class="mob-liste">' + lignes.slice(5).join('') + '</ul></details>' : '');
+
+    // 4. Chiffre d'affaires : jauge et jalons en liste
+    var echelle = Math.max(ca.engage, Math.max.apply(null, ca.jalons.map(function (j) { return j.seuil; }).concat([1]))) * 1.02;
+    var pc = function (v) { return Math.min(v / echelle * 100, 100).toFixed(2) + '%'; };
+    var prochain = ca.jalons.filter(function (j) { return j.cle === ca.prochain; })[0];
+    var caBloc = '<div class="mob-ca"><div><div class="mob-legende">Encaissé</div><div class="mob-ca__val mono">' + K.euros(ca.encaisse) + '</div></div>' +
+        '<div><div class="mob-legende">Engagé</div><div class="mob-ca__val mob-ca__val--2 mono">' + K.euros(ca.engage) + '</div></div>' +
+        '<div><div class="mob-legende">Facturé</div><div class="mob-ca__val mob-ca__val--2 mono">' + K.euros(ca.facture) + '</div></div></div>' +
+      '<div class="jauge" role="img" aria-label="Encaissé ' + K.euros(ca.encaisse) + ', engagé ' + K.euros(ca.engage) + '">' +
+        '<div class="jauge__engage" style="width:' + pc(ca.engage) + '"></div><div class="jauge__encaisse" style="width:' + pc(ca.encaisse) + '"></div>' +
+        ca.jalons.map(function (j) { return '<div class="jauge__repere' + (j.vise ? ' jauge__repere--vise' : '') + '" style="left:' + pc(j.seuil) + '"></div>'; }).join('') +
+      '</div>' +
+      (prochain ? '<p class="mob-message' + (prochain.etat === 'alerte' ? ' mob-message--alerte' : '') + '">Prochain seuil : ' + esc(prochain.libelle) + ', encore <span class="mono">' + K.euros(prochain.reste) + '</span></p>'
+        : '<p class="mob-message mob-message--alerte">Tous les seuils sont dépassés.</p>') +
+      '<ul class="mob-liste mob-liste--serree">' + ca.jalons.map(function (j) {
+        var cls = j.etat === 'depasse' ? 'statut--ko' : j.etat === 'alerte' ? 'statut--alerte' : 'statut--ok';
+        return '<li><div class="mob-ligne__tete"><span>' + (j.vise ? '<strong>' + esc(j.libelle) + '</strong>' : esc(j.libelle)) + '</span><span class="mono">' + K.euros(j.seuil) + '</span></div>' +
+          '<div class="mob-ligne__tete mob-legende"><span>' + (j.reste >= 0 ? 'reste ' + K.euros(j.reste) : 'dépassé de ' + K.euros(-j.reste)) + '</span>' +
+          '<span class="statut ' + cls + '">' + (j.etat === 'depasse' ? 'dépassé' : j.etat === 'alerte' ? '≥ ' + ca.alertePct + ' %' : 'sous le seuil') + '</span></div></li>';
+      }).join('') + '</ul>';
+
+    // 5. Affaires en cours par statut (barres)
+    var actifs = t.parStatut.filter(function (x) { return x.actif; });
+    var max = Math.max.apply(null, actifs.map(function (x) { return x.nombre; }).concat([1]));
+    var statuts = '<div class="mob-barres">' + actifs.map(function (x) {
+      return '<div class="mob-barre"><span>' + esc(x.statut) + '</span><span class="mob-barre__piste"><span style="width:' + (x.nombre / max * 100).toFixed(1) + '%"></span></span><span class="mono">' + x.nombre + '</span></div>';
+    }).join('') + '</div>';
+
+    // 6. URSSAF : une ligne par période
+    var urssaf = '<ul class="mob-liste mob-liste--serree">' + f.periodes.map(function (p) {
+      var total = p.total === null || p.total === undefined ? '—' : K.euros(p.total);
+      return '<li><div class="mob-ligne__tete"><strong>' + esc(p.libelle) + '</strong><span class="statut ' + (ETATS_DECL[p.etat] || 'statut--neutre') + '">' + esc(p.etat) + '</span></div>' +
+        '<div class="mob-legende">CA <span class="mono">' + (p.ca === null || p.ca === undefined ? '—' : K.euros(p.ca)) + '</span> · à payer ≈ <span class="mono">' + total + '</span>' +
+        (p.echeance ? ' · avant le <span class="mono">' + jour(p.echeance) + '</span>' : '') + '</div></li>';
+    }).join('') + '</ul>';
+
+    el.innerHTML = '<div class="mob">' +
+      '<div class="mob-tete"><div><div class="mob-surtitre">Tableau de bord</div><div class="mob-date">' + JOURS[maintenant.getDay()] + ' ' + maintenant.getDate() + ' ' + MOIS[maintenant.getMonth()] + '</div></div>' +
+        '<button type="button" class="mob-actualiser" data-actualiser aria-label="Actualiser">' +
+        '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>' +
+      alertes + tuiles +
+      carte('À faire cette semaine', aFaire, 'mob-afaire') +
+      carte('Chiffre d\'affaires ' + ca.annee, caBloc, 'mob-ca') +
+      carte('Affaires en cours', statuts) +
+      carte('URSSAF ' + f.annee, urssaf) +
+      '<p class="mob-pied">' + esc(d.etat ? d.etat.app + ' · v' + d.etat.version : '') + ' · données du ' + String(maintenant.getHours()).padStart(2, '0') + ':' + String(maintenant.getMinutes()).padStart(2, '0') + '<br>' +
+        '<button type="button" class="mob-lien" data-vue-ordinateur>Version ordinateur</button></p>' +
+      '</div>';
+
+    $('[data-actualiser]', el).addEventListener('click', function () { K.viderMemoire(); K.mobile(el); });
+    $('[data-vue-ordinateur]', el).addEventListener('click', function () { K.basculerVue('ordinateur'); });
+  }
+
+  K.mobile = function (el) {
+    el.innerHTML = '<div class="mob"><div class="mob-tete"><div><div class="mob-surtitre">Tableau de bord</div></div></div><p class="mob-vide">Calcul des indicateurs…</p></div>';
+    K.charger('accueil', 'apiAccueil', [], function (d) { rendre(el, d); },
+      function (e) { el.innerHTML = '<div class="mob">' + K.bandeauErreur(e) + '<p class="mob-pied"><button type="button" class="mob-lien" data-reessayer>Réessayer</button></p></div>'; $('[data-reessayer]', el).addEventListener('click', function () { K.mobile(el); }); });
+  };
+})();
+</script>

@@ -7,6 +7,15 @@
   <?!= include('Styles'); ?>
 </head>
 <body>
+  <script>
+    /* Vue smartphone : décidée avant tout affichage (AppMobile.html). Choix « Version ordinateur » mémorisé. */
+    (function () {
+      var petit = (window.screen && screen.width <= 760) || window.innerWidth <= 760, vue = '';
+      try { vue = localStorage.getItem('ka.vue') || ''; } catch (e) { /* indisponible */ }
+      if (petit && vue !== 'ordinateur') document.body.classList.add('mode-mobile');
+      if (petit) document.body.classList.add('ecran-petit');
+    })();
+  </script>
   <header class="entete">
     <div class="entete__barre">
       <a class="marque" href="#accueil" aria-label="Kompa Affaires — accueil">
@@ -23,6 +32,7 @@
         <a href="#estimation">Estimation</a>
         <a href="#parametres">Paramètres</a>
       </nav>
+      <button type="button" class="retour-mobile" data-vue-mobile>Vue smartphone</button>
     </div>
   </header>
 
@@ -38,5 +48,6 @@
   <?!= include('AppEcheancier'); ?>
   <?!= include('AppTableau'); ?>
   <?!= include('AppEstimation'); ?>
+  <?!= include('AppMobile'); ?>
 </body>
 </html>

@@ -340,21 +340,33 @@ function assembler() {
     assert.ok(!deborde, 'débordement horizontal à 1280 px : ' + ecran);
   }
 
-  // Téléphone : l'Accueil (tableau de bord) tient dans la largeur de l'écran, sans défilement horizontal
-  const tel = await ouvrir({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
-  await tel.page.waitForSelector('#tableau-de-bord .tuiles');
-  await tel.page.waitForSelector('#carte-ca table');
-  await tel.page.waitForSelector('#carte-etat dl');
-  const debordeTel = await tel.page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  assert.ok(debordeTel <= 0, 'Accueil sur téléphone : débordement horizontal de ' + debordeTel + ' px');
-  const colonnes = await tel.page.evaluate(() => getComputedStyle(document.querySelector('.tuiles')).gridTemplateColumns.split(' ').length);
-  assert.strictEqual(colonnes, 2, 'tuiles du tableau de bord sur 2 colonnes au téléphone');
-  await tel.page.screenshot({ path: path.join(sortie, 'tel-accueil.png'), fullPage: true });
-  // Les autres écrans gardent la mise en page ordinateur
-  await tel.page.click('nav a[href="#affaires"]');
-  await tel.page.waitForTimeout(300);
-  assert.ok(await tel.page.evaluate(() => document.body.scrollWidth >= 1024), 'Affaires : mise en page ordinateur au téléphone');
-  assert.deepStrictEqual(tel.erreurs, [], 'erreurs JavaScript au téléphone : ' + tel.erreurs.join(' | '));
+  // Smartphone : vue dédiée (tableau de bord seul), sans défilement horizontal, à 360, 390 et 430 px
+  for (const largeur of [360, 390, 430]) {
+    const tel = await ouvrir({ viewport: { width: largeur, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+    const tp = tel.page;
+    await tp.waitForSelector('.mob-tuiles');
+    await tp.waitForSelector('#mob-ca .mob-liste li');
+    assert.ok(await tp.evaluate(() => document.body.classList.contains('mode-mobile')), 'vue smartphone activée');
+    assert.ok(await tp.locator('.nav').isHidden(), 'menu masqué en vue smartphone');
+    assert.strictEqual(await tp.locator('#ecran table').count(), 0, 'aucun tableau en vue smartphone');
+    const deborde = await tp.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    assert.ok(deborde <= 0, `vue smartphone ${largeur} px : débordement horizontal de ${deborde} px`);
+    const horsCadre = await tp.evaluate(() => Array.from(document.querySelectorAll('.mob *')).filter((e) => e.getBoundingClientRect().right > window.innerWidth + 0.5).map((e) => e.className || e.tagName).slice(0, 5));
+    assert.deepStrictEqual(horsCadre, [], `éléments hors écran à ${largeur} px`);
+    if (largeur === 390) {
+      await tp.screenshot({ path: path.join(sortie, 'tel-accueil.png'), fullPage: true });
+      await tp.click('.mob-plus summary >> nth=0');
+      assert.ok(await tp.locator('.mob-plus[open]').count() === 1);
+      // Version ordinateur, puis retour à la vue smartphone
+      await tp.click('[data-vue-ordinateur]');
+      await tp.waitForSelector('#carte-ca table');
+      assert.ok(await tp.evaluate(() => document.body.scrollWidth >= 1024), 'version ordinateur : mise en page 1024 px');
+      await tp.locator('[data-vue-mobile]').dispatchEvent('click'); // page dézoomée : clic direct
+      await tp.waitForSelector('.mob-tuiles');
+      assert.ok(await tp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'retour à la vue smartphone');
+    }
+    assert.deepStrictEqual(tel.erreurs, [], 'erreurs JavaScript au téléphone : ' + tel.erreurs.join(' | '));
+  }
 
   await navigateur.close();
   const erreurs = pc.erreurs;

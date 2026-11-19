@@ -305,7 +305,6 @@
     document.title = (param || ECRANS[nom].titre) + ' — Kompa Affaires';
     jetonEcran++;
     var el = $('#ecran');
-    document.body.setAttribute('data-ecran', nom); // Styles.html : mise en page téléphone de l'Accueil seulement
     ECRANS[nom].rendu(el, param);
     if (pousser && historique) historique.push({ ecran: chemin }, {}, chemin);
     window.scrollTo(0, 0);
@@ -315,14 +314,30 @@
     var a = ev.target.closest('a[href^="#"]');
     if (!a) return;
     ev.preventDefault();
+    if (estMobile()) return;
     afficher(a.getAttribute('href').slice(1), true);
   });
 
   if (historique) {
-    historique.setChangeHandler(function (e) { afficher((e.state && e.state.ecran) || e.location.hash || 'accueil', false); });
+    historique.setChangeHandler(function (e) { if (estMobile()) return; afficher((e.state && e.state.ecran) || e.location.hash || 'accueil', false); });
   }
 
+  function estMobile() { return document.body.classList.contains('mode-mobile'); }
+
+  /** Bascule smartphone ↔ ordinateur (choix mémorisé sur l'appareil). */
+  function basculerVue(vue) {
+    try { localStorage.setItem('ka.vue', vue); } catch (e) { /* indisponible */ }
+    document.body.classList.toggle('mode-mobile', vue === 'mobile');
+    jetonEcran++;
+    demarrer();
+  }
+
+  document.addEventListener('click', function (ev) {
+    if (ev.target.closest('[data-vue-mobile]')) basculerVue('mobile');
+  });
+
   function demarrer() {
+    if (estMobile() && window.KA.mobile) { window.KA.mobile($('#ecran')); window.scrollTo(0, 0); return; }
     if (window.google && google.script && google.script.url) {
       google.script.url.getLocation(function (loc) { afficher(loc.hash || 'accueil', false); });
     } else {
@@ -336,7 +351,7 @@
   window.KA = {
     appel: appel, $: $, $$: $$, esc: esc, toast: toast, titre: titre, bandeauErreur: bandeauErreur,
     dateHeure: dateHeure, euros: euros, ecrans: ECRANS, afficher: afficher,
-    charger: charger, viderMemoire: viderMemoire
+    charger: charger, viderMemoire: viderMemoire, basculerVue: basculerVue
   };
   // Démarrage une fois tous les scripts chargés : les écrans des autres lots s'enregistrent avant.
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer);

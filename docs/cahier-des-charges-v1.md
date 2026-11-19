@@ -185,7 +185,7 @@ Les seuils sont des paramètres, à mettre à jour quand la loi change.
 
 ## 8. Écrans
 
-L'app est conçue pour ordinateur (Windows, macOS, ChromeOS), dans le navigateur. **Pas de version mobile** (décision du 12/11/2026), sauf l'Accueil (tableau de bord), lisible sur téléphone depuis le 18/11/2026 ; les autres écrans gardent la mise en page ordinateur. Le suivi à distance passe aussi par l'e-mail quotidien (§ 6).
+L'app est conçue pour ordinateur (Windows, macOS, ChromeOS), dans le navigateur. **Pas de version mobile** (décision du 12/11/2026), sauf une **vue smartphone** (19/11/2026) : sur téléphone, l'app n'affiche que le tableau de bord, en une colonne et en lecture seule (alertes de remise, indicateurs, à faire de la semaine, CA et seuils, affaires par statut, URSSAF). Lien « Version ordinateur » en bas de page, bouton « Vue smartphone » en haut pour revenir ; le choix est mémorisé sur le téléphone. Le suivi à distance passe aussi par l'e-mail quotidien (§ 6).
 
 | Écran | Contenu | Présentation |
 |---|---|---|
