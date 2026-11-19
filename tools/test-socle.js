@@ -1081,8 +1081,8 @@ test('e-mail du matin : rubriques, objet, pas d\'envoi le week-end, récap du lu
   A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'x4', acheteur: 'Ville de Lille', objet: 'AMO', zone: 'France — présentiel à vérifier', departement: '59', pre_score: 50, classement: 'possible', statut: 'nouveau', lien: 'https://www.boamp.fr/x4' });
   A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'x3', acheteur: 'Ignoré', objet: 'AMO', zone: 'PACA-Corse', pre_score: 70, statut: 'ignoré', lien: 'https://www.boamp.fr/x3' });
   const m = brut(A.Email_construire(new Date()));
-  assert.deepStrictEqual(m.nombres, { avisPaca: 1, avisFrance: 2, echeances: 3, relances: 1 }); // relance « motifs » créée au passage en Perdue
-  assert.match(m.sujet, /^Kompa Affaires — \d{2}\/\d{2}\/\d{4} — 3 nouveaux avis · 3 échéances$/);
+  assert.deepStrictEqual(m.nombres, { remises: 1, avisPaca: 1, avisFrance: 2, echeances: 3, relances: 1 }); // relance « motifs » créée au passage en Perdue
+  assert.match(m.sujet, /^Kompa Affaires — \d{2}\/\d{2}\/\d{4} — ⚠ Remise J-3 · 3 nouveaux avis · 3 échéances$/);
   assert.match(m.html, /\+ 1 autre avis « possible » hors PACA-Corse/);
   assert.doesNotMatch(m.html, /Ville de Lille/);
   assert.match(m.html, /Nouveaux avis PACA-Corse/);
@@ -1098,6 +1098,35 @@ test('e-mail du matin : rubriques, objet, pas d\'envoi le week-end, récap du lu
   assert.strictEqual(env.ctx.MailApp.envois.length, 1);
   assert.strictEqual(env.ctx.MailApp.envois[0].to, 'kompa.affaires@example.com');
   assert.strictEqual(env.ctx.MailApp.envois[0].name, 'Kompa Affaires');
+});
+
+test('e-mail du matin : remise imminente J-3 à J0 en tête, avec l\'état des pièces et le conseil de dépôt', () => {
+  const { A, etude } = jeuEcheances(); // remise de l'affaire « etude » à J+3
+  let m = brut(A.Email_construire(new Date()));
+  assert.match(m.html, /Remise imminente/);
+  assert.ok(m.html.indexOf('Remise imminente') < m.html.indexOf('Échéances des 7 prochains jours'), 'encadré en tête');
+  assert.match(m.html, /J-3 · /);
+  assert.match(m.html, /liste des pièces non renseignée/);
+  assert.match(m.html, /Visez un dépôt le \d{2}\/\d{2}\/\d{4}, 48 h avant la limite/);
+  assert.match(m.html, new RegExp('#affaire/' + etude));
+  assert.match(m.texte, /⚠ REMISE IMMINENTE/);
+  // Pièces renseignées : 1 prête sur 3
+  A.PiecesOffre_ajouter(etude, { categorie: 'Candidature', libelle: 'DC1' });
+  A.PiecesOffre_ajouter(etude, { categorie: 'Offre', libelle: 'Mémoire' });
+  const p = A.PiecesOffre_ajouter(etude, { categorie: 'Offre', libelle: 'BPU' });
+  A.PiecesOffre_maj(etude, brut(p).id, { etat: 'prête' });
+  // Remise demain
+  A.Affaires_maj(etude, { date_limite_remise: iso(J(1)) });
+  m = brut(A.Email_construire(new Date()));
+  assert.match(m.sujet, /— ⚠ Remise J-1 · /);
+  assert.match(m.html, /1 pièce prête sur 3 — 2 à finir/);
+  assert.match(m.html, /Déposez aujourd'hui/);
+  // Remise à J+5 : pas d'encadré, objet inchangé
+  A.Affaires_maj(etude, { date_limite_remise: iso(J(5)) });
+  m = brut(A.Email_construire(new Date()));
+  assert.doesNotMatch(m.html, /Remise imminente/);
+  assert.doesNotMatch(m.sujet, /Remise/);
+  assert.strictEqual(m.nombres.remises, 0);
 });
 
 test('e-mail du matin : rien à signaler → « aucun nouvel avis » avec le bilan de la collecte ; email.si_rien = non → lundi seulement', () => {

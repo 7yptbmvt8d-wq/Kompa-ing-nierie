@@ -68,6 +68,10 @@ function Email_construire(quand, depuis) {
     .filter(function (e) { return ['Remise', 'Questions', 'Visite', 'Déclaration', 'Livrable'].indexOf(e.type) >= 0; });
   var relances = Relances_aFaire(quand);
   var ind = Indicateurs_resume(quand);
+  // Remises imminentes (J-3 à J0) : encadré rouge en tête de l'e-mail et dans l'objet.
+  var remises = echeances.filter(function (e) { return e.type === 'Remise' && e.jours >= 0 && e.jours <= 3; })
+    .sort(function (x, y) { return x.jours - y.jours; })
+    .map(function (e) { return Object.assign({ pieces: PiecesOffre_resume_(PiecesOffre_lister(e.id_affaire)) }, e); });
 
   var C = COULEURS_EMAIL;
   var h = function (s) { return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
@@ -100,7 +104,29 @@ function Email_construire(quand, depuis) {
       '<td style="padding:8px 0;border-bottom:1px solid ' + C.filet + ';text-align:right;vertical-align:top"><a href="' + h(lien) + '" style="color:' + C.ardoise + '">Ouvrir</a></td></tr>';
   };
 
+  var quandRemise = function (j) { return j === 0 ? 'aujourd\'hui' : j === 1 ? 'demain' : 'dans ' + j + ' jours'; };
+  var etatPieces = function (p) {
+    if (!p.total) return 'liste des pièces non renseignée (fiche › Offre)';
+    var reste = p.total - p.pretes;
+    return p.pretes + ' pièce' + (p.pretes > 1 ? 's' : '') + ' prête' + (p.pretes > 1 ? 's' : '') + ' sur ' + p.total + (reste ? ' — ' + reste + ' à finir' : ' — tout est prêt');
+  };
+  var conseilDepot = function (e) {
+    return e.jours <= 2 ? 'Déposez aujourd\'hui : la plateforme peut être lente ou saturée la veille.'
+      : 'Visez un dépôt le ' + jr(ajouterJours_(e.date, -2)) + ', 48 h avant la limite.';
+  };
   var corps = '';
+  if (remises.length) {
+    corps += '<tr><td style="padding:24px 24px 0"><div style="border:2px solid ' + C.rouille + ';border-radius:8px;background:#FDF1EA;padding:12px 16px">' +
+      '<div style="color:' + C.rouille + ';font-weight:700;font-size:16px;margin-bottom:4px">Remise imminente</div>' +
+      remises.map(function (e) {
+        return '<div style="padding:8px 0;border-top:1px solid ' + C.filet + '">' +
+          '<div><span style="' + mono + 'color:' + C.rouille + ';font-weight:600">' + (e.jours === 0 ? 'J0' : 'J-' + e.jours) + ' · ' + jr(e.date) + '</span> — remise ' + quandRemise(e.jours) + '</div>' +
+          '<div style="font-weight:600">' + h(e.acheteur) + '</div><div>' + h(String(e.objet || '').slice(0, 140)) + '</div>' +
+          '<div style="font-size:13px;color:' + (e.pieces.total && e.pieces.pretes === e.pieces.total ? C.gris : C.rouille) + '">' + h(etatPieces(e.pieces)) + '</div>' +
+          '<div style="font-size:13px;color:' + C.gris + ';margin-bottom:6px">' + h(conseilDepot(e)) + '</div>' +
+          bouton(url + '#affaire/' + e.id_affaire, 'Ouvrir l\'offre') + '</div>';
+      }).join('') + '</div></td></tr>';
+  }
   if (avisPaca.length) corps += section('Nouveaux avis ' + paca, avisPaca.length, avisPaca.map(function (a) { return ligneAvis(a, ''); }).join(''));
   if (avisFrance.length || autresFrance) corps += section('Nouveaux avis hors ' + paca + ' à étudier', avisFrance.length,
     avisFrance.map(function (a) { return ligneAvis(a, 'présentiel à vérifier'); }).join('') +
@@ -140,7 +166,9 @@ function Email_construire(quand, depuis) {
 
   var dateTxt = Utilities.formatDate(quand, APP.FUSEAU, 'dd/MM/yyyy');
   var nbAvis = avisPaca.length + horsPaca.length;
-  var sujet = APP.NOM + ' — ' + dateTxt + ' — ' + (nbAvis ? nbAvis + (nbAvis > 1 ? ' nouveaux' : ' nouvel') + ' avis' : 'aucun nouvel avis') +
+  var sujet = APP.NOM + ' — ' + dateTxt + ' — ' +
+    (remises.length ? '⚠ Remise ' + (remises[0].jours === 0 ? 'aujourd\'hui' : 'J-' + remises[0].jours) + (remises.length > 1 ? ' (+' + (remises.length - 1) + ')' : '') + ' · ' : '') +
+    (nbAvis ? nbAvis + (nbAvis > 1 ? ' nouveaux' : ' nouvel') + ' avis' : 'aucun nouvel avis') +
     ' · ' + echeances.length + ' échéance' + (echeances.length > 1 ? 's' : '');
 
   var html = '<!DOCTYPE html><html lang="fr"><body style="margin:0;background:' + C.brume + ';font-family:\'IBM Plex Sans\',Arial,sans-serif;color:' + C.encre + '">' +
@@ -155,6 +183,9 @@ function Email_construire(quand, depuis) {
     '</table></td></tr></table></body></html>';
 
   var texte = [sujet, '']
+    .concat(remises.length ? ['⚠ REMISE IMMINENTE'].concat(remises.map(function (e) {
+      return '- ' + (e.jours === 0 ? 'J0' : 'J-' + e.jours) + ' ' + jr(e.date) + ' ' + e.acheteur + ' — ' + etatPieces(e.pieces) + '. ' + conseilDepot(e) + ' ' + url + '#affaire/' + e.id_affaire;
+    })).concat(['']) : [])
     .concat(avisPaca.length ? ['NOUVEAUX AVIS ' + paca].concat(avisPaca.map(function (a) { return '- [' + a.pre_score + '] ' + a.acheteur + ' — ' + a.objet + ' — ' + a.lien; })).concat(['']) : [])
     .concat(avisFrance.length ? ['NOUVEAUX AVIS HORS ' + paca + ' (présentiel à vérifier)'].concat(avisFrance.map(function (a) { return '- [' + a.pre_score + '] ' + a.acheteur + ' — ' + a.objet + ' — ' + a.lien; })).concat(['']) : [])
     .concat(echeances.length ? ['ÉCHÉANCES À 7 JOURS'].concat(echeances.map(function (e) { return '- ' + jr(e.date) + ' ' + e.libelle + ' — ' + e.acheteur; })).concat(['']) : [])
@@ -164,7 +195,7 @@ function Email_construire(quand, depuis) {
     .concat(['Ouvrir l\'app : ' + url]).join('\n');
 
   return { sujet: sujet, html: html, texte: texte, contenu: contenu,
-    nombres: { avisPaca: avisPaca.length, avisFrance: horsPaca.length, echeances: echeances.length, relances: relances.length } };
+    nombres: { remises: remises.length, avisPaca: avisPaca.length, avisFrance: horsPaca.length, echeances: echeances.length, relances: relances.length } };
 }
 
 /**
