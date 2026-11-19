@@ -202,6 +202,25 @@ test('dist/ est à jour et le Code.gs assemblé fonctionne', () => {
 
 // ——— Fiche : pièces de l'offre ———
 
+test('pièces de l\'offre : liste collée depuis l\'analyse du DCE (titres, préfixes, puces, doublons)', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const id = A.Affaires_creer({ acheteur: 'Commune de Manosque', objet: 'AMO gymnase' }).id;
+  const ok = (r) => { assert.ok(r.ok, r.erreur); return brut(r.data); };
+  const texte = 'Pièces à remettre\nCandidature :\n☐ DC1 ou DUME\n- DC2\n• Attestation d\'assurance RC professionnelle\n\nPièces de l\'offre :\n1. Acte d\'engagement\n2) BPU\n[ ] Mémoire technique (cadre imposé)\nCandidature : Références de moins de 5 ans\nbpu\n';
+  let f = ok(A.apiPiecesOffreColler(id, texte));
+  assert.deepStrictEqual(f.collage, { ajoutees: 7, doublons: 1 });
+  assert.deepStrictEqual(f.pieces.map((p) => p.categorie + ' | ' + p.libelle), [
+    'Candidature | DC1 ou DUME', 'Candidature | DC2', 'Candidature | Attestation d\'assurance RC professionnelle', 'Candidature | Références de moins de 5 ans',
+    'Offre | Acte d\'engagement', 'Offre | BPU', 'Offre | Mémoire technique (cadre imposé)']);
+  // Deuxième collage : seules les nouvelles pièces sont ajoutées
+  f = ok(A.apiPiecesOffreColler(id, 'Offre\nBPU\nPlanning'));
+  assert.deepStrictEqual(f.collage, { ajoutees: 1, doublons: 1 });
+  assert.strictEqual(f.pieces.length, 8);
+  assert.match(A.apiPiecesOffreColler(id, '\n  \n- \n').erreur, /Aucune pièce reconnue/);
+});
+
 test('pièces de l\'offre : liste type, ajout, état, retrait, contrôle, passage en Déposée', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });

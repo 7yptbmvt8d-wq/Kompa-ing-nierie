@@ -129,6 +129,11 @@ function apiPiecesOffreListeType(id) {
   return repondre_(function () { PiecesOffre_ajouterListeType(id); return ficheClient_(id); });
 }
 
+/** Liste collée (une pièce par ligne) : renvoie la fiche et le nombre de pièces ajoutées / déjà présentes. */
+function apiPiecesOffreColler(id, texte) {
+  return repondre_(function () { var r = PiecesOffre_collerListe(id, texte); return Object.assign(ficheClient_(id), { collage: r }); });
+}
+
 function apiPieceOffreMaj(id, idPiece, champs) {
   return repondre_(function () { PiecesOffre_maj(id, idPiece, champs); return ficheClient_(id); });
 }

@@ -26,18 +26,25 @@ En étude → Go → Déposée → Gagnée → Soldée
 - Champs demandés au passage : Go (score final, facultatif) ; No-go (motif) ; Déposée (montant HT, montant pondéré s'il existe, jours passés à répondre, date de dépôt) ; Gagnée (date de notification, montant notifié HT) ; Perdue (date de la décision, attributaire, prix de l'attributaire, rang) ; Sans suite (date de la décision).
 - Motifs de No-go (liste de l'app) : hors zone ; hors compétence ; références insuffisantes ; délai trop court ; charge ; autre.
 
-## 3. Champs de la fiche affaire (libellés exacts, par onglet)
+## 3. Champs de la fiche affaire (libellés exacts, par bloc)
 
-| Onglet | Champs |
+La fiche a deux volets, chacun avec ses sous-onglets (version 1.4) :
+- **Appel d'offres** › **Consultation** (blocs Identification, Échéances, Décision ; dossiers 01-02) › **Offre** (Pièces à remettre, bloc Offre ; dossiers 03-05) › **Résultat** (blocs Résultat, Enseignements ; dossier 06).
+- **Mission** › **Livrables** (dossier 07) › **Estimations** (dossier 09) › **Facturation** (bloc Exécution ; dossier 08).
+
+Chaque sous-onglet affiche ses dossiers Drive et une zone de dépôt de fichiers.
+
+| Bloc | Champs |
 |---|---|
 | Identification | N° interne, Acheteur, Type d'acheteur (Commune, EPCI, Département, Région, État, Établissement public, Bailleur social, Autre acheteur public), Département, Objet, Référence acheteur, Procédure (MAPA, AO, Consultation directe), Plateforme, Lien vers l'avis, Dossier Drive de l'affaire |
-| Pièces | fichiers des sous-dossiers Drive, dépôt de fichiers |
+| Pièces à remettre (Offre) | liste Catégorie (Candidature / Offre), Pièce, État (à faire, en cours, prête, déposée). Bouton **Coller la liste du DCE** : une pièce par ligne, titres « Candidature » / « Offre » seuls sur leur ligne ; les pièces déjà listées ne sont pas dupliquées |
 | Échéances | Date limite de remise, Date limite des questions, Visite de site, Validité de l'offre (jours) |
 | Décision | Pré-score, Score final, Décision, Motif, Date de décision |
 | Offre | Candidature (Seul / Groupement), Cotraitant, Tranches (une ligne par tranche), Jours par tranche (même ordre), Prix par jour HT, Montant HT, Montant pondéré (seulement si DQE ou bordereau pondéré), Jours passés à répondre, Date de dépôt |
 | Résultat | Statut final, Date de la décision, Attributaire, Prix de l'attributaire HT, Rang, Motifs du rejet ; tableau Notes par critère (Critère, Pondération, Note Kompa, Note attributaire) |
 | Enseignements | Points faibles constatés, Action corrective, Pièce-type à améliorer (note méthodologique, CV, références, prix) |
-| Exécution | Date de notification, Montant notifié HT ; factures |
+| Exécution (Facturation) | Date de notification, Montant notifié HT ; factures |
+| Livrables (Mission) | Tranche, Livrable, Échéance, État (à faire, en cours, remis, validé), Indice, Lien |
 
 Quand tu donnes des valeurs « à reporter dans l'app », utilise ces libellés et cet onglet, dans cet ordre.
 

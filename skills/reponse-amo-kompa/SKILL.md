@@ -57,7 +57,7 @@ C'est l'étape la plus fréquente : la veille de l'app a donné un **pré-score*
    - montant estimé au-delà de la capacité ou du plafond de CA que l'utilisateur se fixe (seuils dans l'onglet Paramètres) ;
    - visite obligatoire impossible avant la date limite.
 4. Rends l'avis : **Go**, **No-go** (motif pris dans la liste de l'app : hors zone, hors compétence, références insuffisantes, délai trop court, charge, autre) ou **à arbitrer** (score 40 à 59, ou point bloquant levable). Seuils : ≥ 60 Go conseillé ; 40 à 59 à arbitrer ; < 40 No-go.
-5. Produis l'**Analyse du DCE** (.docx) dans `01 DCE`, avec la liste des valeurs à reporter dans l'app (onglets Identification, Échéances, Décision).
+5. Produis l'**Analyse du DCE** (.docx) dans `01 DCE`, avec la liste des valeurs à reporter dans l'app (blocs Identification, Échéances, Décision) et la rubrique **Pièces à remettre** tirée du RC (et de l'AE ou du CCAP s'ils en exigent d'autres).
 6. Termine dans la conversation par un résumé court :
 
 ```
@@ -67,6 +67,19 @@ Pré-score 72 → score final 66 / 100 : Go conseillé
 Point de vigilance : visite obligatoire le 20/11.
 À saisir dans l'app : score final 66, puis bouton Go.
 Fichier : 01 DCE / KA-2026-004 — Analyse du DCE — ind A.docx
+```
+
+Puis donne la liste des pièces **dans un bloc de code prêt à coller** dans l'app (fiche › Appel d'offres › Offre › **Coller la liste du DCE**) : une pièce par ligne, sans puce, sous les titres `Candidature` et `Offre` seuls sur leur ligne, intitulés courts et fidèles au RC (cadre imposé, signature, format entre parenthèses si exigé) :
+
+```
+Candidature
+DC1 et DC2, ou DUME
+Attestation d'assurance responsabilité civile professionnelle
+Références de moins de 3 ans (RC art. 6.1)
+Offre
+Acte d'engagement signé
+BPU (cadre imposé, format Excel)
+Mémoire technique (cadre de réponse imposé)
 ```
 
 ### 2. Questions à l'acheteur
@@ -86,7 +99,7 @@ Les formulaires DC1, DC2 et le DUME sont des formulaires officiels : ne les rede
 
 ### 5. Contrôle avant dépôt
 
-Liste à cocher construite depuis l'analyse du DCE : chaque pièce exigée, cohérence des montants, formats, signature. Rappelle de passer l'affaire en **Déposée** dans l'app (montant HT, jours passés à répondre, date de dépôt).
+Liste à cocher construite depuis l'analyse du DCE : chaque pièce exigée, cohérence des montants, formats, signature. Rapproche-la de la liste **Pièces à remettre** de l'app : chaque pièce prête doit y être marquée « prête » (l'app fait passer les pièces prêtes à « déposée » au passage en Déposée). Rappelle de passer l'affaire en **Déposée** dans l'app (montant HT, jours passés à répondre, date de dépôt).
 
 ### 6. Résultat — retour d'expérience
 

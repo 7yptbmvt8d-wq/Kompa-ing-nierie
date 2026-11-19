@@ -527,7 +527,10 @@
     return '<section class="fiche-bloc" id="pieces-offre"><h2 class="fiche-bloc__titre">Pièces à remettre</h2>' + controle +
       (pieces.length
         ? '<div class="tableau-conteneur"><table class="table-pieces"><thead><tr><th scope="col">Catégorie</th><th scope="col">Pièce</th><th scope="col">État</th><th scope="col"><span class="seul-lecteur">Action</span></th></tr></thead><tbody>' + lignes + '</tbody></table></div>'
-        : '<p class="vide">Aucune pièce listée.</p><p><button type="button" class="bouton" data-liste-type>Ajouter la liste type</button> <span class="legende">Candidature et offre courantes (paramètre liste.pieces_offre), à compléter selon la rubrique « Pièces à remettre » de l\'analyse du DCE.</span></p>') +
+        : '<p class="vide">Aucune pièce listée.</p>') +
+      '<p class="actions-pieces"><button type="button" class="bouton' + (pieces.length ? ' bouton--discret' : '') + '" data-coller-liste>Coller la liste du DCE</button>' +
+      (pieces.length ? '' : ' <button type="button" class="bouton bouton--discret" data-liste-type>Ajouter la liste type</button>') +
+      ' <span class="legende">' + (pieces.length ? 'Ajoute les pièces manquantes, sans doublon.' : 'Liste du DCE : rubrique « Pièces à remettre » de l\'analyse du DCE ou du RC. Liste type : pièces courantes (paramètre liste.pieces_offre).') + '</span></p>' +
       '<form class="ajout-piece" data-ajout-piece novalidate><select class="champ" id="ajout-piece-cat" aria-label="Catégorie"><option>Candidature</option><option selected>Offre</option></select>' +
       '<input class="champ" id="ajout-piece-lib" placeholder="ex. Mémoire environnemental (démarche RSE)" aria-label="Intitulé de la pièce">' +
       '<button type="submit" class="bouton bouton--discret">Ajouter</button></form></section>';
@@ -542,6 +545,7 @@
     };
     var lt = $('[data-liste-type]', zone);
     if (lt) lt.addEventListener('click', function () { lt.disabled = true; appel('apiPiecesOffreListeType', [], 'Liste type ajoutée.'); });
+    $('[data-coller-liste]', zone).addEventListener('click', function () { dialogueCollerListe(a, recharger); });
     $$('[data-etat-piece]', zone).forEach(function (sel) {
       sel.addEventListener('change', function () {
         sel.className = 'champ etat-piece ' + (CLASSES_ETAT[sel.value] || '');
@@ -557,6 +561,33 @@
       if (!lib) { K.toast('Intitulé de la pièce obligatoire.', true); return; }
       appel('apiPieceOffreAjouter', [{ categorie: $('#ajout-piece-cat', zone).value, libelle: lib }], 'Pièce ajoutée.');
     });
+  }
+
+  function dialogueCollerListe(a, recharger) {
+    var d = document.createElement('dialog');
+    d.className = 'dialogue';
+    d.innerHTML = '<form method="dialog" novalidate><h2>Coller la liste des pièces</h2>' +
+      '<p class="legende">Une pièce par ligne. Une ligne « Candidature » ou « Offre » seule vaut pour les lignes qui suivent ; on peut aussi écrire « Candidature : DC1 ». Sans précision : Offre. Les puces, cases et numéros sont ignorés ; les pièces déjà listées ne sont pas ajoutées deux fois.</p>' +
+      '<textarea class="champ mono" id="coller-liste" rows="12" aria-label="Liste des pièces" placeholder="Candidature\nDC1 ou DUME\nDC2\nAttestation d\'assurance RC professionnelle\nOffre\nActe d\'engagement\nMémoire technique\nBPU"></textarea>' +
+      '<div class="dialogue__actions"><button type="button" class="bouton bouton--discret" data-fermer>Annuler</button><button type="submit" class="bouton">Ajouter les pièces</button></div></form>';
+    document.body.appendChild(d);
+    var fermer = function () { d.close(); d.remove(); };
+    d.querySelector('[data-fermer]').addEventListener('click', fermer);
+    d.addEventListener('cancel', function () { d.remove(); });
+    d.querySelector('form').addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var texte = d.querySelector('#coller-liste').value;
+      if (!texte.trim()) { K.toast('Collez au moins une pièce.', true); return; }
+      var b = d.querySelector('button[type=submit]'); b.disabled = true;
+      K.appel('apiPiecesOffreColler', a.id, texte).then(function (fiche) {
+        var c = fiche.collage || { ajoutees: 0, doublons: 0 };
+        fermer();
+        K.toast(c.ajoutees + ' pièce' + (c.ajoutees > 1 ? 's' : '') + ' ajoutée' + (c.ajoutees > 1 ? 's' : '') + (c.doublons ? ' (' + c.doublons + ' déjà listée' + (c.doublons > 1 ? 's' : '') + ')' : '') + '.');
+        recharger(fiche);
+      }).catch(function (e) { b.disabled = false; K.toast(e.message, true); });
+    });
+    d.showModal();
+    d.querySelector('#coller-liste').focus();
   }
 
   // ——— Pièces : dossiers Drive de l'affaire, rangés par sous-onglet ———

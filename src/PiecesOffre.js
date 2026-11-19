@@ -47,20 +47,67 @@ function PiecesOffre_ajouter(idAffaire, champs) {
 
 /** Ajoute la liste type (paramètre liste.pieces_offre), sans doublon d'intitulé. Renvoie le nombre ajouté. */
 function PiecesOffre_ajouterListeType(idAffaire) {
-  Affaires_get_(idAffaire);
-  var deja = {};
-  PiecesOffre_lister(idAffaire).forEach(function (p) { deja[String(p.libelle).toLowerCase()] = true; });
-  var ordre = PiecesOffre_lister(idAffaire).reduce(function (m, x) { return Math.max(m, Number(x.ordre) || 0); }, 0);
-  var lignes = Params_liste('liste.pieces_offre').map(function (item) {
+  var items = Params_liste('liste.pieces_offre').map(function (item) {
     var i = item.indexOf(':');
     var cat = i > 0 ? item.slice(0, i).trim() : 'Offre';
     return { categorie: CATEGORIES_PIECE.indexOf(cat) >= 0 ? cat : 'Offre', libelle: (i > 0 ? item.slice(i + 1) : item).trim() };
-  }).filter(function (l) { return l.libelle && !deja[l.libelle.toLowerCase()]; }).map(function (l) {
-    ordre += 10;
-    return { id_affaire: idAffaire, categorie: l.categorie, libelle: l.libelle, etat: 'à faire', ordre: ordre };
   });
-  Db_insererPlusieurs(TABLES.PIECES_OFFRE, lignes);
-  return lignes.length;
+  return PiecesOffre_insererItems_(idAffaire, items).ajoutees;
+}
+
+/**
+ * Liste collée (rubrique « Pièces à remettre » de l'analyse du DCE, ou du RC) : une pièce par ligne.
+ * Catégorie : ligne « Candidature » ou « Offre » seule (titre qui vaut pour les lignes suivantes),
+ * ou préfixe « Candidature : DC1 ». Les autres titres (ligne finie par « : », « Pièces à remettre ») sont ignorés. Par défaut : Offre. Puces, cases et numéros en début de ligne sont ignorés.
+ * Renvoie { ajoutees, doublons }.
+ */
+function PiecesOffre_collerListe(idAffaire, texte) {
+  var items = PiecesOffre_analyserListe_(texte);
+  if (!items.length) throw new Error('Aucune pièce reconnue : collez une pièce par ligne.');
+  return PiecesOffre_insererItems_(idAffaire, items);
+}
+
+function PiecesOffre_analyserListe_(texte) {
+  var cat = 'Offre', items = [];
+  var categorie = function (s) {
+    var c = String(s || '').trim().toLowerCase();
+    return c === 'candidature' ? 'Candidature' : c === 'offre' ? 'Offre' : '';
+  };
+  String(texte || '').split(/\r?\n/).forEach(function (ligne) {
+    var l = ligne.replace(/^\s*(?:[-–—•*·▪◦☐☑✓✔□■]|\[\s?[xX ]?\s?\]|\(?\d{1,2}[.)]|[a-z][.)])\s+/, '').trim();
+    if (!l) return;
+    var titre = categorie(l.replace(/\s*:\s*$/, ''));
+    if (titre) { cat = titre; return; }
+    // Autres titres : ligne terminée par « : » (« Pièces de la candidature : ») ou « Pièces à remettre »
+    if (/:\s*$/.test(l) || /^pi[eè]ces?\s+(?:à|a)\s+(?:remettre|fournir|produire)\b/i.test(l)) {
+      if (/candidature/i.test(l)) cat = 'Candidature';
+      else if (/offre/i.test(l)) cat = 'Offre';
+      return;
+    }
+    var m = l.match(/^(candidature|offre)\s*[:–—-]\s*(.+)$/i);
+    if (m) items.push({ categorie: categorie(m[1]), libelle: m[2].trim() });
+    else items.push({ categorie: cat, libelle: l });
+  });
+  return items;
+}
+
+/** Ajoute des pièces { categorie, libelle } à la suite, sans doublon d'intitulé (casse ignorée). */
+function PiecesOffre_insererItems_(idAffaire, items) {
+  Affaires_get_(idAffaire);
+  var existantes = PiecesOffre_lister(idAffaire), deja = {};
+  existantes.forEach(function (p) { deja[String(p.libelle).toLowerCase()] = true; });
+  var ordre = existantes.reduce(function (m, x) { return Math.max(m, Number(x.ordre) || 0); }, 0);
+  var doublons = 0, lignes = [];
+  items.forEach(function (it) {
+    var lib = String(it.libelle || '').trim().slice(0, 200);
+    if (!lib) return;
+    if (deja[lib.toLowerCase()]) { doublons++; return; }
+    deja[lib.toLowerCase()] = true;
+    ordre += 10;
+    lignes.push({ id_affaire: idAffaire, categorie: CATEGORIES_PIECE.indexOf(it.categorie) >= 0 ? it.categorie : 'Offre', libelle: lib, etat: 'à faire', ordre: ordre });
+  });
+  if (lignes.length) Db_insererPlusieurs(TABLES.PIECES_OFFRE, lignes);
+  return { ajoutees: lignes.length, doublons: doublons };
 }
 
 function PiecesOffre_maj(idAffaire, idPiece, champs) {
