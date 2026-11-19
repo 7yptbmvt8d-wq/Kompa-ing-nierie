@@ -7,6 +7,22 @@
  * Aucune donnée d'entreprise, de site ni d'opération n'est saisie ni conservée.
  */
 
+/** Régions administratives (découpage 2016) : département → code de région. Départements d'outre-mer : une région chacun. */
+var EST_REGIONS = {
+  ARA: '01;03;07;15;26;38;42;43;63;69;73;74', BFC: '21;25;39;58;70;71;89;90', BRE: '22;29;35;56', CVL: '18;28;36;37;41;45',
+  COR: '2A;2B', GES: '08;10;51;52;54;55;57;67;68;88', HDF: '02;59;60;62;80', IDF: '75;77;78;91;92;93;94;95',
+  NOR: '14;27;50;61;76', NAQ: '16;17;19;23;24;33;40;47;64;79;86;87', OCC: '09;11;12;30;31;32;34;46;48;65;66;81;82',
+  PDL: '44;49;53;72;85', PAC: '04;05;06;13;83;84'
+};
+
+/** Code de région d'un département (« 2B » → « COR ») ; département inconnu ou d'outre-mer : le département lui-même. */
+function Est_region_(departement) {
+  var dep = String(departement || '').trim().toUpperCase();
+  if (/^\d$/.test(dep)) dep = '0' + dep;
+  for (var r in EST_REGIONS) { if ((';' + EST_REGIONS[r] + ';').indexOf(';' + dep + ';') >= 0) return r; }
+  return dep;
+}
+
 /** Texte comparable : minuscules, sans accents ni ligatures. */
 function Est_norm_(s) {
   return String(s || '').toLowerCase().replace(/œ/g, 'oe').replace(/æ/g, 'ae')
@@ -176,9 +192,10 @@ function Est_ratios_(typologie, nature, moisCible) {
     });
     var st = Est_stats_(valeurs);
     var imports = {}, deps = {};
-    obs.forEach(function (o) { imports[o.id_import] = true; deps[o.departement] = true; });
+    var regions = {};
+    obs.forEach(function (o) { imports[o.id_import] = true; deps[o.departement] = true; regions[Est_region_(o.departement)] = true; });
     var n = Object.keys(imports).length;
-    var memeZone = Object.keys(deps).length === 1;
+    var memeZone = Object.keys(regions).length === 1; // même région (décision du 19/11/2026)
     var sousSeuil = n < seuil;
     return {
       lot: lot, libelle: lots[lot] ? lots[lot].libelle : lot, ordre: lots[lot] ? Number(lots[lot].ordre) || 0 : 999,

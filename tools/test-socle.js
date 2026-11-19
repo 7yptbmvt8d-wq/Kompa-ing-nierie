@@ -576,6 +576,26 @@ test('brouillon : les lots au ratio suivent la bibliothèque (import, annulation
   assert.deepStrictEqual(sans.lignes.map((l) => l.lot + ' ' + l.pu_ht), ['GO 0', 'ELE 0', 'ASC 95']);
 });
 
+test('fiabilité des ratios : A à partir de 5 marchés récents de la même région (2A + 2B = Corse), B sinon', () => {
+  const env = envEstimation();
+  const A = env.ctx;
+  assert.deepStrictEqual(['2B', '2a', '13', '4', '974', '69'].map((d) => A.Est_region_(d)), ['COR', 'COR', 'PAC', 'PAC', '974', 'ARA']);
+  const importer = (dep, m0) => okE(A.apiEstImporter({ typologie: 'ECOLE', nature: 'Neuf', departement: dep, m0, surface: '1000',
+    postes: [{ libelle: 'Gros œuvre', lot: 'GO', montant: '800000' }] }));
+  const fiab = () => okE(A.apiEstRatios('ECOLE', 'Neuf'))[0].fiabilite;
+  ['2B', '2B', '2A', '2A'].forEach((d) => importer(d, '05/2025'));
+  assert.strictEqual(fiab(), 'C'); // 4 marchés
+  const cinq = importer('2B', '05/2025');
+  assert.strictEqual(fiab(), 'A'); // 5 marchés, tous en Corse, moins de 3 ans
+  const pac = importer('13', '05/2025');
+  assert.strictEqual(fiab(), 'B'); // autre région
+  okE(A.apiEstAnnulerImport(pac.id));
+  assert.strictEqual(fiab(), 'A');
+  importer('2A', '01/2022'); // plus de 3 ans avant le dernier index (09/2026)
+  assert.strictEqual(fiab(), 'B');
+  assert.ok(cinq.id);
+});
+
 test('export .xlsx (étape 6) : formules, dépôt dans « 09 Estimations » sans écraser, classeur temporaire supprimé', () => {
   const env = envEstimation();
   const A = env.ctx;

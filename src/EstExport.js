@@ -66,7 +66,7 @@ function Est_remplirExport_(feuille, c) {
     return [l.num_article + ' ' + l.designation + ' — ' + (l.source === 'ratio' ? 'ratio, ' : 'PU saisi, ') + 'fiabilité ' + l.fiabilite +
       (l.indice ? ' — ' + l.indice + ' ' + Est_moisLisible_(l.indice_mois) + (l.indice_valeur !== '' ? ' = ' + fr(l.indice_valeur, 1) : '') : '') +
       (l.commentaire ? ' — ' + l.commentaire : '')];
-  })).concat([['Fiabilité : A = prix de marché de moins de 3 ans, même zone ; B = plus ancien ou autre zone ; C = moins de 5 marchés ou saisie libre.'],
+  })).concat([['Fiabilité : A = au moins 5 marchés de moins de 3 ans, même région ; B = plus ancien ou autre région ; C = moins de 5 marchés ou saisie libre.'],
     ['Estimation établie le ' + Utilities.formatDate(new Date(), APP.FUSEAU, 'dd/MM/yyyy') + ' — statut : ' + e.statut + ' — ' + e.id + '.']]);
   feuille.getRange(n, 1, mentions.length, 1).setValues(mentions);
   feuille.getRange(n, 1).setFontWeight('bold').setFontColor(C.ardoise);
