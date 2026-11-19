@@ -347,7 +347,7 @@
           };
           bt.disabled = true;
           K.appel('apiEstImporter', donnees).then(function (res) {
-            K.toast('Import ' + res.id + ' enregistré.');
+            K.toast('Import ' + res.id + ' enregistré.' + (res.brouillonsActualises ? ' ' + res.brouillonsActualises + ' estimation(s) en brouillon mise(s) à jour.' : ''));
             z.innerHTML = '';
             $('#i-texte', zone).value = '';
             rendreImports(res.imports);
@@ -477,12 +477,13 @@
         '<p><a href="#affaire/' + esc(c.affaire.id) + '" class="mono">' + esc(c.affaire.id) + '</a> ' + esc(c.affaire.acheteur) + ' — ' + esc(c.affaire.objet) + '</p>' +
         '<p class="legende">' + esc(c.typologie) + ' · ' + esc(e.nature) + ' · département ' + esc(e.departement) + ' · ' + Number(e.surface_sdp).toLocaleString('fr-FR') + ' m² · K ' + String(e.k).replace('.', ',') +
           ' (' + esc(e.k_detail) + ')' + (e.date_travaux ? ' · travaux ' + mois(e.date_travaux) : '') + '</p></div>' +
+      (c.lignesActualisees ? '<p class="bandeau">' + c.lignesActualisees + ' lot(s) mis à jour avec les ratios actuels de la bibliothèque.</p>' : '') +
       tableLignes(c.lignes, c.totaux, { aleas: e.aleas_pct, tva: e.tva, k: e.k }, modifiable) +
       (e.commentaire ? avertissements(String(e.commentaire).split(/\.\s+/).filter(String)) : '') +
       '<div class="actions-ligne"><button class="bouton" type="button" data-exporter>Exporter en .xlsx vers le Drive</button>' +
         (modifiable ? '<button class="bouton bouton--discret" type="button" data-figer>Figer</button><button class="bouton bouton--discret" type="button" data-supprimer-est>Supprimer</button>' : '') +
         (e.export_url ? '<a href="' + esc(e.export_url) + '" target="_blank" rel="noopener">Dernier export</a>' : '') +
-        '<span class="legende">' + (modifiable ? 'Brouillon : PU modifiables. Figée, l\'estimation n\'est plus modifiable.' : 'Estimation figée.') + '</span></div>';
+        '<span class="legende">' + (modifiable ? 'Brouillon : les lots au ratio suivent la bibliothèque (nouveaux marchés, nouveaux index) ; un PU saisi à la main est conservé. Figée, l\'estimation ne bouge plus.' : 'Estimation figée : ratios et PU ne bougent plus.') + '</span></div>';
     $$('[data-pu]', zone).forEach(function (inp) {
       inp.addEventListener('change', function () {
         K.appel('apiEstLigneMaj', inp.closest('tr').getAttribute('data-ligne'), { pu_ht: inp.value }).then(function (c2) { K.toast('PU enregistré.'); rendreEstimation(zone, c2); })

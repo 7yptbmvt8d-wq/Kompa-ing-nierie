@@ -536,6 +536,46 @@ test('estimation au ratio (étape 5) : K, projection, aléas, TVA Corse ; lot sa
   assert.strictEqual(A.Db_lire(A.EST_TABLES.LIGNES).filter((l) => l.id_estimation === b.id).length, 0);
 });
 
+test('brouillon : les lots au ratio suivent la bibliothèque (import, annulation) ; PU saisi conservé ; figée inchangée', () => {
+  const env = envEstimation();
+  const A = env.ctx;
+  const aff = A.Affaires_creer({ acheteur: 'Commune test', objet: 'Atelier', departement: '2B' }).id;
+  const f = okE(A.apiEstFormulaire(aff));
+  const d = { id_affaire: aff, phase: 'APS', typologie: 'MIL', nature: 'Réhabilitation lourde', departement: '2B', surface: '400',
+    k_ids: [f.k['kdép'].find((x) => x.modalite.startsWith('2B')).id], lots: ['GO', 'ELE', 'ASC'] };
+  // Estimation créée avant tout import : aucun ratio, PU à 0
+  const avant = okE(A.apiEstCreer(d));
+  assert.ok(avant.lignes.every((l) => l.pu_ht === 0 && l.id_source === 'sans ratio'));
+  const fige = okE(A.apiEstCreer(d));
+  okE(A.apiEstFiger(fige.estimation.id));
+  // PU saisi à la main sur l'ascenseur : conservé
+  okE(A.apiEstLigneMaj(avant.lignes.find((l) => l.lot === 'ASC').id, { pu_ht: '95' }));
+  // Import : le brouillon est mis à jour, pas l'estimation figée
+  const postes = okE(A.apiEstAnalyserPostes(POSTES_SCORPION)).postes.map((p) => Object.assign(p, { lot: p.lot || 'ELE' }));
+  const imp = okE(A.apiEstImporter({ typologie: 'MIL', nature: 'Réhabilitation lourde', departement: '2B', m0: '05/2026', surface: '790', postes }));
+  assert.strictEqual(imp.brouillonsActualises, 1);
+  const apres = okE(A.apiEstEstimation(avant.estimation.id));
+  assert.strictEqual(apres.lignesActualisees, 0); // déjà fait à l'import
+  const go = apres.lignes.find((l) => l.lot === 'GO');
+  assert.deepStrictEqual([go.source, go.id_source, go.fiabilite], ['ratio', '1 marché(s)', 'C']);
+  assert.strictEqual(go.total_ht, Math.round(go.pu_ht * 400 * 100) / 100);
+  assert.ok(go.pu_ht > 1100);
+  assert.strictEqual(apres.lignes.find((l) => l.lot === 'ASC').pu_ht, 95);
+  assert.strictEqual(apres.estimation.total_ht, Math.round(apres.totaux.htAleas * 100) / 100);
+  assert.doesNotMatch(apres.estimation.commentaire, /GO : aucun marché/);
+  assert.ok(okE(A.apiEstEstimation(fige.estimation.id)).lignes.every((l) => l.pu_ht === 0));
+  // Ouverture d'un brouillon dont la bibliothèque a changé hors import (ex. nouvel index) : actualisé à l'ouverture
+  A.Db_maj(A.EST_TABLES.LIGNES, go.id, { pu_ht: 1, total_ht: 400 });
+  const rouvert = okE(A.apiEstEstimation(avant.estimation.id));
+  assert.strictEqual(rouvert.lignesActualisees, 1);
+  assert.strictEqual(rouvert.lignes.find((l) => l.lot === 'GO').pu_ht, go.pu_ht);
+  // Annulation de l'import : le brouillon revient à « PU à saisir » pour les lots au ratio
+  const ann = okE(A.apiEstAnnulerImport(imp.id));
+  assert.strictEqual(ann.brouillonsActualises, 1);
+  const sans = okE(A.apiEstEstimation(avant.estimation.id));
+  assert.deepStrictEqual(sans.lignes.map((l) => l.lot + ' ' + l.pu_ht), ['GO 0', 'ELE 0', 'ASC 95']);
+});
+
 test('export .xlsx (étape 6) : formules, dépôt dans « 09 Estimations » sans écraser, classeur temporaire supprimé', () => {
   const env = envEstimation();
   const A = env.ctx;

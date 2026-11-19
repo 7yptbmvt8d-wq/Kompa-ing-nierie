@@ -216,11 +216,14 @@ function apiEstAnalyserPostes(texte) {
 }
 
 function apiEstImporter(donnees) {
-  return repondre_(function () { var imp = Est_importer_(donnees); return { id: imp.id, imports: Est_imports_() }; });
+  return repondre_(function () {
+    var imp = Est_importer_(donnees);
+    return { id: imp.id, imports: Est_imports_(), brouillonsActualises: Est_actualiserBrouillons_() };
+  });
 }
 
 function apiEstAnnulerImport(id) {
-  return repondre_(function () { Est_annulerImport_(id); return { imports: Est_imports_() }; });
+  return repondre_(function () { Est_annulerImport_(id); return { imports: Est_imports_(), brouillonsActualises: Est_actualiserBrouillons_() }; });
 }
 
 /** Ratios d'une typologie et d'une nature, actualisés au dernier index. */
@@ -243,8 +246,14 @@ function apiEstCreer(d) {
   return repondre_(function () { return Est_creerEstimation_(d); });
 }
 
+/** Ouverture d'une estimation : un brouillon reprend d'abord les ratios à jour de la bibliothèque. */
 function apiEstEstimation(id) {
-  return repondre_(function () { return Est_estimationComplete_(id); });
+  return repondre_(function () {
+    var n = Est_actualiserBrouillon_(id);
+    var c = Est_estimationComplete_(id);
+    c.lignesActualisees = n;
+    return c;
+  });
 }
 
 function apiEstLigneMaj(idLigne, champs) {
@@ -701,6 +710,86 @@ function Est_indiceSuivant_(idAffaire, phase) {
   return max === 'Z' ? 'AA' : (max.length === 1 ? String.fromCharCode(max.charCodeAt(0) + 1) : max + 'A');
 }
 
+/** Ligne sans ratio : PU à saisir. Repérée par id_source « sans ratio » pour être reprise quand un ratio arrive. */
+var EST_SANS_RATIO = 'sans ratio';
+
+/**
+ * Valeurs d'une ligne au ratio : PU = médiane × projection × K ; total = PU × quantité.
+ * Sans ratio utilisable : PU 0, source « saisie », id_source « sans ratio ». Renvoie { champs, avertissements }.
+ */
+function Est_valeursLigne_(code, r, quantite, k, travaux) {
+  var seuil = Est_param_('est.seuil_anonymat', '3');
+  if (!r || !r.utilisable || !(r.mediane > 0)) {
+    return {
+      champs: {
+        pu_m0: 0, m0: '', indice: '', indice_mois: '', indice_valeur: '', coef_actualisation: 1, pu_ht: 0, total_ht: 0,
+        source: 'saisie', id_source: EST_SANS_RATIO, fiabilite: 'C', commentaire: 'Pas de ratio : PU à saisir.'
+      },
+      avertissements: [code + ' : ' + (!r ? 'aucun marché importé pour cette typologie et cette nature' : 'ratio masqué (moins de ' + seuil + ' marchés)') + ', PU à saisir.']
+    };
+  }
+  var avert = [];
+  var proj = travaux && r.moisIndice ? Est_projection_(r.moisIndice, travaux) : { coef: 1, mois: 0 };
+  var valeur = r.moisIndice ? Est_valeurIndice_(r.indice, r.moisIndice) : null;
+  var pu = Est_arrondi_(r.mediane * proj.coef * k);
+  if (r.sousSeuil) avert.push(code + ' : ratio fondé sur ' + r.n + ' marché(s), sous le seuil de ' + seuil + ' : à confirmer.');
+  if (r.nonActualisees) avert.push(code + ' : ' + r.nonActualisees + ' observation(s) non actualisée(s) (index du mois M0 absent).');
+  return {
+    champs: {
+      pu_m0: r.mediane, m0: r.moisIndice, indice: r.indice, indice_mois: r.moisIndice, indice_valeur: valeur ? valeur.valeur : '',
+      coef_actualisation: Est_arrondi_(proj.coef, 4), pu_ht: pu, total_ht: Est_arrondi_(pu * Number(quantite)),
+      source: 'ratio', id_source: r.n + ' marché(s)', fiabilite: r.fiabilite,
+      commentaire: 'Médiane de ' + r.n + ' marché(s) (' + Est_fr_(r.min) + ' à ' + Est_fr_(r.max) + ' €/m²), actualisée ' + r.indice + ' ' +
+        Est_moisLisible_(r.moisIndice) + (proj.mois ? ' ; projection ' + Est_moisLisible_(travaux) + ' × ' + Est_fr_(proj.coef, 4) : '') +
+        ' ; K ' + Est_fr_(k, 4)
+    },
+    avertissements: avert
+  };
+}
+
+/** Ligne qui suit la bibliothèque : au ratio, ou sans ratio et PU encore à 0. Un PU saisi à la main est conservé. */
+function Est_ligneSuitRatio_(l) {
+  return l.source === 'ratio' || (l.source === 'saisie' && !(Number(l.pu_ht) > 0) &&
+    (l.id_source === EST_SANS_RATIO || /^Pas de ratio/.test(String(l.commentaire || ''))));
+}
+
+/**
+ * Brouillon : reprend les ratios actuels de la bibliothèque (imports, annulations, nouveaux index) pour les lignes
+ * qui les suivent, puis recalcule les totaux. Sans effet sur une estimation figée. Renvoie le nombre de lignes modifiées.
+ */
+function Est_actualiserBrouillon_(id) {
+  var e = Db_trouver(EST_TABLES.ESTIMATIONS, id);
+  if (!e || e.statut === 'figée') return 0;
+  var ratios = {};
+  Est_ratios_(e.typologie, e.nature, null).forEach(function (r) { ratios[r.lot] = r; });
+  var lignes = Db_lire(EST_TABLES.LIGNES).filter(function (l) { return String(l.id_estimation) === String(id); });
+  var champsSuivis = ['pu_m0', 'm0', 'indice', 'indice_mois', 'indice_valeur', 'coef_actualisation', 'pu_ht', 'total_ht', 'source', 'id_source', 'fiabilite', 'commentaire'];
+  var n = 0, avert = [];
+  lignes.forEach(function (l) {
+    if (!Est_ligneSuitRatio_(l)) return;
+    var v = Est_valeursLigne_(l.lot, ratios[l.lot], l.quantite, Number(e.k) || 1, e.date_travaux ? Est_mois_(e.date_travaux) : '');
+    avert = avert.concat(v.avertissements);
+    var maj = {};
+    champsSuivis.forEach(function (c) { if (String(v.champs[c]) !== String(l[c] === undefined ? '' : l[c])) maj[c] = v.champs[c]; });
+    if (Object.keys(maj).length) { Db_maj(EST_TABLES.LIGNES, l.id, maj); n++; }
+  });
+  if (n) {
+    var c = Est_estimationComplete_(id);
+    var mois = c.lignes.filter(function (l) { return l.indice_mois; }).map(function (l) { return l.indice_mois; }).sort().pop() || '';
+    Db_maj(EST_TABLES.ESTIMATIONS, id, {
+      total_ht: Est_arrondi_(c.totaux.htAleas), total_ttc: Est_arrondi_(c.totaux.ttc), mois_indice_bt: mois, commentaire: avert.join(' ').slice(0, 500)
+    });
+    Est_journal_('estimation', 'ratios actualisés', id + ' : ' + n + ' ligne(s)');
+  }
+  return n;
+}
+
+/** Actualise toutes les estimations en brouillon (après un import ou une annulation). Renvoie le nombre d'estimations modifiées. */
+function Est_actualiserBrouillons_() {
+  return Db_lire(EST_TABLES.ESTIMATIONS).filter(function (e) { return e.statut !== 'figée'; })
+    .reduce(function (s, e) { return s + (Est_actualiserBrouillon_(e.id) ? 1 : 0); }, 0);
+}
+
 /**
  * Calcule une estimation sans l'enregistrer (aperçu) : renvoie { entete, lignes, totaux, k, avertissements }.
  * d : { id_affaire, phase, typologie, nature, departement, surface, k_ids: [...], mois_indice (AAAA-MM ou ''),
@@ -725,31 +814,11 @@ function Est_calculer_(d) {
   var lignes = lotsChoisis.map(function (code, i) {
     var lot = lots[code];
     if (!lot) throw new Error('Lot inconnu : ' + code);
-    var r = ratios[code];
-    var base = {
-      lot: code, num_article: ('0' + (i + 1)).slice(-2), designation: lot.libelle, unite: 'm²', quantite: m.surface,
-      coef_k: k.k, source: 'ratio', fiabilite: 'C'
-    };
-    if (!r || !r.utilisable || !(r.mediane > 0)) {
-      avert.push(code + ' : ' + (!r ? 'aucun marché importé pour cette typologie et cette nature' : 'ratio masqué (moins de ' + Est_param_('est.seuil_anonymat', '3') + ' marchés)') + ', PU à saisir.');
-      return Object.assign(base, {
-        pu_m0: 0, m0: '', indice: '', indice_mois: '', indice_valeur: '', coef_actualisation: 1, pu_ht: 0, total_ht: 0,
-        source: 'saisie', id_source: '', commentaire: 'Pas de ratio : PU à saisir.'
-      });
-    }
-    var proj = travaux && r.moisIndice ? Est_projection_(r.moisIndice, travaux) : { coef: 1, mois: 0 };
-    var valeur = r.moisIndice ? Est_valeurIndice_(r.indice, r.moisIndice) : null;
-    var pu = Est_arrondi_(r.mediane * proj.coef * k.k);
-    if (r.sousSeuil) avert.push(code + ' : ratio fondé sur ' + r.n + ' marché(s), sous le seuil de ' + Est_param_('est.seuil_anonymat', '3') + ' : à confirmer.');
-    if (r.nonActualisees) avert.push(code + ' : ' + r.nonActualisees + ' observation(s) non actualisée(s) (index du mois M0 absent).');
-    return Object.assign(base, {
-      pu_m0: r.mediane, m0: r.moisIndice, indice: r.indice, indice_mois: r.moisIndice, indice_valeur: valeur ? valeur.valeur : '',
-      coef_actualisation: Est_arrondi_(proj.coef, 4), pu_ht: pu, total_ht: Est_arrondi_(pu * m.surface),
-      id_source: r.n + ' marché(s)', fiabilite: r.fiabilite,
-      commentaire: 'Médiane de ' + r.n + ' marché(s) (' + Est_fr_(r.min) + ' à ' + Est_fr_(r.max) + ' €/m²), actualisée ' + r.indice + ' ' +
-        Est_moisLisible_(r.moisIndice) + (proj.mois ? ' ; projection ' + Est_moisLisible_(travaux) + ' × ' + Est_fr_(proj.coef, 4) : '') +
-        ' ; K ' + Est_fr_(k.k, 4)
-    });
+    var v = Est_valeursLigne_(code, ratios[code], m.surface, k.k, travaux);
+    avert = avert.concat(v.avertissements);
+    return Object.assign({
+      lot: code, num_article: ('0' + (i + 1)).slice(-2), designation: lot.libelle, unite: 'm²', quantite: m.surface, coef_k: k.k
+    }, v.champs);
   });
   var tva = d.tva !== undefined && d.tva !== '' && d.tva !== null ? Number(String(d.tva).replace(',', '.')) : Est_tvaPour_(m.departement);
   var aleas = Est_aleasPct_(d.phase);

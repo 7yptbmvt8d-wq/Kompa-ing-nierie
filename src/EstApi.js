@@ -117,11 +117,14 @@ function apiEstAnalyserPostes(texte) {
 }
 
 function apiEstImporter(donnees) {
-  return repondre_(function () { var imp = Est_importer_(donnees); return { id: imp.id, imports: Est_imports_() }; });
+  return repondre_(function () {
+    var imp = Est_importer_(donnees);
+    return { id: imp.id, imports: Est_imports_(), brouillonsActualises: Est_actualiserBrouillons_() };
+  });
 }
 
 function apiEstAnnulerImport(id) {
-  return repondre_(function () { Est_annulerImport_(id); return { imports: Est_imports_() }; });
+  return repondre_(function () { Est_annulerImport_(id); return { imports: Est_imports_(), brouillonsActualises: Est_actualiserBrouillons_() }; });
 }
 
 /** Ratios d'une typologie et d'une nature, actualisés au dernier index. */
@@ -144,8 +147,14 @@ function apiEstCreer(d) {
   return repondre_(function () { return Est_creerEstimation_(d); });
 }
 
+/** Ouverture d'une estimation : un brouillon reprend d'abord les ratios à jour de la bibliothèque. */
 function apiEstEstimation(id) {
-  return repondre_(function () { return Est_estimationComplete_(id); });
+  return repondre_(function () {
+    var n = Est_actualiserBrouillon_(id);
+    var c = Est_estimationComplete_(id);
+    c.lignesActualisees = n;
+    return c;
+  });
 }
 
 function apiEstLigneMaj(idLigne, champs) {
