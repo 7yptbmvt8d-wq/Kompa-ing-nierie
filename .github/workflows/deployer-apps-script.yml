@@ -61,8 +61,16 @@ jobs:
           printf '%s' "$CLASPRC_JSON" | tr -d '\r\n' > "$HOME/.clasprc.json"
           node -e "JSON.parse(require('fs').readFileSync(process.env.HOME + '/.clasprc.json', 'utf8'))" || {
             echo "::error::Le secret CLASPRC_JSON n'est pas un JSON lisible : recopier tout le texte de cat ~/.clasprc.json (de { à })."; exit 1; }
-          printf '{"scriptId":"%s","rootDir":"dist"}' "$SCRIPT_ID" > .clasp.json
+          # Identifiants copiés à la main : espaces et retours à la ligne retirés, format contrôlé (valeurs jamais affichées)
+          SID=$(printf '%s' "$SCRIPT_ID" | tr -d '[:space:]')
+          DID=$(printf '%s' "$DEPLOYMENT_ID" | tr -d '[:space:]')
+          [[ "$SID" =~ ^[A-Za-z0-9_-]{40,}$ ]] || { echo "::error::SCRIPT_ID ne ressemble pas à un ID de script (${#SID} caractères) : éditeur Apps Script › Paramètres du projet › ID du script."; exit 1; }
+          [[ "$DID" =~ ^AKfyc[A-Za-z0-9_-]{40,}$ ]] || { echo "::error::DEPLOYMENT_ID ne ressemble pas à un ID de déploiement (${#DID} caractères, doit commencer par AKfyc)."; exit 1; }
+          [[ "$SID" != "$DID" ]] || { echo "::error::SCRIPT_ID et DEPLOYMENT_ID sont identiques : l'ID du script se trouve dans Paramètres du projet."; exit 1; }
+          printf '{"scriptId":"%s","rootDir":"dist"}' "$SID" > .clasp.json
           VERSION=$(node -e "console.log(require('./package.json').version)")
+          echo "— Envoi du code (clasp push)"
           npx --yes @google/clasp@3.4.1 push --force
-          npx --yes @google/clasp@3.4.1 update-deployment "$DEPLOYMENT_ID" --description "Kompa Affaires $VERSION — ${GITHUB_SHA::7}"
+          echo "— Nouvelle version et mise à jour du déploiement"
+          npx --yes @google/clasp@3.4.1 update-deployment "$DID" --description "Kompa Affaires $VERSION — ${GITHUB_SHA::7}"
           rm -f "$HOME/.clasprc.json" .clasp.json
