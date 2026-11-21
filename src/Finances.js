@@ -14,7 +14,7 @@ function Finances_encaissements_(quand) {
     if (['Gagnée', 'Soldée'].indexOf(String(a.statut)) < 0) return;
     var p = Planning_affaire(a.id, auj);
     p.lignes.forEach(function (l) {
-      if (a.statut === 'Soldée' && l.etat !== 'payée') return;
+      if (l.etat === 'couverte' || (a.statut === 'Soldée' && l.etat !== 'payée')) return;
       lignes.push(Object.assign({ id_affaire: a.id, acheteur: String(a.acheteur || ''), objet: String(a.objet || '') }, l));
     });
     // Factures saisies sans tranche (avant le planning) et non payées

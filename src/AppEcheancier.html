@@ -183,7 +183,7 @@
   // Cartes de l'accueil : échéances à 7 jours et relances à faire
   K.suiviAccueil = function (elEch, elRel, donnees) {
     (donnees ? Promise.resolve(donnees) : K.appel('apiSuivi')).then(function (s) {
-      elEch.innerHTML = '<h2>Échéances à 7 jours</h2>' + (s.echeances.length ? '<ul class="liste-suivi">' + s.echeances.map(function (e) {
+      elEch.innerHTML = '<h2>À faire cette semaine</h2>' + (s.echeances.length ? '<ul class="liste-suivi">' + s.echeances.map(function (e) {
         return '<li><span class="mono">' + jour(e.date) + '</span> ' + (e.depassee ? '<span class="statut statut--ko">' + relatif(e.jours) + '</span>' : e.urgent ? '<span class="statut statut--alerte">' + relatif(e.jours) + '</span>' : '<span class="legende mono">' + relatif(e.jours) + '</span>') +
           '<br><a href="#affaire/' + esc(e.id_affaire) + '">' + esc(e.libelle) + '</a> — ' + esc(e.acheteur) + '</li>';
       }).join('') + '</ul>' : '<p class="vide">Aucune échéance dans les 7 jours.</p>');

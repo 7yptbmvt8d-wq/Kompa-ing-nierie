@@ -139,6 +139,18 @@ function Planning_affaire(idAffaire, quand) {
     }
     return ligne;
   });
+  // Factures saisies sans tranche : elles couvrent les tranches non encore facturées, dans l'ordre
+  var horsPlanning = factures.filter(function (x) { return !Planning_codeTranche_(x.tranche); })
+    .reduce(function (s, x) { return s + montant_(x.montant); }, 0);
+  lignes.forEach(function (l) {
+    if (horsPlanning <= 0.005 || l.facture || l.affermissement === 'non affermie' || l.affermissement === 'optionnelle') return;
+    var pris = Math.min(horsPlanning, l.montant);
+    l.montant = arrondi_(l.montant - pris);
+    horsPlanning -= pris;
+    l.dejaFacture = arrondi_(pris);
+    if (l.montant <= 0.005) l.etat = 'couverte';
+  });
+  lignes = lignes.filter(function (l) { return l.etat !== 'couverte'; }).concat(lignes.filter(function (l) { return l.etat === 'couverte'; }));
   var toutes = [];
   lignes.forEach(function (l) {
     l.livrables.forEach(function (x) { if (x.date) toutes.push(x.date); });
@@ -151,7 +163,7 @@ function Planning_affaire(idAffaire, quand) {
     aPlanifier: lignes.filter(function (l) { return l.etat === 'à planifier' && l.affermissement !== 'non affermie'; }).length,
     montantOptionnel: arrondi_(lignes.filter(function (l) { return l.affermissement === 'optionnelle'; }).reduce(function (s, l) { return s + l.montant; }, 0)),
     montantNonAffermi: arrondi_(lignes.filter(function (l) { return l.affermissement === 'non affermie'; }).reduce(function (s, l) { return s + l.montant; }, 0)),
-    utilisable: lignes.some(function (l) { return l.etat !== 'à planifier'; })
+    utilisable: lignes.some(function (l) { return l.etat !== 'à planifier' && l.etat !== 'couverte'; })
   };
 }
 
@@ -166,7 +178,7 @@ function Planning_parAnnee_(idAffaire, quand, p) {
   var anCourant = aujourdhui_(quand).getFullYear();
   var parAnnee = {}, potentiel = {}, aPreciser = false;
   p.lignes.forEach(function (l) {
-    if (l.etat === 'payée' || l.affermissement === 'non affermie') return;
+    if (l.etat === 'payée' || l.etat === 'couverte' || l.affermissement === 'non affermie') return;
     var an = l.dateEcheance ? Math.max(Number(l.dateEcheance.slice(0, 4)), anCourant) : anCourant;
     if (l.affermissement === 'optionnelle') { potentiel[an] = (potentiel[an] || 0) + l.montant; return; }
     if (!l.dateEcheance) aPreciser = true;

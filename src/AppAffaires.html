@@ -308,7 +308,7 @@
   var VOLETS = [
     { id: 'ao', titre: 'Appel d\'offres', etapes: 'En étude → Go → Déposée → Résultat', sous: [
       { id: 'consultation', titre: 'Consultation', blocs: ['identification', 'echeances', 'decision'], dossiers: { etape: 'etude' }, codes: '01-02' },
-      { id: 'offre', titre: 'Offre', blocs: ['offre'], dossiers: { etape: 'go' }, codes: '03-05' },
+      { id: 'offre', titre: 'Offre', blocs: ['offre', 'depot'], dossiers: { etape: 'go' }, codes: '03-05' },
       { id: 'resultat', titre: 'Résultat', blocs: ['resultat', 'enseignements'], dossiers: { etape: 'resultat' }, codes: '06' }
     ] },
     { id: 'mission', titre: 'Mission', etapes: 'Gagnée → Soldée', sous: [
@@ -420,11 +420,11 @@
     };
     var contenu = {
       consultation: function () { return formBloc('identification') + formBloc('echeances') + formBloc('decision'); },
-      offre: function () { return blocPiecesOffre(f) + formBloc('offre'); },
+      offre: function () { return blocPiecesOffre(f) + formBloc('offre') + formBloc('depot'); },
       resultat: function () { return formBloc('resultat') + '<section class="fiche-bloc">' + tableCriteres(f.criteres) + '</section>' + formBloc('enseignements'); },
-      livrables: function () { return blocLivrables(f) + planningHtml(f); },
+      livrables: function () { return blocLivrables(f) + planningHtml(f, false); },
       estimations: function () { return '<section class="fiche-bloc"><h2 class="fiche-bloc__titre">Estimations des travaux</h2><div data-estimations><div class="chargement">Lecture des estimations…</div></div></section>'; },
-      facturation: function () { return planningHtml(f) + formBloc('execution') + '<section class="fiche-bloc">' + tableFactures(f) + '</section>'; }
+      facturation: function () { return planningHtml(f, true) + formBloc('execution') + '<section class="fiche-bloc">' + tableFactures(f) + '</section>'; }
     };
 
     var volet = VOLETS.filter(function (v) { return v.id === choixFiche.volet; })[0] || VOLETS[0];
@@ -752,67 +752,87 @@
   }
 
   // ——— Planning de facturation : livrables → facture → paiement (barre chronologique) ———
-  var ETATS_PLAN = { 'à planifier': 'statut--neutre', 'prévue': 'statut--encours', 'facturée': 'statut--alerte', 'en retard': 'statut--ko', 'payée': 'statut--ok' };
+  var ETATS_PLAN = { 'couverte': 'statut--neutre', 'à planifier': 'statut--neutre', 'prévue': 'statut--encours', 'facturée': 'statut--alerte', 'en retard': 'statut--ko', 'payée': 'statut--ok' };
 
-  function planningHtml(f) {
+  function planningHtml(f, actions) {
     var p = f.planning;
     if (!p) return '';
     var titre = '<h2 class="fiche-bloc__titre">Planning de facturation</h2>';
     if (!p.base) return '<section class="fiche-bloc">' + titre + '<p class="vide">Montant du marché inconnu : renseignez les jours par tranche et le prix par jour (Appel d\'offres › Offre).</p></section>';
-    var ms = function (iso) { var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime() : null; };
-    var jr = 86400000;
-    var t0 = Math.min(ms(p.debut) || ms(p.aujourdhui), ms(p.aujourdhui)) - 15 * jr;
-    var t1 = Math.max(ms(p.fin) || ms(p.aujourdhui), ms(p.aujourdhui)) + 20 * jr;
-    var pos = function (iso) { return ((ms(iso) - t0) / (t1 - t0) * 100).toFixed(2) + '%'; };
-    var annees = '';
-    for (var an = new Date(t0).getFullYear() + 1; an <= new Date(t1).getFullYear(); an++) {
-      var x = ((new Date(an, 0, 1).getTime() - t0) / (t1 - t0) * 100).toFixed(2) + '%';
-      annees += '<span class="plan-annee" style="left:' + x + '"><span>' + an + '</span></span>';
-    }
-    var auj = '<span class="plan-auj" style="left:' + pos(p.aujourdhui) + '" title="Aujourd\'hui"></span>';
+    var nomT = function (l) { return l.tranche === 'MISSION' ? 'Mission' : l.tranche; };
+    var piste = { marques: [], traits: [] };
+    p.lignes.forEach(function (l) {
+      if (l.affermissement === 'non affermie' || l.etat === 'couverte') return;
+      var x = K.friseTranche(l, nomT(l));
+      piste.marques = piste.marques.concat(x.marques);
+      piste.traits = piste.traits.concat(x.traits);
+    });
     var parAnnee = {};
+    p.lignes.forEach(function (l) {
+      if (l.affermissement === 'non affermie' || l.etat === 'couverte') return;
+      var an = (l.etat === 'payée' ? l.dateEncaissement : l.dateEcheance || p.aujourdhui).slice(0, 4) + (l.affermissement === 'optionnelle' ? ' (option)' : '');
+      parAnnee[an] = (parAnnee[an] || 0) + (l.etat === 'payée' ? l.montantEncaisse || l.montant : l.montant);
+    });
     var lignes = p.lignes.map(function (l, i) {
-      var marques = l.livrables.filter(function (x) { return x.date; }).map(function (x) {
-        return '<span class="plan-m plan-liv' + (x.etat === 'remis' || x.etat === 'validé' ? ' est-fait' : '') + '" style="left:' + pos(x.date) + '" title="Livrable : ' + esc(x.libelle) + ' — ' + jour(x.date) + ' (' + esc(x.etat) + ')"></span>';
-      }).join('');
-      var paiement = l.dateEncaissement || l.dateEcheance;
-      if (l.dateFacture && paiement) marques += '<span class="plan-trait plan-trait--' + (l.etat === 'en retard' ? 'retard' : l.etat === 'payée' ? 'paye' : 'attente') + '" style="left:' + pos(l.dateFacture) + ';width:calc(' + pos(paiement) + ' - ' + pos(l.dateFacture) + ')"></span>';
-      if (l.dateFacture) marques += '<span class="plan-m plan-fac' + (l.facture ? ' est-fait' : '') + '" style="left:' + pos(l.dateFacture) + '" title="Facture ' + (l.facture ? esc(l.facture.numero) + ' émise' : 'prévue') + ' le ' + jour(l.dateFacture) + '"></span>';
-      if (paiement) marques += '<span class="plan-m plan-pay plan-pay--' + (l.etat === 'payée' ? 'paye' : l.etat === 'en retard' ? 'retard' : 'attente') + '" style="left:' + pos(paiement) + '" title="' + (l.etat === 'payée' ? 'Payée le ' : 'Paiement attendu le ') + jour(paiement) + '"></span>';
-      var anP = (l.etat === 'payée' ? l.dateEncaissement : l.dateEcheance || p.aujourdhui).slice(0, 4);
-      parAnnee[anP] = (parAnnee[anP] || 0) + (l.etat === 'payée' ? l.montantEncaisse || l.montant : l.montant);
-      var detail = [];
-      var livDates = l.livrables.filter(function (x) { return x.date; });
-      if (livDates.length) detail.push('livrable' + (livDates.length > 1 ? 's' : '') + ' ' + livDates.map(function (x) { return jour(x.date); }).join(', '));
-      else detail.push(l.livrables.length ? 'livrable sans date' : 'aucun livrable « ' + l.tranche + ' »');
-      if (l.dateFacture) detail.push((l.facture ? 'facture ' + esc(l.facture.numero) + ' du ' : 'facture prévue le ') + jour(l.dateFacture));
-      if (l.etat === 'payée') detail.push('payée le ' + jour(l.dateEncaissement));
-      else if (l.dateEcheance) detail.push('paiement ' + (l.facture ? 'dû' : 'prévu') + ' le ' + jour(l.dateEcheance));
-      var retard = l.retard ? '<div class="plan-retard">Retard de ' + l.retard.jours + ' j : intérêts moratoires ≈ <span class="mono">' + K.euros(l.retard.interets) + '</span> (taux ' + String(l.retard.taux).replace('.', ',') + ' %) + indemnité forfaitaire de <span class="mono">' + K.euros(l.retard.indemnite) + '</span>' +
-        (l.etat === 'en retard' ? ' — relance avec le modèle de courrier de l\'Échéancier' : ' — à réclamer') + '</div>' : '';
-      var action = l.etat === 'prévue' || l.etat === 'à planifier'
-        ? '<button type="button" class="bouton bouton--petit" data-plan-facturer="' + i + '">Facturer</button>'
-        : l.etat === 'facturée' || l.etat === 'en retard' ? '<button type="button" class="bouton bouton--petit" data-plan-payer="' + i + '">Paiement reçu</button>' : '';
-      return '<div class="plan-ligne">' +
-        '<div class="plan-tete"><strong class="mono">' + esc(l.tranche === 'MISSION' ? 'Mission' : l.tranche) + '</strong>' + (l.jours ? '<span class="mono">' + String(l.jours).replace('.', ',') + ' j</span>' : '') + '<span class="mono">' + K.euros(l.montant) + '</span>' +
-          '<span class="statut ' + (ETATS_PLAN[l.etat] || 'statut--neutre') + '">' + esc(l.etat) + '</span>' + action + '</div>' +
-        '<div class="plan-piste">' + annees + auj + marques + '</div>' +
-        '<div class="legende">' + detail.join(' · ') + '</div>' + retard + '</div>';
+      var opt = l.optionnelle;
+      var statutT = !opt ? '<span class="legende">ferme</span>' : l.affermissement === 'affermie'
+        ? '<span class="statut statut--ok">affermie</span>' + (l.dateAffermissement ? ' <span class="legende mono">' + jour(l.dateAffermissement) + '</span>' : '')
+        : l.affermissement === 'non affermie' ? '<span class="statut statut--neutre">non affermie</span>' : '<span class="statut statut--alerte">optionnelle</span>';
+      var act = '';
+      if (actions) {
+        if (opt && l.affermissement === 'optionnelle') act += '<button type="button" class="bouton bouton--petit" data-plan-affermir="' + i + '">Affermir</button> <button type="button" class="bouton bouton--petit bouton--discret" data-plan-nonaffermie="' + i + '">Non affermie</button>';
+        else if (opt && !l.facture && l.affermissement !== 'optionnelle') act += '<button type="button" class="bouton bouton--petit bouton--discret" data-plan-optionnelle="' + i + '">Annuler</button> ';
+        if (l.affermissement !== 'optionnelle' && l.affermissement !== 'non affermie') {
+          if (l.etat === 'prévue' || l.etat === 'à planifier') act += '<button type="button" class="bouton bouton--petit" data-plan-facturer="' + i + '">Facturer</button>';
+          else if (l.etat === 'facturée' || l.etat === 'en retard') act += '<button type="button" class="bouton bouton--petit" data-plan-payer="' + i + '">Paiement reçu</button>';
+        }
+      }
+      var livD = l.livrables.filter(function (x) { return x.date; });
+      return '<tr' + (l.affermissement === 'non affermie' ? ' class="est-arretee"' : '') + '><td><strong class="mono">' + esc(nomT(l)) + '</strong> ' + statutT + '</td>' +
+        '<td class="num mono">' + (l.jours ? String(l.jours).replace('.', ',') + ' j' : '') + '</td><td class="num mono">' +
+          (l.etat === 'couverte' ? K.euros(l.dejaFacture) : K.euros(l.montant) + (l.dejaFacture ? '<div class="legende">+ ' + K.euros(l.dejaFacture) + ' déjà facturés hors planning</div>' : '')) + '</td>' +
+        '<td class="legende">' + (livD.length ? livD.map(function (x) { return jour(x.date); }).join(', ') : (l.livrables.length ? 'sans date' : 'aucun livrable ' + esc(nomT(l)))) + '</td>' +
+        '<td class="legende">' + (l.dateFacture ? (l.facture ? esc(l.facture.numero) + ' du ' : 'prévue le ') + jour(l.dateFacture) : '—') + '</td>' +
+        '<td class="legende">' + (l.etat === 'payée' ? 'payée le ' + jour(l.dateEncaissement) : l.dateEcheance ? (l.facture ? 'due le ' : 'prévu le ') + jour(l.dateEcheance) : '—') +
+          (l.retard ? '<div class="plan-retard">' + l.retard.jours + ' j de retard : intérêts ≈ ' + K.euros(l.retard.interets) + ' (' + String(l.retard.taux).replace('.', ',') + ' %) + ' + K.euros(l.retard.indemnite) + '</div>' : '') + '</td>' +
+        '<td><span class="statut ' + (ETATS_PLAN[l.etat] || 'statut--neutre') + '">' + esc(l.etat === 'couverte' ? 'facturée hors planning' : l.etat) + '</span></td>' + (actions ? '<td class="plan-actions">' + act + '</td>' : '') + '</tr>';
     }).join('');
     var repartition = Object.keys(parAnnee).sort().map(function (an) { return an + ' : <strong class="mono">' + K.euros(parAnnee[an]) + '</strong>'; }).join(' · ');
     return '<section class="fiche-bloc planning-fact">' + titre +
-      '<p class="legende">Montant du marché <strong class="mono">' + K.euros(p.base) + '</strong> HT, réparti par tranche au prorata des jours. Facture à la remise du dernier livrable de la tranche, paiement à ' + p.delai + ' jours. ' +
-        'Encaissements par année : ' + repartition + ' — repris dans le <a href="#previsionnel">CA prévisionnel</a>.</p>' +
-      (p.aPlanifier ? '<p class="bandeau">' + p.aPlanifier + ' tranche(s) sans livrable daté : ajoutez dans Mission › Livrables des livrables avec le code de tranche (' + p.lignes.filter(function (l) { return l.etat === 'à planifier'; }).map(function (l) { return esc(l.tranche); }).join(', ') + ') et leur échéance.</p>' : '') +
-      '<div class="plan-cle legende"><span><i class="plan-m plan-liv"></i> livrable</span><span><i class="plan-m plan-fac"></i> facture</span><span><i class="plan-m plan-pay plan-pay--attente"></i> paiement attendu</span>' +
-        '<span><i class="plan-m plan-pay plan-pay--paye"></i> payée</span><span><i class="plan-m plan-pay plan-pay--retard"></i> en retard</span><span><i class="plan-auj-cle"></i> aujourd\'hui</span></div>' +
-      lignes + '</section>';
+      '<p class="legende">Marché <strong class="mono">' + K.euros(p.base) + '</strong> HT réparti par tranche au prorata des jours ; facture à la remise du dernier livrable de la tranche, paiement à ' + p.delai + ' jours. ' +
+        'Encaissements : ' + repartition + ' — repris dans <a href="#finances/previsionnel">Finances › Prévisionnel</a>.</p>' +
+      (p.aPlanifier ? '<p class="bandeau">' + p.aPlanifier + ' tranche(s) sans livrable daté : ajoutez dans Mission › Livrables des livrables portant le code de la tranche et leur échéance.</p>' : '') +
+      K.friseCle() + K.frise({ debut: p.debut, fin: p.fin, aujourdhui: p.aujourdhui, pistes: [piste] }) +
+      '<div class="tableau-conteneur"><table class="table-planning"><thead><tr><th scope="col">Tranche</th><th scope="col" class="num">Jours</th><th scope="col" class="num">Montant HT</th>' +
+        '<th scope="col">Livrables</th><th scope="col">Facture</th><th scope="col">Paiement</th><th scope="col">État</th>' + (actions ? '<th scope="col"><span class="seul-lecteur">Actions</span></th>' : '') + '</tr></thead><tbody>' +
+        lignes + '</tbody></table></div>' +
+      (actions ? '' : '<p class="legende">Facturation, paiements et affermissement : sous-onglet Facturation.</p>') + '</section>';
   }
 
   function brancherPlanning(el, f, recharger) {
     var p = f.planning;
     if (!p) return;
     var a = f.affaire;
+    var affermir = function (attr, etat, avecDate) {
+      $$('[' + attr + ']', el).forEach(function (b) {
+        b.addEventListener('click', function () {
+          var l = p.lignes[Number(b.getAttribute(attr))];
+          if (avecDate) {
+            var corps = '<div class="form-grille">' + champHtml({ nom: 'date', libelle: 'Date de l\'ordre de service d\'affermissement', type: 'date', obligatoire: true }, aujourdhuiIso(), {}, 'af') + '</div>' +
+              '<p class="legende">La tranche ' + esc(l.tranche) + ' (' + K.euros(l.montant) + ') passe dans le CA certain.</p>';
+            dialogue('Affermir la tranche ' + l.tranche, corps, 'Affermir', function (form) {
+              return K.appel('apiTrancheAffermir', a.id, l.tranche, etat, lireChamps(form).date).then(function (fiche) { K.toast('Tranche ' + l.tranche + ' affermie.'); recharger(fiche); });
+            });
+          } else {
+            K.appel('apiTrancheAffermir', a.id, l.tranche, etat, '').then(function (fiche) { K.toast('Tranche ' + l.tranche + ' : ' + etat + '.'); recharger(fiche); })
+              .catch(function (e) { K.toast(e.message, true); });
+          }
+        });
+      });
+    };
+    affermir('data-plan-affermir', 'affermie', true);
+    affermir('data-plan-nonaffermie', 'non affermie', false);
+    affermir('data-plan-optionnelle', 'optionnelle', false);
     $$('[data-plan-facturer]', el).forEach(function (b) {
       b.addEventListener('click', function () {
         var l = p.lignes[Number(b.getAttribute('data-plan-facturer'))];
@@ -914,7 +934,12 @@
         if (!(j > 0) || !(p > 0)) { ligneCalc.textContent = j > 0 ? j.toLocaleString('fr-FR') + ' j au total : indiquez le prix par jour pour calculer le montant.' : ''; return; }
         var total = Math.round(j * p * 100) / 100;
         if (remplir) { cMontant.value = String(total).replace('.', ','); cMontant.dispatchEvent(new Event('input', { bubbles: true })); }
+        var parT = String(cJours.value || '').split(/\r?\n|;/).map(function (l) {
+          var m = l.trim().match(/^([^:=]+?)\s*[:=]/), jt = joursTotal(l);
+          return m && jt > 0 ? esc(m[1].trim().toUpperCase()) + ' ' + K.euros(Math.round(total * jt / j)) + (/^T(O|C)/i.test(m[1].trim()) ? ' (optionnelle)' : '') : '';
+        }).filter(String);
         ligneCalc.innerHTML = '<strong class="mono">' + j.toLocaleString('fr-FR') + ' j × ' + K.euros(p) + ' HT = ' + K.euros(total) + ' HT</strong>' +
+          (parT.length > 1 ? ' <span class="legende">· ' + parT.join(' · ') + '</span>' : '') +
           (nb(cMontant.value) === total ? '' : ' <span class="legende">(montant saisi différent, conservé)</span>');
       };
       if (cJours && cPrix && cMontant) {

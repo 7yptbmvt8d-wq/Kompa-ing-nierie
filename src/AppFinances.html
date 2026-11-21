@@ -1,0 +1,180 @@
+<script>
+/* Kompa Affaires — écran Finances (réorganisation du 21/11/2026) et frise chronologique partagée. */
+(function () {
+  'use strict';
+  var K = window.KA;
+  var esc = K.esc, $ = K.$, $$ = K.$$;
+  function jour(iso) { var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; }
+  function ms(iso) { var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime() : null; }
+  var MOIS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+
+  /**
+   * Frise chronologique : un axe commun (années, mois), une ou plusieurs pistes alignées.
+   * opts : { debut, fin, aujourdhui (AAAA-MM-JJ), libelles: bool,
+   *          pistes: [{ libelle (html), marques: [{ date, classe, titre, etiquette }], traits: [{ de, a, classe }] }] }
+   */
+  K.frise = function (opts) {
+    var jr = 86400000;
+    var dates = [opts.debut, opts.fin, opts.aujourdhui].map(ms).filter(function (x) { return x; });
+    var t0 = Math.min.apply(null, dates) - 20 * jr, t1 = Math.max.apply(null, dates) + 25 * jr;
+    var pos = function (iso) { return ((ms(iso) - t0) / (t1 - t0) * 100).toFixed(2) + '%'; };
+    var reperes = '', axe = '';
+    var d = new Date(t0); d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    var nbMois = (t1 - t0) / (30.4 * jr);
+    while (d.getTime() < t1) {
+      var x = ((d.getTime() - t0) / (t1 - t0) * 100).toFixed(2) + '%';
+      if (d.getMonth() === 0) {
+        reperes += '<span class="frise-annee" style="left:' + x + '"></span>';
+        axe += '<span class="frise-axe__an" style="left:' + x + '">' + d.getFullYear() + '</span>';
+      } else if (nbMois <= 30 || d.getMonth() % 3 === 0) {
+        axe += '<span class="frise-axe__mois" style="left:' + x + '">' + MOIS[d.getMonth()] + '</span>';
+      }
+      d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    }
+    var auj = '<span class="frise-auj" style="left:' + pos(opts.aujourdhui) + '"></span>';
+    var lib = !!opts.libelles;
+    var piste = function (p) {
+      var traits = (p.traits || []).filter(function (t) { return t.de && t.a; }).map(function (t) {
+        return '<span class="plan-trait ' + t.classe + '" style="left:' + pos(t.de) + ';width:calc(' + pos(t.a) + ' - ' + pos(t.de) + ')"></span>';
+      }).join('');
+      var marques = (p.marques || []).filter(function (m) { return m.date; }).map(function (m) {
+        return '<span class="plan-m ' + m.classe + '" style="left:' + pos(m.date) + '" title="' + esc(m.titre || '') + '"></span>' +
+          (m.etiquette ? '<span class="frise-etiq" style="left:' + pos(m.date) + '">' + esc(m.etiquette) + '</span>' : '');
+      }).join('');
+      return '<div class="frise-ligne' + (lib ? '' : ' frise-ligne--seule') + '">' + (lib ? '<div class="frise-lib">' + (p.libelle || '') + '</div>' : '') +
+        '<div class="frise-piste">' + reperes + auj + traits + marques + '</div></div>';
+    };
+    return '<div class="frise">' +
+      '<div class="frise-ligne frise-ligne--axe' + (lib ? '' : ' frise-ligne--seule') + '">' + (lib ? '<div class="frise-lib"></div>' : '') + '<div class="frise-axe">' + axe + '</div></div>' +
+      (opts.pistes || []).map(piste).join('') + '</div>';
+  };
+
+  K.friseCle = function () {
+    return '<div class="plan-cle legende"><span><i class="plan-m plan-liv"></i> livrable</span><span><i class="plan-m plan-fac"></i> facture</span>' +
+      '<span><i class="plan-m plan-pay plan-pay--attente"></i> paiement attendu</span><span><i class="plan-m plan-pay plan-pay--paye"></i> payée</span>' +
+      '<span><i class="plan-m plan-pay plan-pay--retard"></i> en retard</span><span><i class="plan-m plan-pay plan-pay--option"></i> tranche optionnelle</span>' +
+      '<span><i class="plan-auj-cle"></i> aujourd\'hui</span></div>';
+  };
+
+  /** Marques et traits d'une ligne de planning (tranche). */
+  K.friseTranche = function (l, etiquette) {
+    var opt = l.affermissement === 'optionnelle';
+    var marques = (l.livrables || []).filter(function (x) { return x.date; }).map(function (x) {
+      return { date: x.date, classe: 'plan-liv' + (x.etat === 'remis' || x.etat === 'validé' ? ' est-fait' : ''), titre: 'Livrable ' + (l.tranche || '') + ' : ' + x.libelle + ' — ' + jour(x.date) + ' (' + x.etat + ')' };
+    });
+    var paiement = l.dateEncaissement || l.dateEcheance;
+    var classeP = l.etat === 'payée' ? 'paye' : l.etat === 'en retard' ? 'retard' : opt ? 'option' : 'attente';
+    if (l.dateFacture) marques.push({ date: l.dateFacture, classe: 'plan-fac' + (l.facture ? ' est-fait' : ''), titre: 'Facture ' + (l.facture ? l.facture.numero + ' émise' : 'prévue') + ' le ' + jour(l.dateFacture) });
+    if (paiement) marques.push({ date: paiement, classe: 'plan-pay plan-pay--' + classeP, titre: (l.etat === 'payée' ? 'Payée le ' : 'Paiement attendu le ') + jour(paiement) + ' — ' + K.euros(l.montant), etiquette: etiquette });
+    return { marques: marques, traits: l.dateFacture && paiement ? [{ de: l.dateFacture, a: paiement, classe: 'plan-trait--' + classeP }] : [] };
+  };
+
+  // ——— Écran Finances ———
+  var ONGLETS = [['', 'Vue d\'ensemble'], ['previsionnel', 'Prévisionnel'], ['encaissements', 'Encaissements'], ['urssaf', 'URSSAF et CFE']];
+  var ETATS = { 'à planifier': 'statut--neutre', 'prévue': 'statut--encours', 'facturée': 'statut--alerte', 'en retard': 'statut--ko', 'payée': 'statut--ok' };
+
+  function ecranFinances(el, param) {
+    var vue = ONGLETS.some(function (o) { return o[0] === param; }) ? param : '';
+    el.innerHTML = K.titre('Finances', 'Base : CA encaissé (seuils de la micro-entreprise et de la franchise de TVA)') +
+      '<nav class="sous-nav" aria-label="Finances">' + ONGLETS.map(function (o) {
+        return '<a href="#finances' + (o[0] ? '/' + o[0] : '') + '"' + (o[0] === vue ? ' aria-current="page"' : '') + '>' + o[1] + '</a>';
+      }).join('') + '</nav><div id="fin-contenu"><div class="chargement">Calcul…</div></div>';
+    var zone = $('#fin-contenu', el);
+    K.charger('finances', 'apiFinances', [], function (s) { rendre(zone, s, vue); }, function (e) { zone.innerHTML = K.bandeauErreur(e); });
+  }
+
+  function rendre(zone, s, vue) {
+    if (vue === 'previsionnel') { K.rendrePrevisionnel(zone, s.previsionnel); return; }
+    if (vue === 'encaissements') { rendreEncaissements(zone, s); return; }
+    if (vue === 'urssaf') { zone.innerHTML = '<section class="carte" id="carte-urssaf"></section>'; K.fiscalAccueil($('#carte-urssaf', zone), s.fiscal); return; }
+    var r = s.resume, an = s.previsionnel.annees;
+    var ligne = function (lib, val, rouge) { return '<div class="ligne-fin' + (rouge ? ' ligne-fin--ko' : '') + '"><span>' + lib + '</span><strong class="mono">' + val + '</strong></div>'; };
+    zone.innerHTML = '<div class="grille grille--finances">' +
+        '<section class="carte" id="carte-ca">' + K.rendreCompteur(s.ca) + '</section>' +
+        '<section class="carte"><h2>À encaisser</h2>' +
+          ligne('Factures en attente', K.euros(r.enAttente)) +
+          (r.nbRetard ? ligne('dont en retard (' + r.nbRetard + ')', K.euros(r.enRetard), true) : '') +
+          ligne('À facturer (tranches fermes et affermies)', K.euros(r.aFacturer)) +
+          (r.optionnel ? ligne('Tranches optionnelles non affermies', K.euros(r.optionnel)) : '') +
+          (r.prochaineDeclaration ? ligne('Prochaine déclaration URSSAF (' + esc(r.prochaineDeclaration.libelle) + ')', jour(r.prochaineDeclaration.echeance) + (r.prochaineDeclaration.total !== null ? ' · ≈ ' + K.euros(r.prochaineDeclaration.total) : '')) : '') +
+          (r.cfe ? ligne('Prochaine CFE (' + r.cfe.annee + ')', jour(r.cfe.echeance) + (r.cfe.montant !== null ? ' · ' + (r.cfe.estime ? '≈ ' : '') + K.euros(r.cfe.montant) : '')) : '') +
+          '<p><a href="#finances/encaissements">Voir les encaissements</a> · <a href="#finances/urssaf">URSSAF et CFE</a></p></section>' +
+      '</div>' +
+      '<h2 class="sous-titre">Prévisionnel</h2><div class="tableau-conteneur"><table class="table-previsionnel"><thead><tr><th scope="col"><span class="seul-lecteur">Rubrique</span></th>' +
+        an.map(function (a) { return '<th scope="col" class="num">' + a.annee + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        ['certain|CA certain', 'potentiel|+ potentiel', 'joursPrevu|Jours à produire'].map(function (x) {
+          var k = x.split('|');
+          return '<tr><th scope="row">' + k[1] + '</th>' + an.map(function (a) {
+            return '<td class="num mono">' + (a[k[0]] ? (k[0] === 'joursPrevu' ? String(a[k[0]]).replace('.', ',') + ' j' : K.euros(a[k[0]])) : '<span class="vide">—</span>') + '</td>';
+          }).join('') + '</tr>';
+        }).join('') +
+        '<tr><th scope="row">Plafond micro-entreprise</th>' + an.map(function (a) {
+          var m = a.seuils.filter(function (x) { return x.cle === 'seuil.micro_plafond'; })[0];
+          if (!m) return '<td></td>';
+          var cls = m.etat === 'depasse' ? 'statut--ko' : m.etatTotal === 'depasse' || m.etat === 'alerte' ? 'statut--alerte' : 'statut--ok';
+          var txt = m.etat === 'depasse' ? 'dépassé' : m.etatTotal === 'depasse' ? 'dépassé avec potentiel' : 'marge ' + K.euros(Math.max(m.seuil - a.certain, 0));
+          return '<td class="num"><span class="statut ' + cls + '">' + txt + '</span></td>';
+        }).join('') + '</tr>' +
+      '</tbody></table></div><p><a href="#finances/previsionnel">Prévisionnel détaillé</a></p>';
+  }
+
+  function rendreEncaissements(zone, s) {
+    var e = s.encaissements;
+    if (!e.lignes.length) { zone.innerHTML = '<p class="vide">Aucune affaire gagnée à facturer.</p>'; return; }
+    var pistes = e.lignes.map(function (l) {
+      var f = K.friseTranche(l, '');
+      f.libelle = '<a href="#affaire/' + esc(l.id_affaire) + '" class="mono">' + esc(l.id_affaire) + '</a> ' + esc(l.acheteur) +
+        ' · <strong>' + esc(l.tranche === 'MISSION' ? 'Mission' : (l.tranche || (l.facture ? l.facture.numero : ''))) + '</strong>' +
+        (l.affermissement === 'optionnelle' ? ' <span class="legende">(optionnelle)</span>' : '');
+      return f;
+    });
+    var table = e.lignes.map(function (l, i) {
+      var action = l.etat === 'prévue' || l.etat === 'à planifier'
+        ? (l.affermissement === 'optionnelle' ? '<button type="button" class="bouton bouton--petit bouton--discret" data-fin-affermir="' + i + '">Affermir</button>' : '<button type="button" class="bouton bouton--petit bouton--discret" data-fin-facturer="' + i + '">Facturer</button>')
+        : l.etat === 'facturée' || l.etat === 'en retard' ? '<button type="button" class="bouton bouton--petit" data-fin-payer="' + i + '">Paiement reçu</button>' : '';
+      var quand = l.etat === 'payée' ? 'payée le ' + jour(l.dateEncaissement) : l.dateEcheance ? (l.facture ? 'due le ' : 'prévue le ') + jour(l.dateEcheance) : 'à planifier';
+      return '<tr><td><a href="#affaire/' + esc(l.id_affaire) + '" class="mono">' + esc(l.id_affaire) + '</a> ' + esc(l.acheteur) + '</td>' +
+        '<td><strong class="mono">' + esc(l.tranche === 'MISSION' ? 'Mission' : l.tranche || '—') + '</strong>' + (l.affermissement === 'optionnelle' ? ' <span class="legende">optionnelle</span>' : '') + '</td>' +
+        '<td class="num mono">' + K.euros(l.montant) + '</td>' +
+        '<td><span class="statut ' + (ETATS[l.etat] || 'statut--neutre') + '">' + esc(l.etat) + '</span> <span class="legende">' + quand + '</span>' +
+          (l.retard ? '<div class="plan-retard">' + l.retard.jours + ' j de retard · intérêts ≈ ' + K.euros(l.retard.interets) + ' + ' + K.euros(l.retard.indemnite) + '</div>' : '') + '</td>' +
+        '<td>' + action + '</td></tr>';
+    }).join('');
+    zone.innerHTML = '<p class="legende">Toutes les affaires gagnées sur une même ligne de temps : facture à la remise du dernier livrable de chaque tranche, paiement à 30 jours.</p>' +
+      K.friseCle() + K.frise({ debut: e.debut, fin: e.fin, aujourdhui: e.aujourdhui, libelles: true, pistes: pistes }) +
+      '<div class="tableau-conteneur"><table><thead><tr><th scope="col">Affaire</th><th scope="col">Tranche</th><th scope="col" class="num">Montant HT</th><th scope="col">État</th><th scope="col"><span class="seul-lecteur">Action</span></th></tr></thead><tbody>' +
+      table + '</tbody></table></div>';
+    var recharger = function (s2) { K.viderMemoire(); rendreEncaissements(zone, s2); };
+    $$('[data-fin-facturer]', zone).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var l = e.lignes[Number(b.getAttribute('data-fin-facturer'))];
+        var num = window.prompt('Facture de la tranche ' + l.tranche + ' (' + l.acheteur + ') — numéro de facture :', '');
+        if (!num) return;
+        K.appel('apiFinancesFacturer', l.id_affaire, l.tranche, { numero: num, date: l.dateFacture && l.dateFacture <= e.aujourdhui ? l.dateFacture : e.aujourdhui, montant: l.montant })
+          .then(function (s2) { K.toast('Facture ' + num + ' enregistrée (montant ' + K.euros(l.montant) + ', modifiable dans la fiche).'); recharger(s2); })
+          .catch(function (er) { K.toast(er.message, true); });
+      });
+    });
+    $$('[data-fin-payer]', zone).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var l = e.lignes[Number(b.getAttribute('data-fin-payer'))];
+        var m = window.prompt('Paiement reçu pour ' + (l.facture ? l.facture.numero : l.tranche) + ' — montant (€) :', String(l.montant).replace('.', ','));
+        if (m === null) return;
+        K.appel('apiFinancesPaiement', l.facture.id, { date_encaissement: e.aujourdhui, montant_encaisse: m })
+          .then(function (s2) { K.toast('Paiement enregistré à la date du jour.'); recharger(s2); })
+          .catch(function (er) { K.toast(er.message, true); });
+      });
+    });
+    $$('[data-fin-affermir]', zone).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var l = e.lignes[Number(b.getAttribute('data-fin-affermir'))];
+        K.afficher('affaire/' + l.id_affaire, true);
+        K.toast('Affermissement : fiche › Mission › Facturation, ligne ' + l.tranche + '.');
+      });
+    });
+  }
+
+  K.ecrans.finances = { titre: 'Finances', rendu: ecranFinances };
+  K.ecrans.previsionnel = { titre: 'CA prévisionnel', nav: 'finances', rendu: function (el) { ecranFinances(el, 'previsionnel'); } };
+})();
+</script>

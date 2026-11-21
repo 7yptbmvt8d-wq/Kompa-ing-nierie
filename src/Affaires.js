@@ -102,17 +102,18 @@ var FICHE_BLOCS = [
     ['motif_decision', 'Motif', 'liste:liste.motifs_nogo'],
     ['date_decision', 'Date de décision', 'date']
   ] },
-  { id: 'offre', titre: 'Offre', champs: [
-    ['groupement', 'Candidature', 'choix:Seul|Groupement'],
-    ['cotraitant', 'Cotraitant', 'texte'],
+  { id: 'offre', titre: 'Chiffrage', champs: [
     ['tranches', 'Tranches', 'long'],
     ['jours_par_tranche', 'Jours par tranche', 'long'],
     ['prix_jour', 'Prix par jour HT (€)', 'euros'],
     ['montant_ht', 'Montant HT (€)', 'euros'],
-    ['repartition_ca', 'Encaissements prévus par année', 'long'],
-    ['montant_pondere', 'Montant pondéré (€)', 'euros'],
-    ['jours_reponse', 'Jours passés à répondre', 'nombre'],
-    ['date_depot', 'Date de dépôt', 'date']
+    ['montant_pondere', 'Montant pondéré (€)', 'euros']
+  ] },
+  { id: 'depot', titre: 'Dépôt', champs: [
+    ['groupement', 'Candidature', 'choix:Seul|Groupement'],
+    ['cotraitant', 'Cotraitant', 'texte'],
+    ['date_depot', 'Date de dépôt', 'date'],
+    ['jours_reponse', 'Jours passés à répondre', 'nombre']
   ] },
   { id: 'resultat', titre: 'Résultat', champs: [
     ['statut_final', 'Statut final', 'lecture'],
@@ -165,7 +166,7 @@ var AIDES_CHAMPS = {
   cotraitant: ['Si groupement : nom du ou des cotraitants et leur rôle.', 'Atelier Durand, architecte (mandataire)'],
   tranches: ['Découpage de la mission prévu par le marché (acte d\'engagement, CCAP) : tranche ferme, tranches optionnelles ou phases. Une ligne par tranche.',
     'TF : étude de faisabilité\nTO1 : programme\nTO2 : suivi des études de maîtrise d\'œuvre'],
-  jours_par_tranche: ['Jours que vous prévoyez pour chaque tranche, dans le même ordre. Une ligne par tranche.', 'TF : 6 j\nTO1 : 8 j\nTO2 : 10 j'],
+  jours_par_tranche: ['Jours que vous prévoyez pour chaque tranche, une ligne par tranche avec son code (TF ferme ; TO1, TO2… optionnelles, à affermir dans Mission › Facturation).', 'TF : 6 j\nTO1 : 8 j\nTO2 : 10 j'],
   prix_jour: ['Votre prix de journée HT. Le montant HT se calcule tout seul avec les jours par tranche.', '400'],
   montant_ht: ['Calculé automatiquement : total des jours par tranche × prix par jour. Vous pouvez le corriger (prix arrondi, frais en sus) : c\'est le prix inscrit à l\'acte d\'engagement.', '13200'],
   repartition_ca: ['Pour le CA prévisionnel : année d\'encaissement prévue et montant HT, une ligne par année ; « reste » pour le solde. Sans répartition, tout le reste à encaisser compte sur l\'année en cours.', '2027 : 10000\n2028 : reste'],

@@ -87,11 +87,13 @@ function assembler() {
 
   // PC
   const pc = await ouvrir({ viewport: { width: 1366, height: 900 }, deviceScaleFactor: 2 });
-  await pc.page.waitForSelector('#carte-etat dl');
-  await pc.page.waitForSelector('#carte-ca table');
-  await pc.page.screenshot({ path: path.join(sortie, 'pc-accueil.png') });
+  await pc.page.waitForSelector('#tuiles-accueil .tuile');
+  await pc.page.waitForSelector('#carte-echeances li');
+  assert.ok(!(await pc.page.$('#carte-ca')), 'CA déplacé dans Finances');
+  await pc.page.screenshot({ path: path.join(sortie, 'pc-accueil.png'), fullPage: true });
 
-  await pc.page.click('nav a[href="#parametres"]');
+  await pc.page.click('a.lien-parametres');
+  await pc.page.waitForSelector('#carte-etat dl');
   await pc.page.waitForSelector('tr[data-cle]');
   const ligne = pc.page.locator('tr[data-cle="capacite.montant_max_mission"]');
   await ligne.locator('.champ').fill('40000');
@@ -210,11 +212,17 @@ function assembler() {
   await p.waitForSelector('#toast:has-text("enregistré")');
   assert.strictEqual(A.Affaires_get_(g1).montant_ht, 44000);
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-offre-pieces.png'), fullPage: true });
-  // Encaissements prévus par année, puis écran « CA prévisionnel »
-  await p.fill('form[data-bloc="offre"] [data-champ="repartition_ca"]', '2027 : 10000\n2028 : reste');
-  assert.match(await p.textContent('.apercu-repartition'), /2028 : 34\s000\s€ \(reste\)/);
-  await p.click('form[data-bloc="offre"] button[type=submit]');
-  await p.waitForSelector('#toast:has-text("enregistré")');
+  // Bloc Dépôt séparé du Chiffrage ; plus de champ « Encaissements prévus par année »
+  assert.ok(await p.$('form[data-bloc="depot"] [data-champ="date_depot"]'));
+  assert.ok(!(await p.$('[data-champ="repartition_ca"]')));
+  assert.match(await p.textContent('.calcul-offre'), /TF 20\s000\s€ · TO1 24\s000\s€ \(optionnelle\)/);
+  // Recherche rapide (Ctrl+K)
+  await p.keyboard.press('Control+k');
+  await p.keyboard.type('manosque');
+  await p.waitForSelector('#recherche-liste li[data-id]');
+  await p.screenshot({ path: path.join(sortie, 'pc-recherche.png') });
+  await p.keyboard.press('Escape');
+  // Finances › Prévisionnel (l'ancienne adresse #previsionnel y mène)
   await p.evaluate(() => window.KA.afficher('previsionnel', true));
   await p.waitForSelector('.table-previsionnel');
   assert.match(await p.textContent('.table-previsionnel'), /CA certain/);
@@ -248,10 +256,24 @@ function assembler() {
   await p.waitForSelector('.synthese:has-text("Remettre : Rapport de faisabilité")');
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-mission-livrables.png'), fullPage: true });
   // Planning de facturation : barre livrable → facture → paiement
-  await p.waitForSelector('.planning-fact .plan-ligne');
+  await p.waitForSelector('.planning-fact .frise-piste');
   await p.click('[data-sous="facturation"]');
   await p.waitForSelector('#p-facturation .planning-fact');
   await p.locator('#p-facturation .planning-fact').screenshot({ path: path.join(sortie, 'pc-planning-facturation.png') });
+  // Tranche optionnelle : affermissement depuis Facturation, toutes les tranches sur une même frise
+  A.Affaires_maj(w1, { jours_par_tranche: 'TF : 10 j\nTO1 : 30 j' });
+  A.Livrables_ajouter(w1, { tranche: 'TO1', libelle: 'Programme', date_echeance: '2027-04-15' });
+  await p.evaluate((id) => { window.KA.viderMemoire(); window.KA.afficher('affaire/' + id, true); }, w1);
+  await p.waitForSelector('.fiche-tete');
+  await p.click('[data-sous="facturation"]');
+  await p.waitForSelector('#p-facturation [data-plan-affermir]');
+  assert.strictEqual(await p.locator('#p-facturation .planning-fact .frise-piste').count(), 1, 'une seule frise pour toutes les tranches');
+  await p.locator('#p-facturation .planning-fact').screenshot({ path: path.join(sortie, 'pc-planning-options.png') });
+  await p.click('#p-facturation [data-plan-affermir]');
+  await p.click('dialog.dialogue button[type=submit]');
+  await p.waitForSelector('#toast:has-text("affermie")');
+  assert.match(A.Affaires_get_(w1).tranches_etat, /^TO1:affermie:/);
+  await p.click('[data-sous="facturation"]').catch(() => {});
   await p.click('[data-sous="livrables"]');
   await p.click('[data-sous="facturation"]');
   await p.waitForSelector('#p-facturation:not([hidden])');
@@ -304,19 +326,22 @@ function assembler() {
   assert.strictEqual(A.MailApp.envois.length, 1, 'e-mail non envoyé');
   fs.writeFileSync(path.join(sortie, 'email-matin.html'), A.MailApp.envois[0].htmlBody);
 
-  // ——— Lot 5 : tableau de bord et enseignements ———
-  await p.click('nav a[href="#accueil"]');
+  // ——— Bilan : tableau de bord complet et enseignements ———
+  await p.click('nav a[href="#bilan"]');
   await p.waitForSelector('#tableau-de-bord .tuile');
-  await p.waitForSelector('#carte-ca table');
-  await p.screenshot({ path: path.join(sortie, 'pc-tableau-de-bord.png'), fullPage: true });
   const tauxGo = await p.locator('.tuile', { hasText: 'Taux de Go' }).locator('.tuile__valeur').textContent();
   assert.match(tauxGo, /%$/);
-  await p.click('nav a[href="#enseignements"]');
   await p.waitForSelector('.table-enseignements tbody tr');
-  await p.screenshot({ path: path.join(sortie, 'pc-enseignements.png'), fullPage: true });
+  await p.screenshot({ path: path.join(sortie, 'pc-bilan.png'), fullPage: true });
 
-  // ——— Déclarations URSSAF ———
-  await p.click('nav a[href="#accueil"]');
+  // ——— Finances : vue d'ensemble, encaissements (une ligne de temps), URSSAF et CFE ———
+  await p.click('nav a[href="#finances"]');
+  await p.waitForSelector('#carte-ca table');
+  await p.screenshot({ path: path.join(sortie, 'pc-finances.png'), fullPage: true });
+  await p.click('.sous-nav a[href="#finances/encaissements"]');
+  await p.waitForSelector('.frise .frise-piste');
+  await p.screenshot({ path: path.join(sortie, 'pc-finances-encaissements.png'), fullPage: true });
+  await p.click('.sous-nav a[href="#finances/urssaf"]');
   await p.waitForSelector('#carte-urssaf table');
   const nbDeclarer = await p.locator('[data-declarer]').count();
   assert.ok(nbDeclarer >= 1, 'aucune période à déclarer');
@@ -416,7 +441,7 @@ function assembler() {
 
   // Petit portable (1280 px) : pas de débordement de la page
   await p.setViewportSize({ width: 1280, height: 800 });
-  for (const ecran of ['#accueil', '#veille', '#affaires', '#echeancier', '#enseignements', '#parametres']) {
+  for (const ecran of ['#accueil', '#veille', '#affaires', '#echeancier', '#finances', '#bilan']) {
     await p.click(`nav a[href="${ecran}"]`);
     await p.waitForTimeout(300);
     const deborde = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
@@ -442,7 +467,7 @@ function assembler() {
       assert.ok(await tp.locator('.mob-plus[open]').count() === 1);
       // Version ordinateur, puis retour à la vue smartphone
       await tp.click('[data-vue-ordinateur]');
-      await tp.waitForSelector('#carte-ca table');
+      await tp.waitForSelector('#tuiles-accueil .tuile');
       assert.ok(await tp.evaluate(() => document.body.scrollWidth >= 1024), 'version ordinateur : mise en page 1024 px');
       await tp.locator('[data-vue-mobile]').dispatchEvent('click'); // page dézoomée : clic direct
       await tp.waitForSelector('.mob-tuiles');
@@ -455,13 +480,13 @@ function assembler() {
   {
     const n = await ouvrir({ viewport: { width: 1366, height: 900 }, deviceScaleFactor: 1 });
     const np = n.page;
-    await np.waitForSelector('#carte-ca table');
-    await np.click('nav a[href="#parametres"]');
+    await np.waitForSelector('#tuiles-accueil .tuile');
+    await np.click('a.lien-parametres');
     await np.waitForSelector('#apparence [data-theme-choix][value="neon"]');
     await np.check('#apparence [data-theme-choix][value="neon"]');
     assert.strictEqual(await np.evaluate(() => document.documentElement.getAttribute('data-theme')), 'neon');
     assert.strictEqual(await np.evaluate(() => localStorage.getItem('ka.theme')), 'neon');
-    for (const [ecran, attente] of [['#accueil', '#carte-ca table'], ['#veille', 'table'], ['#affaires', '.fiche-tete, table, .kanban, [data-ouvrir]'], ['#echeancier', 'table, .calendrier, .cal'], ['#estimation', '.sous-nav']]) {
+    for (const [ecran, attente] of [['#accueil', '#tuiles-accueil .tuile'], ['#finances', '#carte-ca table'], ['#veille', 'table'], ['#affaires', '.fiche-tete, table, .kanban, [data-ouvrir]'], ['#echeancier', 'table, .calendrier, .cal'], ['#estimation', '.sous-nav']]) {
       await np.click(`nav a[href="${ecran}"]`);
       await np.waitForSelector(attente);
       await np.waitForTimeout(300);
@@ -473,7 +498,7 @@ function assembler() {
     await np.waitForSelector('.fiche-tete');
     await np.screenshot({ path: path.join(sortie, 'neon-fiche.png') });
     // Retour à la charte Kompa
-    await np.click('nav a[href="#parametres"]');
+    await np.click('a.lien-parametres');
     await np.check('#apparence [data-theme-choix][value="kompa"]');
     assert.strictEqual(await np.evaluate(() => document.documentElement.getAttribute('data-theme')), null);
     assert.deepStrictEqual(n.erreurs, [], 'erreurs JavaScript (thème) : ' + n.erreurs.join(' | '));

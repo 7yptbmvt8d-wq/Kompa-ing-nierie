@@ -367,6 +367,47 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .bloc-cfe__tete h3 { margin: 0; font-size: var(--kompa-fs-h3); }
 .bloc-cfe__reglages { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--kompa-s3) var(--kompa-s4); margin-bottom: var(--kompa-s2); }
 .bloc-cfe__reglages .champ-bloc { min-width: 12rem; }
+/* En-tête : recherche et paramètres */
+.recherche { position: relative; margin-left: auto; }
+.recherche__champ { width: 240px; max-width: 30vw; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .2); border-radius: var(--kompa-radius-sm); color: var(--kompa-texte-inverse); padding: 6px 10px; font: inherit; font-size: 13px; }
+.recherche__champ::placeholder { color: var(--kompa-texte-inverse-2); }
+.recherche__champ:focus { background: var(--kompa-blanc); color: var(--kompa-encre); outline: 2px solid var(--kompa-rouille-clair); }
+.recherche__liste { position: absolute; right: 0; top: calc(100% + 6px); width: min(520px, 90vw); list-style: none; margin: 0; padding: 4px 0; background: var(--kompa-blanc); color: var(--kompa-encre); border: var(--kompa-filet-fin); border-radius: var(--kompa-radius-sm); box-shadow: 0 8px 24px rgba(11, 18, 32, .18); z-index: 40; }
+.recherche__liste li { padding: 8px 12px; cursor: pointer; font-size: 14px; }
+.recherche__liste li[aria-selected="true"], .recherche__liste li:hover { background: var(--kompa-brume); }
+.lien-parametres { color: var(--kompa-texte-inverse-2); display: flex; align-items: center; padding: 6px; border-radius: 50%; }
+.lien-parametres:hover { color: var(--kompa-texte-inverse); }
+body.mode-mobile .recherche, body.mode-mobile .lien-parametres { display: none; }
+
+/* Accueil */
+.alerte-acc { display: flex; align-items: center; gap: var(--kompa-s4); border: 2px solid var(--kompa-rouille); border-radius: var(--kompa-radius); padding: var(--kompa-s3) var(--kompa-s4); margin-bottom: var(--kompa-s3); background: #FDF1EA; }
+.alerte-acc__j { font-size: 20px; font-weight: 600; color: var(--kompa-rouille); min-width: 64px; }
+.alerte-acc__act { margin-left: auto; flex: 0 0 auto; }
+.alerte-acc--ko { border-color: var(--app-statut-perdue); background: var(--app-statut-perdue-fond); }
+.alerte-acc--ko .alerte-acc__j { color: var(--app-statut-perdue); }
+.grille--accueil { grid-template-columns: 1.4fr 1fr; }
+.grille--finances { grid-template-columns: 1.3fr 1fr; }
+.ligne-fin { display: flex; justify-content: space-between; align-items: baseline; gap: var(--kompa-s3); padding: var(--kompa-s2) 0; border-bottom: var(--kompa-filet-fin); font-size: var(--kompa-fs-small); }
+.ligne-fin--ko { color: var(--app-statut-perdue); }
+
+/* Frise chronologique (planning, encaissements) */
+.frise { margin: var(--kompa-s3) 0 var(--kompa-s4); }
+.frise-ligne { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: var(--kompa-s3); align-items: center; }
+.frise-ligne--seule { grid-template-columns: minmax(0, 1fr); }
+.frise-lib { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.frise-axe { position: relative; height: 20px; border-bottom: 1px solid var(--kompa-filet); }
+.frise-axe__an, .frise-axe__mois { position: absolute; bottom: 2px; transform: translateX(-50%); font-family: var(--kompa-font-mono); font-size: 11px; color: var(--kompa-gris); }
+.frise-axe__an { font-weight: 600; color: var(--kompa-ardoise); transform: translateX(4px); }
+.frise-piste { position: relative; height: 40px; background: linear-gradient(var(--kompa-filet), var(--kompa-filet)) center / 100% 2px no-repeat; border-bottom: 1px dotted var(--kompa-filet); }
+.frise-ligne--seule .frise-piste { height: 54px; }
+.frise-annee { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--kompa-gris); opacity: .6; }
+.frise-auj { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--kompa-rouille); z-index: 3; }
+.frise-etiq { position: absolute; top: 2px; transform: translateX(-50%); font-family: var(--kompa-font-mono); font-size: 11px; font-weight: 600; color: var(--kompa-ardoise); white-space: nowrap; }
+.plan-pay--option { border-style: dashed; border-color: var(--kompa-rouille); }
+.plan-trait--option { position: absolute; top: 50%; height: 3px; transform: translateY(-50%); background: repeating-linear-gradient(90deg, var(--kompa-rouille) 0 4px, transparent 4px 9px); }
+.table-planning td { vertical-align: middle; }
+.plan-actions { white-space: nowrap; }
+
 /* Planning de facturation */
 .plan-cle { display: flex; flex-wrap: wrap; gap: var(--kompa-s2) var(--kompa-s4); margin: var(--kompa-s2) 0 var(--kompa-s3); }
 .plan-cle span { display: inline-flex; align-items: center; gap: 6px; }

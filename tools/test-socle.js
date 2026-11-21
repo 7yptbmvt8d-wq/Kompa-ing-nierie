@@ -393,6 +393,15 @@ test('Finances : synthèse, encaissements toutes affaires sur une même ligne de
   const apres = ok(A.apiFinancesPaiement(s.encaissements.lignes[0].facture.id, { date_encaissement: '2026-11-20', montant_encaisse: '20000' }));
   assert.strictEqual(apres.resume.nbRetard, 0);
   assert.ok(ok(A.apiRecherche()).some((x) => x.id === g));
+  // Factures sans tranche : couvrent la tranche ferme non facturée (pas de double compte)
+  const h = A.Affaires_creer({ acheteur: 'Commune X', objet: 'Y' }).id;
+  A.Affaires_changerStatut(h, 'Go', {});
+  A.Affaires_changerStatut(h, 'Déposée', { montant_ht: 16000, jours_reponse: 1, date_depot: '2026-06-01' });
+  A.Affaires_changerStatut(h, 'Gagnée', { date_notification: '2026-07-01', montant_notifie: 16000 });
+  A.Livrables_ajouter(h, { libelle: 'Rapport', date_echeance: '2026-12-04' });
+  A.Factures_ajouter(h, { numero: 'F-A', date: '2026-08-01', montant: 6000 });
+  const ph = brut(A.Planning_affaire(h, quand));
+  assert.deepStrictEqual([ph.lignes[0].montant, ph.lignes[0].dejaFacture], [10000, 6000]);
   assert.ok(ok(A.apiAccueil()).alertes);
 });
 

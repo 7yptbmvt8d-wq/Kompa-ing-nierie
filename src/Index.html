@@ -33,10 +33,15 @@
         <a href="#veille">Veille</a>
         <a href="#affaires">Affaires</a>
         <a href="#echeancier">Échéancier</a>
-        <a href="#enseignements">Enseignements</a>
+        <a href="#finances">Finances</a>
         <a href="#estimation">Estimation</a>
-        <a href="#parametres">Paramètres</a>
+        <a href="#bilan">Bilan</a>
       </nav>
+      <div class="recherche" role="search">
+        <input type="search" id="recherche-affaire" class="recherche__champ" placeholder="Rechercher une affaire…  Ctrl+K" aria-label="Rechercher une affaire" autocomplete="off">
+        <ul class="recherche__liste" id="recherche-liste" role="listbox" hidden></ul>
+      </div>
+      <a href="#parametres" class="lien-parametres" title="Paramètres" aria-label="Paramètres"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1l.4 2.6h4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5zM13 15.5A3.5 3.5 0 1 1 13 8.5a3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg></a>
       <button type="button" class="retour-mobile" data-vue-mobile>Vue smartphone</button>
     </div>
   </header>
@@ -53,6 +58,7 @@
   <?!= include('AppEcheancier'); ?>
   <?!= include('AppTableau'); ?>
   <?!= include('AppEstimation'); ?>
+  <?!= include('AppFinances'); ?>
   <?!= include('AppMobile'); ?>
 </body>
 </html>
