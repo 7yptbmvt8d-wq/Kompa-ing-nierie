@@ -44,7 +44,7 @@ jobs:
       - uses: actions/setup-node@v4
         if: steps.secrets.outputs.ok == 'oui'
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Tests (aucun envoi si un test échoue)
         if: steps.secrets.outputs.ok == 'oui'
@@ -60,6 +60,6 @@ jobs:
           printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
           printf '{"scriptId":"%s","rootDir":"dist"}' "$SCRIPT_ID" > .clasp.json
           VERSION=$(node -e "console.log(require('./package.json').version)")
-          npx --yes @google/clasp@2.4.2 push --force
-          npx --yes @google/clasp@2.4.2 deploy --deploymentId "$DEPLOYMENT_ID" --description "Kompa Affaires $VERSION — ${GITHUB_SHA::7}"
+          npx --yes @google/clasp@3.4.1 push --force
+          npx --yes @google/clasp@3.4.1 update-deployment "$DEPLOYMENT_ID" --description "Kompa Affaires $VERSION — ${GITHUB_SHA::7}"
           rm -f "$HOME/.clasprc.json" .clasp.json

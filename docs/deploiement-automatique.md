@@ -17,14 +17,23 @@ Mise en place unique : environ 10 minutes, tout depuis le navigateur (Chromebook
 Dans **Google Cloud Shell** (terminal dans le navigateur, rien à installer) :
 
 1. Ouvrir https://shell.cloud.google.com avec le compte Kompa.
-2. Taper :
+2. Vérifier la version de Node (22 ou plus) ; sinon l'installer :
    ```bash
-   npx @google/clasp@2.4.2 login --no-localhost
+   node -v
    ```
-3. Ouvrir le lien affiché, choisir le compte Kompa, **Autoriser**.
-4. Le navigateur arrive sur une page d'erreur « localhost » : c'est normal. Copier **l'adresse complète** de cette page
-   (barre d'adresse) et la coller dans le terminal, puis Entrée.
-5. Afficher le jeton :
+   ```bash
+   nvm install 22
+   ```
+3. Lancer la connexion (elle attend sur le port 8888) :
+   ```bash
+   npx @google/clasp@3.4.1 login --redirect-port 8888
+   ```
+4. Ouvrir le lien affiché, choisir le compte Kompa, **Autoriser**.
+5. Le navigateur arrive sur une page d'erreur « localhost » : c'est normal. Copier **l'adresse complète** de cette page
+   (barre d'adresse, elle commence par `http://localhost:8888/`).
+6. Dans Cloud Shell, ouvrir un **deuxième onglet** de terminal (bouton **+**), puis taper `curl "` , coller l'adresse, fermer par `"` et Entrée.
+   Le premier onglet affiche alors la connexion réussie.
+7. Afficher le jeton :
    ```bash
    cat ~/.clasprc.json
    ```
