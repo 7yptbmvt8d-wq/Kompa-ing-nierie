@@ -505,6 +505,13 @@ body.mode-mobile .recherche, body.mode-mobile .lien-parametres { display: none; 
 .ajout-piece { display: flex; gap: var(--kompa-s2); flex-wrap: wrap; margin-top: var(--kompa-s3); }
 .ajout-piece select { width: auto; }
 .ajout-piece input { flex: 1 1 18rem; min-width: 0; }
+.ajout-piece--titre { display: block; border-top: var(--kompa-filet-fin); padding-top: var(--kompa-s3); }
+.ajout-piece--titre h3 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--kompa-ardoise); margin: 0 0 var(--kompa-s2); }
+.ajout-piece__ligne { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--kompa-s2) var(--kompa-s3); }
+.ajout-piece__ligne .champ-bloc { margin: 0; }
+.ajout-piece__lib { flex: 1 1 18rem; min-width: 0; }
+.ajout-piece__ligne .champ-bloc input, .ajout-piece__ligne .champ-bloc select { flex: none; height: auto; }
+.ajout-piece__lib input { width: 100%; }
 
 /* Livrables de la mission */
 .ech--livrable { background: #FFF1E8; color: var(--kompa-rouille); }

@@ -573,6 +573,13 @@ body.mode-mobile .recherche, body.mode-mobile .lien-parametres { display: none; 
 .ajout-piece { display: flex; gap: var(--kompa-s2); flex-wrap: wrap; margin-top: var(--kompa-s3); }
 .ajout-piece select { width: auto; }
 .ajout-piece input { flex: 1 1 18rem; min-width: 0; }
+.ajout-piece--titre { display: block; border-top: var(--kompa-filet-fin); padding-top: var(--kompa-s3); }
+.ajout-piece--titre h3 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--kompa-ardoise); margin: 0 0 var(--kompa-s2); }
+.ajout-piece__ligne { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--kompa-s2) var(--kompa-s3); }
+.ajout-piece__ligne .champ-bloc { margin: 0; }
+.ajout-piece__lib { flex: 1 1 18rem; min-width: 0; }
+.ajout-piece__ligne .champ-bloc input, .ajout-piece__ligne .champ-bloc select { flex: none; height: auto; }
+.ajout-piece__lib input { width: 100%; }
 
 /* Livrables de la mission */
 .ech--livrable { background: #FFF1E8; color: var(--kompa-rouille); }
@@ -2072,9 +2079,13 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       '<p class="actions-pieces"><button type="button" class="bouton' + (pieces.length ? ' bouton--discret' : '') + '" data-coller-liste>Coller la liste du DCE</button>' +
       (pieces.length ? '' : ' <button type="button" class="bouton bouton--discret" data-liste-type>Ajouter la liste type</button>') +
       ' <span class="legende">' + (pieces.length ? 'Ajoute les pièces manquantes, sans doublon.' : 'Liste du DCE : rubrique « Pièces à remettre » de l\'analyse du DCE ou du RC. Liste type : pièces courantes (paramètre liste.pieces_offre).') + '</span></p>' +
-      '<form class="ajout-piece" data-ajout-piece novalidate><select class="champ" id="ajout-piece-cat" aria-label="Catégorie"><option>Candidature</option><option selected>Offre</option></select>' +
-      '<input class="champ" id="ajout-piece-lib" placeholder="ex. Mémoire environnemental (démarche RSE)" aria-label="Intitulé de la pièce">' +
-      '<button type="submit" class="bouton bouton--discret">Ajouter</button></form></section>';
+      '<form class="ajout-piece ajout-piece--titre" data-ajout-piece novalidate><h3>Ajouter une pièce</h3>' +
+        '<div class="ajout-piece__ligne">' +
+          '<div class="champ-bloc"><label for="ajout-piece-cat">Catégorie</label><select class="champ" id="ajout-piece-cat"><option>Candidature</option><option selected>Offre</option></select></div>' +
+          '<div class="champ-bloc ajout-piece__lib"><label for="ajout-piece-lib">Intitulé de la pièce</label><input class="champ" id="ajout-piece-lib" placeholder="ex. Mémoire environnemental (démarche RSE)"></div>' +
+          '<button type="submit" class="bouton bouton--discret">Ajouter</button></div>' +
+        '<p class="legende">Candidature : pièces qui présentent l\'entreprise (DC1, DC2, DUME, attestations, références). Offre : pièces qui répondent au marché (acte d\'engagement, prix, mémoire technique).</p>' +
+      '</form></section>';
   }
 
   function brancherPiecesOffre(el, f, recharger) {
