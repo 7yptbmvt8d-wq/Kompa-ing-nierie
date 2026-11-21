@@ -266,6 +266,27 @@ test('relance de paiement : intérêts moratoires chiffrés, mise en demeure au-
   assert.match(c2.corps, /indemnité forfaitaire pour frais de recouvrement de 40,00\s€/);
 });
 
+test('passage à l\'année suivante : numérotation, CA et déclarations URSSAF partent de la création de l\'entreprise', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  console.log = () => {};
+  A.installer({ exercice: false });
+  console.log = journal;
+  A.Params_enregistrer('fiscal.debut_suivi', '2026-11-12'); // installation de l'app, avant la création
+  A.Params_enregistrer('fiscal.date_creation', '2027-01-04');
+  A.Params_enregistrer('fiscal.periodicite', 'trimestrielle');
+  A.Params_cache_ = null;
+  // En janvier 2027, le 4e trimestre 2026 (avant la création) n'est ni « à déclarer » ni « en retard »
+  const d2026 = brut(A.Fiscal_declarations(2026, new Date(2027, 0, 20)));
+  assert.ok(d2026.periodes.every((p) => p.etat === 'non suivie'), d2026.periodes.map((p) => p.libelle + ' ' + p.etat).join(' | '));
+  const d2027 = brut(A.Fiscal_declarations(2027, new Date(2027, 0, 20)));
+  assert.strictEqual(d2027.periodes[0].etat, 'en cours');
+  // Numérotation : les affaires créées en 2027 repartent à KA-2027-001
+  A.Affaires_creer({ acheteur: 'Commune A', objet: 'AMO' }, { date: '2026-12-20' });
+  const id2027 = A.Affaires_creer({ acheteur: 'Commune B', objet: 'AMO' }, { date: '2027-01-05' }).id;
+  assert.strictEqual(id2027, 'KA-2027-001');
+});
+
 test('chaque onglet a id/clé en 1re colonne et cree_le, modifie_le en fin', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });
@@ -1990,6 +2011,7 @@ const jeuFiscal = () => {
   const A = env.ctx;
   A.installer({ exercice: false });
   A.Params_enregistrer('fiscal.debut_suivi', '2026-01-01');
+  A.Params_enregistrer('fiscal.date_creation', '2026-01-01'); // entreprise créée au début du suivi (CFE 2026 exonérée)
   A.Params_enregistrer('fiscal.taux_cotisations', '23,2');
   A.Params_cache_ = null;
   const g = A.Affaires_creer({ acheteur: 'Commune de Gap', objet: 'AMO' }, { date: '2026-01-10' }).id;

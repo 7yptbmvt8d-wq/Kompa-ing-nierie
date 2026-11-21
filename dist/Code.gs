@@ -2857,6 +2857,9 @@ function Fiscal_declarations(annee, quand) {
   Db_lire(TABLES.DECLARATIONS).forEach(function (d) { declarees[d.id] = d; });
   var arr = function (x) { return x === null ? null : arrondi_(x); };
   var debutSuivi = date_(Params_texte('fiscal.debut_suivi', ''));
+  // Rien à déclarer avant la création de l'entreprise : le suivi part de la plus tardive des deux dates
+  var creationEntreprise = date_(Params_texte('fiscal.date_creation', ''));
+  if (creationEntreprise && (!debutSuivi || creationEntreprise > debutSuivi)) debutSuivi = creationEntreprise;
 
   var periodes = Fiscal_periodes_(annee).map(function (p) {
     var ca = factures.reduce(function (s, f) {
