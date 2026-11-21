@@ -74,6 +74,36 @@ test('mémoire partagée des onglets : relue sans le classeur, effacée par une 
   console.log = journal;
 });
 
+test('classeur pas à jour : alerte sur l\'accueil et erreur explicite au lieu d\'une saisie perdue', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  console.log = () => {};
+  A.installer({ exercice: false });
+  console.log = journal;
+  const id = A.Affaires_creer({ acheteur: 'Ville de Marseille', objet: 'AMO' }).id;
+  A.Affaires_maj(id, { jours_par_tranche: 'T1 : 20 j\nT2 : 30 j', prix_jour: 400 });
+  assert.deepStrictEqual(brut(A.Etat_alertes_()), []);
+  // Colonne « tranches_etat » absente (installer() pas relancé après la mise à jour)
+  const ss = Object.values(env.classeurs).find((x) => x.getSheetByName('Affaires'));
+  const f = ss.getSheetByName('Affaires');
+  f.lignes[0][f.lignes[0].indexOf('tranches_etat')] = 'ancienne_colonne';
+  A.Db_viderCache_();
+  env.cache._valeurs = {};
+  assert.throws(() => A.Planning_affermir(id, 'T2', 'optionnelle', ''), /tranches_etat.*installer\(\)/);
+  const alertes = brut(A.Etat_alertes_());
+  assert.strictEqual(alertes.length, 1);
+  assert.match(alertes[0], /Affaires › tranches_etat.*installer/);
+  // Après installer() : la colonne revient, la tranche T2 reste optionnelle
+  console.log = () => {};
+  A.installer({ exercice: false });
+  console.log = journal;
+  A.Db_viderCache_();
+  A.Planning_affermir(id, 'T2', 'optionnelle', '');
+  A.Db_viderCache_();
+  const t2 = A.Planning_affaire(id).lignes.find((l) => l.tranche === 'T2');
+  assert.deepStrictEqual([t2.optionnelle, t2.affermissement], [true, 'optionnelle']);
+});
+
 test('chaque onglet a id/clé en 1re colonne et cree_le, modifie_le en fin', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });

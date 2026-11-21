@@ -261,6 +261,12 @@ function Db_maj(table, valeurCle, champs) {
     var maj = Object.assign({}, champs, { modifie_le: new Date() });
     delete maj[table.cle];
     delete maj.cree_le;
+    // Aucune des colonnes à modifier n'existe : classeur pas à jour (installer() non relancé) → erreur explicite
+    var demandees = Object.keys(maj).filter(function (n) { return n !== 'modifie_le'; });
+    var absentes = demandees.filter(function (n) { return entetes.indexOf(n) < 0; });
+    if (demandees.length && absentes.length === demandees.length) {
+      throw new Error('Colonne « ' + absentes.join(', ') + ' » absente de l\'onglet « ' + table.onglet + ' » : lancez installer() depuis l\'éditeur Apps Script.');
+    }
     Object.keys(maj).forEach(function (nom) {
       var j = entetes.indexOf(nom);
       if (j >= 0) valeurs[j] = maj[nom] === undefined || maj[nom] === null ? '' : maj[nom];

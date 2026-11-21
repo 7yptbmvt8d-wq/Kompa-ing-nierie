@@ -1727,6 +1727,12 @@ function Db_maj(table, valeurCle, champs) {
     var maj = Object.assign({}, champs, { modifie_le: new Date() });
     delete maj[table.cle];
     delete maj.cree_le;
+    // Aucune des colonnes à modifier n'existe : classeur pas à jour (installer() non relancé) → erreur explicite
+    var demandees = Object.keys(maj).filter(function (n) { return n !== 'modifie_le'; });
+    var absentes = demandees.filter(function (n) { return entetes.indexOf(n) < 0; });
+    if (demandees.length && absentes.length === demandees.length) {
+      throw new Error('Colonne « ' + absentes.join(', ') + ' » absente de l\'onglet « ' + table.onglet + ' » : lancez installer() depuis l\'éditeur Apps Script.');
+    }
     Object.keys(maj).forEach(function (nom) {
       var j = entetes.indexOf(nom);
       if (j >= 0) valeurs[j] = maj[nom] === undefined || maj[nom] === null ? '' : maj[nom];
@@ -4577,7 +4583,30 @@ function Etat_alertes_() {
     return ['Versions différentes : Code.gs v' + APP.VERSION + ', Estimation.gs v' + EST_VERSION +
       '. Recollez les deux fichiers depuis dist/, puis relancez installer().'];
   }
-  return [];
+  return Etat_colonnesManquantes_();
+}
+
+/**
+ * Colonnes prévues par le code mais absentes du classeur (installer() pas relancé après une mise à jour).
+ * Contrôle mémorisé 6 h une fois réussi, pour ne pas relire les en-têtes à chaque ouverture.
+ */
+function Etat_colonnesManquantes_() {
+  var c = Db_memoire_(), cle = 'schema|' + APP.VERSION;
+  try { if (c && c.get(cle) === 'ok') return []; } catch (e) { /* contrôle complet */ }
+  var manquantes = [];
+  Object.keys(TABLES).forEach(function (k) {
+    var t = TABLES[k];
+    try {
+      var presentes = Db_entetesTable_(t);
+      colonnesTable_(t).forEach(function (col) { if (presentes.indexOf(col) < 0) manquantes.push(t.onglet + ' › ' + col); });
+    } catch (e) { manquantes.push(t.onglet); }
+  });
+  if (!manquantes.length) {
+    try { if (c) c.put(cle, 'ok', DB_MEMOIRE_TTL); } catch (e) { /* sans effet */ }
+    return [];
+  }
+  return ['Classeur pas à jour (' + manquantes.slice(0, 6).join(', ') + (manquantes.length > 6 ? '…' : '') +
+    ') : ouvrez l\'éditeur Apps Script, choisissez la fonction installer et cliquez sur Exécuter. Sans cela, certaines saisies ne sont pas enregistrées.'];
 }
 
 /** Liste des paramètres, groupés pour l'écran Paramètres. */
