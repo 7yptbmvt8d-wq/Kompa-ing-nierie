@@ -1,4 +1,4 @@
-/**
+/** Déployé automatiquement depuis GitHub (workflow « Déployer dans Apps Script »).
  * Mise à jour automatique du classeur (décision du 21/11/2026) : après le collage d'une nouvelle version du code,
  * le premier appel (ouverture de l'app ou déclencheur du matin) complète le classeur, sans relancer installer().
  *
