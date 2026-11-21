@@ -860,7 +860,9 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
    * Après une modification : la mémoire d'affichage est gardée (chaque écran se recharge de toute façon
    * au serveur, la version fraîche remplace l'ancienne dès son arrivée) ; la fiche renvoyée est mémorisée.
    */
+  var ecritures = 0; // nombre de modifications : une lecture partie avant une modification est périmée
   function apresEcriture(donnees) {
+    ecritures++;
     if (donnees && donnees.affaire && donnees.affaire.id && donnees.planning !== undefined) {
       var cle = 'affaire:' + donnees.affaire.id, ancien = lireMemoire(cle);
       if (ancien && ancien.meta) ecrireMemoire(cle, Object.assign({}, donnees, { meta: donnees.meta || ancien.meta }));
@@ -878,7 +880,8 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       var x = file.shift();
       if (!x) return;
       if (memoire[x[0]]) { suivant(); return; } // déjà chargé pendant cette visite
-      appel.apply(null, [x[1]].concat(x[2])).then(function (d) { if (!memoire[x[0]]) ecrireMemoire(x[0], d); })
+      var n = ecritures;
+      appel.apply(null, [x[1]].concat(x[2])).then(function (d) { if (!memoire[x[0]] && n === ecritures) ecrireMemoire(x[0], d); })
         .catch(function () { /* sans effet : l'écran se chargera à l'ouverture */ })
         .then(function () { setTimeout(suivant, 300); });
     };
@@ -905,7 +908,16 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     var jeton = jetonEcran;
     var ancien = lireMemoire(cle);
     if (ancien) rendu(ancien, true);
-    return appel.apply(null, [nom].concat(args || [])).then(function (frais) {
+    // Une lecture partie avant une modification est périmée : on relit (2 essais au plus) au lieu de l'afficher.
+    var lire = function (essais) {
+      var n = ecritures;
+      return appel.apply(null, [nom].concat(args || [])).then(function (frais) {
+        if (n !== ecritures) return essais > 0 ? lire(essais - 1) : null;
+        return frais;
+      });
+    };
+    return lire(2).then(function (frais) {
+      if (!frais) return;
       ecrireMemoire(cle, frais);
       if (jeton !== jetonEcran) return; // écran quitté entre-temps
       if (!ancien || (JSON.stringify(frais) !== JSON.stringify(ancien) && !saisieEnCours())) rendu(frais, false);

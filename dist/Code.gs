@@ -1478,7 +1478,9 @@ var Db_cache_ = { classeurs: {}, lignes: {}, entetes: {}, versions: {}, ecrits: 
 /**
  * Mémoire partagée entre les appels (accélération du 21/11/2026) : chaque onglet lu est gardé dans le cache
  * du script (CacheService, 6 h au plus), avec la date de dernière modification du classeur (Drive).
- * - Une écriture par l'app (Db_inserer, Db_maj, Db_supprimerSi…) efface aussitôt la mémoire de l'onglet ;
+ * - Une écriture par l'app (Db_inserer, Db_maj, Db_supprimerSi…) change, une fois écrite, la « génération »
+ *   du classeur : toute la mémoire lue avant est ignorée, y compris celle qu'un appel simultané garderait
+ *   après coup (correctif du 21/11/2026 : tranche repassée en « ferme » après un changement) ;
  * - une modification faite à la main dans le classeur change sa date : toute la mémoire du classeur est ignorée.
  * En cas de souci (cache indisponible, onglet trop gros), lecture directe du classeur, comme avant.
  */
@@ -1490,17 +1492,29 @@ function Db_memoire_() {
   try { return typeof CacheService !== 'undefined' ? CacheService.getScriptCache() : null; } catch (e) { return null; }
 }
 
-/** Date de dernière modification du classeur (une lecture Drive par appel et par classeur), ou null. */
+/**
+ * Version de la mémoire d'un classeur pour cet appel : date de dernière modification (Drive) + génération
+ * (changée après chaque écriture de l'app). Lue une fois par appel et par classeur ; null = pas de mémoire.
+ */
 function Db_versionClasseur_(cleClasseur) {
   var cle = cleClasseur || 'SUIVI';
   if (cle in Db_cache_.versions) return Db_cache_.versions[cle];
   var v = null;
   try {
+    var c = Db_memoire_();
     var id = PropertiesService.getScriptProperties().getProperty(CLASSEURS[cle].prop);
-    if (id) v = String(DriveApp.getFileById(id).getLastUpdated().getTime());
+    if (c && id) {
+      var gen = c.get('db|gen|' + cle);
+      if (!gen) { gen = Db_nouvelleGeneration_(); c.put('db|gen|' + cle, gen, DB_MEMOIRE_TTL); }
+      v = String(DriveApp.getFileById(id).getLastUpdated().getTime()) + '|' + gen;
+    }
   } catch (e) { v = null; }
   Db_cache_.versions[cle] = v;
   return v;
+}
+
+function Db_nouvelleGeneration_() {
+  return new Date().getTime().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
 function Db_cleMemoire_(table) {
@@ -1509,6 +1523,7 @@ function Db_cleMemoire_(table) {
 
 /** Lignes d'un onglet depuis la mémoire partagée, ou null (absente, périmée, illisible). */
 function Db_lireMemoire_(table) {
+  if (Db_cache_.ecrits[table.classeur || 'SUIVI']) return null; // cet appel a écrit : lecture directe du classeur
   var c = Db_memoire_();
   var version = c && Db_versionClasseur_(table.classeur);
   if (!version) return null;
@@ -1552,12 +1567,24 @@ function Db_ecrireMemoire_(table, lignes) {
   } catch (e) { /* mémoire non disponible : sans effet */ }
 }
 
-/** Oublie la mémoire partagée d'un onglet (après une écriture par l'app). */
+/** Écriture en cours dans un classeur : plus de mise en mémoire pour cet appel ; génération changée après l'écriture. */
 function Db_oublierMemoire_(table) {
   Db_cache_.ecrits[table.classeur || 'SUIVI'] = true;
+  (Db_cache_.aInvalider = Db_cache_.aInvalider || {})[table.classeur || 'SUIVI'] = true;
+  var c = Db_memoire_();
+  if (c) try { c.remove(Db_cleMemoire_(table)); } catch (e) { /* sans effet */ }
+}
+
+/** Après une écriture (classeur à jour) : nouvelle génération, la mémoire lue avant ne sert plus. */
+function Db_invaliderMemoire_() {
+  var a = Db_cache_.aInvalider || {};
+  Db_cache_.aInvalider = {};
   var c = Db_memoire_();
   if (!c) return;
-  try { c.remove(Db_cleMemoire_(table)); } catch (e) { /* sans effet */ }
+  Object.keys(a).forEach(function (cle) {
+    delete Db_cache_.versions[cle];
+    try { c.put('db|gen|' + cle, Db_nouvelleGeneration_(), DB_MEMOIRE_TTL); } catch (e) { /* sans effet */ }
+  });
 }
 
 /** Clé de mémoire d'une table : classeur + onglet (deux classeurs peuvent avoir un onglet de même nom). */
@@ -1720,6 +1747,7 @@ function Db_verrou_(fn) {
     return fn();
   } finally {
     SpreadsheetApp.flush();
+    Db_invaliderMemoire_();
     verrou.releaseLock();
   }
 }

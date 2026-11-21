@@ -56,6 +56,21 @@ test('mémoire partagée des onglets : relue sans le classeur, effacée par une 
   f.getRange(2, col + 1).setValues([['Saisie manuelle']]);
   A.Db_viderCache_();
   assert.strictEqual(A.Affaires_get_(id).objet, 'Saisie manuelle');
+  // Appels simultanés, date Drive figée (mise à jour en retard) : un appel A lit l'affaire, un appel B la modifie,
+  // puis A garde sa lecture en mémoire après coup → elle doit être ignorée (génération changée par B).
+  A.DriveApp.getFileById = () => ({ getLastUpdated: () => new Date(1e12) });
+  A.Db_viderCache_();
+  const lectureA = A.Db_lire(A.TABLES.AFFAIRES); // A : lecture (ancienne valeur)
+  const versionsA = Object.assign({}, A.Db_cache_.versions);
+  A.Db_viderCache_();
+  A.Affaires_maj(id, { objet: 'Changé par B' }); // B : écriture
+  A.Db_viderCache_();
+  Object.assign(A.Db_cache_.versions, versionsA); // A, toujours en cours, garde sa lecture
+  A.Db_ecrireMemoire_(A.TABLES.AFFAIRES, lectureA);
+  A.Db_viderCache_();
+  assert.strictEqual(A.Affaires_get_(id).objet, 'Changé par B');
+  A.Db_viderCache_();
+  assert.strictEqual(A.Affaires_get_(id).objet, 'Changé par B'); // relu depuis la mémoire, à jour
   console.log = journal;
 });
 
