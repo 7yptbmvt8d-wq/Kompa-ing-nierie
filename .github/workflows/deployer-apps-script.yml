@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
   push:
     branches: [claude/amazing-cray-l4l2w9]
-    paths: ['dist/**']
+    paths: ['dist/**', '.github/workflows/deployer-apps-script.yml']
 
 concurrency:
   group: deploiement-apps-script
@@ -57,7 +57,10 @@ jobs:
           SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
           DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
         run: |
-          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          # Jeton copié depuis un terminal : les retours à la ligne ajoutés à l'affichage sont retirés (JSON sur une ligne)
+          printf '%s' "$CLASPRC_JSON" | tr -d '\r\n' > "$HOME/.clasprc.json"
+          node -e "JSON.parse(require('fs').readFileSync(process.env.HOME + '/.clasprc.json', 'utf8'))" || {
+            echo "::error::Le secret CLASPRC_JSON n'est pas un JSON lisible : recopier tout le texte de cat ~/.clasprc.json (de { à })."; exit 1; }
           printf '{"scriptId":"%s","rootDir":"dist"}' "$SCRIPT_ID" > .clasp.json
           VERSION=$(node -e "console.log(require('./package.json').version)")
           npx --yes @google/clasp@3.4.1 push --force
