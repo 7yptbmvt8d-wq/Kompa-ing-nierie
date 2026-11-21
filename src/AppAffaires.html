@@ -794,7 +794,7 @@
         ? '<button type="button" class="bouton bouton--petit" data-plan-facturer="' + i + '">Facturer</button>'
         : l.etat === 'facturée' || l.etat === 'en retard' ? '<button type="button" class="bouton bouton--petit" data-plan-payer="' + i + '">Paiement reçu</button>' : '';
       return '<div class="plan-ligne">' +
-        '<div class="plan-tete"><strong class="mono">' + esc(l.tranche === 'MISSION' ? 'Mission' : l.tranche) + '</strong>' + (l.jours ? '<span class="mono">' + String(l.jours).replace('.', ',') + ' j</span>' : '')<span class="mono">' + K.euros(l.montant) + '</span>' +
+        '<div class="plan-tete"><strong class="mono">' + esc(l.tranche === 'MISSION' ? 'Mission' : l.tranche) + '</strong>' + (l.jours ? '<span class="mono">' + String(l.jours).replace('.', ',') + ' j</span>' : '') + '<span class="mono">' + K.euros(l.montant) + '</span>' +
           '<span class="statut ' + (ETATS_PLAN[l.etat] || 'statut--neutre') + '">' + esc(l.etat) + '</span>' + action + '</div>' +
         '<div class="plan-piste">' + annees + auj + marques + '</div>' +
         '<div class="legende">' + detail.join(' · ') + '</div>' + retard + '</div>';
