@@ -299,6 +299,27 @@ test('passage à l\'année suivante : numérotation, CA et déclarations URSSAF 
   assert.strictEqual(g, 'KA-2027-001');
 });
 
+test('thème gardé sur le compte et appliqué dès l\'ouverture de la page', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  console.log = () => {};
+  A.installer({ exercice: false });
+  console.log = journal;
+  assert.strictEqual(A.Theme_lire_(), '');
+  assert.ok(A.apiTheme('neon').ok);
+  assert.strictEqual(A.Theme_lire_(), 'neon');
+  assert.strictEqual(A.apiTheme('autre').ok, false);
+  const fs = require('fs');
+  const index = fs.readFileSync(require('path').join(__dirname, '..', 'src', 'Index.html'), 'utf8');
+  assert.match(index, /var serveur = 'THEME_SERVEUR'/);
+  // La page servie porte le thème du compte
+  const o = { contenu: index, setTitle() { return o; }, addMetaTag() { return o; }, setFaviconUrl() { return o; },
+    getContent: () => o.contenu, setContent: (c) => { o.contenu = c; return o; } };
+  A.HtmlService.createTemplateFromFile = () => ({ evaluate: () => o });
+  A.doGet();
+  assert.match(o.contenu, /var serveur = 'neon'/);
+});
+
 test('chaque onglet a id/clé en 1re colonne et cree_le, modifie_le en fin', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });

@@ -8,7 +8,7 @@
   var LECTURES = ['apiEtat', 'apiParametres', 'apiCompteurCA', 'apiAccueil', 'apiAffaires', 'apiAffaire', 'apiVeille',
     'apiEcheancier', 'apiSuivi', 'apiCourrier', 'apiEmailApercu', 'apiTableau', 'apiEnseignements', 'apiFiscal', 'apiPieces',
     'apiEstReferentiels', 'apiEstAccueil', 'apiEstAffaire', 'apiEstIndices', 'apiEstIndiceHistorique', 'apiEstActualiser',
-    'apiEstBibliotheque', 'apiEstAnalyserPostes', 'apiEstRatios', 'apiEstFormulaire', 'apiEstApercu', 'apiEstEstimation', 'apiPrevisionnel', 'apiFinances', 'apiRecherche', 'apiQontoEtat'];
+    'apiEstBibliotheque', 'apiEstAnalyserPostes', 'apiEstRatios', 'apiEstFormulaire', 'apiEstApercu', 'apiEstEstimation', 'apiPrevisionnel', 'apiFinances', 'apiRecherche', 'apiQontoEtat', 'apiTheme'];
 
   function appel(nom) {
     var args = Array.prototype.slice.call(arguments, 1);
@@ -345,6 +345,7 @@
     if (t === 'neon') document.documentElement.setAttribute('data-theme', 'neon');
     else document.documentElement.removeAttribute('data-theme');
     try { localStorage.setItem('ka.theme', t); } catch (e) { /* indisponible */ }
+    appel('apiTheme', t).catch(function () { /* gardé au moins sur cet appareil */ });
   }
   function blocApparence() {
     var t = themeActuel();
@@ -354,7 +355,7 @@
     };
     return '<section class="groupe-param" id="apparence"><h2>Apparence</h2><div class="choix-theme">' +
       opt('kompa', 'Kompa', 'Charte Kompa Ingénierie (par défaut)') + opt('neon', 'Néon Sunset', 'Fond nuit, coucher de soleil néon') +
-      '</div><p class="legende">Choix mémorisé sur cet appareil (ordinateur ou téléphone) ; les e-mails et les fichiers exportés gardent la charte Kompa.</p></section>';
+      '</div><p class="legende">Choix gardé sur votre compte (ordinateur et téléphone, même après une mise à jour de l\'app) ; les e-mails et les fichiers exportés gardent la charte Kompa.</p></section>';
   }
   document.addEventListener('change', function (ev) {
     if (ev.target.matches && ev.target.matches('[data-theme-choix]')) { choisirTheme(ev.target.value); toast('Thème « ' + (ev.target.value === 'neon' ? 'Néon Sunset' : 'Kompa') + ' » appliqué.'); }

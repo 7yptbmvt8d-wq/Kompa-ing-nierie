@@ -7,8 +7,12 @@
   <?!= include('Styles'); ?>
   <?!= include('ThemeNeon'); ?>
   <script>
-    /* Thème choisi sur cet appareil (Paramètres › Apparence), appliqué avant l'affichage. */
-    try { if (localStorage.getItem('ka.theme') === 'neon') document.documentElement.setAttribute('data-theme', 'neon'); } catch (e) { /* indisponible */ }
+    /* Thème choisi (Paramètres › Apparence), gardé sur le compte et appliqué avant l'affichage. */
+    (function () {
+      var serveur = 'THEME_SERVEUR', t = /^(neon|kompa)$/.test(serveur) ? serveur : '';
+      try { if (!t) t = localStorage.getItem('ka.theme') || ''; else localStorage.setItem('ka.theme', t); } catch (e) { /* indisponible */ }
+      if (t === 'neon') document.documentElement.setAttribute('data-theme', 'neon');
+    })();
   </script>
 </head>
 <body>

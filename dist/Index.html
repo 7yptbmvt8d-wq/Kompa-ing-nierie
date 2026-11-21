@@ -631,6 +631,7 @@ body.mode-mobile main { padding: 0 var(--kompa-s4) calc(var(--kompa-s6) + env(sa
 .mob-actualiser { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 50%; border: var(--kompa-filet-fin); background: var(--kompa-blanc); color: var(--kompa-ardoise); display: grid; place-items: center; cursor: pointer; }
 .mob-actualiser:active { background: var(--kompa-brume); }
 .mob-alerte { border: 2px solid var(--kompa-rouille); background: #FDF1EA; border-radius: var(--kompa-radius); padding: var(--kompa-s3) var(--kompa-s4); margin-bottom: var(--kompa-s3); font-size: 15px; }
+.mob-info { border: var(--kompa-filet-fin); background: var(--kompa-brume); border-radius: var(--kompa-radius); padding: var(--kompa-s3) var(--kompa-s4); margin-bottom: var(--kompa-s3); font-size: 14px; }
 .mob-alerte__tete { color: var(--kompa-rouille); font-weight: 700; }
 .mob-tuiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--kompa-s2); }
 .mob-tuile { background: var(--kompa-brume); border-radius: var(--kompa-radius); padding: var(--kompa-s3); }
@@ -781,8 +782,12 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
 .apercu-theme--neon { background: linear-gradient(180deg, #7A1F6E 0, #FF3D8B 25%, #FF8A3D 40%, #140A26 40%); }
 </style>
   <script>
-    /* Thème choisi sur cet appareil (Paramètres › Apparence), appliqué avant l'affichage. */
-    try { if (localStorage.getItem('ka.theme') === 'neon') document.documentElement.setAttribute('data-theme', 'neon'); } catch (e) { /* indisponible */ }
+    /* Thème choisi (Paramètres › Apparence), gardé sur le compte et appliqué avant l'affichage. */
+    (function () {
+      var serveur = 'THEME_SERVEUR', t = /^(neon|kompa)$/.test(serveur) ? serveur : '';
+      try { if (!t) t = localStorage.getItem('ka.theme') || ''; else localStorage.setItem('ka.theme', t); } catch (e) { /* indisponible */ }
+      if (t === 'neon') document.documentElement.setAttribute('data-theme', 'neon');
+    })();
   </script>
 </head>
 <body>
@@ -836,7 +841,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
   var LECTURES = ['apiEtat', 'apiParametres', 'apiCompteurCA', 'apiAccueil', 'apiAffaires', 'apiAffaire', 'apiVeille',
     'apiEcheancier', 'apiSuivi', 'apiCourrier', 'apiEmailApercu', 'apiTableau', 'apiEnseignements', 'apiFiscal', 'apiPieces',
     'apiEstReferentiels', 'apiEstAccueil', 'apiEstAffaire', 'apiEstIndices', 'apiEstIndiceHistorique', 'apiEstActualiser',
-    'apiEstBibliotheque', 'apiEstAnalyserPostes', 'apiEstRatios', 'apiEstFormulaire', 'apiEstApercu', 'apiEstEstimation', 'apiPrevisionnel', 'apiFinances', 'apiRecherche', 'apiQontoEtat'];
+    'apiEstBibliotheque', 'apiEstAnalyserPostes', 'apiEstRatios', 'apiEstFormulaire', 'apiEstApercu', 'apiEstEstimation', 'apiPrevisionnel', 'apiFinances', 'apiRecherche', 'apiQontoEtat', 'apiTheme'];
 
   function appel(nom) {
     var args = Array.prototype.slice.call(arguments, 1);
@@ -1173,6 +1178,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     if (t === 'neon') document.documentElement.setAttribute('data-theme', 'neon');
     else document.documentElement.removeAttribute('data-theme');
     try { localStorage.setItem('ka.theme', t); } catch (e) { /* indisponible */ }
+    appel('apiTheme', t).catch(function () { /* gardé au moins sur cet appareil */ });
   }
   function blocApparence() {
     var t = themeActuel();
@@ -1182,7 +1188,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     };
     return '<section class="groupe-param" id="apparence"><h2>Apparence</h2><div class="choix-theme">' +
       opt('kompa', 'Kompa', 'Charte Kompa Ingénierie (par défaut)') + opt('neon', 'Néon Sunset', 'Fond nuit, coucher de soleil néon') +
-      '</div><p class="legende">Choix mémorisé sur cet appareil (ordinateur ou téléphone) ; les e-mails et les fichiers exportés gardent la charte Kompa.</p></section>';
+      '</div><p class="legende">Choix gardé sur votre compte (ordinateur et téléphone, même après une mise à jour de l\'app) ; les e-mails et les fichiers exportés gardent la charte Kompa.</p></section>';
   }
   document.addEventListener('change', function (ev) {
     if (ev.target.matches && ev.target.matches('[data-theme-choix]')) { choisirTheme(ev.target.value); toast('Thème « ' + (ev.target.value === 'neon' ? 'Néon Sunset' : 'Kompa') + ' » appliqué.'); }
@@ -2785,6 +2791,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     var debutAn = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
     return Math.ceil(((t - debutAn) / 86400000 + 1) / 7);
   }
+  K.semaine = semaine;
   function badgeSemaine(v) { var n = semaine(v); return n ? ' <span class="semaine mono" title="Semaine ' + n + '">S' + n + '</span>' : ''; }
 
   function rendre(el, r) {
@@ -4176,6 +4183,17 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     var alertes = ((d.etat && d.etat.alertes) || []).map(function (a) {
       return '<div class="mob-alerte"><strong>Mise à jour incomplète.</strong> ' + esc(a) + '</div>';
     }).join('');
+    // Paiements en retard (intérêts moratoires) et seuils de CA dépassés dans le prévisionnel
+    alertes += ((d.alertes && d.alertes.retards) || []).map(function (r) {
+      return '<div class="mob-alerte"><div class="mob-alerte__tete">Paiement en retard · +' + r.jours + ' j</div>' +
+        '<div><strong>' + esc(r.acheteur) + '</strong>' + (r.tranche && r.tranche !== 'MISSION' ? ' · tranche ' + esc(r.tranche) : '') + '</div>' +
+        '<div class="mob-legende">Facture ' + esc(r.numero) + ' · ' + K.euros(r.montant) + ' · intérêts ≈ ' + K.euros(r.interets) + ' + ' + K.euros(r.indemnite) + '</div></div>';
+    }).join('');
+    alertes += ((d.alertes && d.alertes.seuils) || []).map(function (t) {
+      return '<div class="mob-alerte"><div class="mob-alerte__tete">Chiffre d\'affaires</div><div>' + esc(t) + '</div></div>';
+    }).join('');
+    var maj = d.etat && d.etat.majAuto;
+    if (maj && maj.changements && maj.changements.length) alertes += '<div class="mob-info">Classeur complété automatiquement (version ' + esc(maj.version) + ') : ' + esc(maj.changements.join(' ; ')) + '.</div>';
     var remises = s.echeances.filter(function (e) { return e.type === 'Remise' && e.jours >= 0 && e.jours <= 3; });
     alertes += remises.map(function (e) {
       return '<div class="mob-alerte"><div class="mob-alerte__tete">Remise ' + esc(quand(e.jours)) + ' · <span class="mono">' + jour(e.date) + '</span></div>' +
@@ -4247,7 +4265,10 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       return '<li><div class="mob-ligne__tete"><strong>' + esc(p.libelle) + '</strong><span class="statut ' + (ETATS_DECL[p.etat] || 'statut--neutre') + '">' + esc(p.etat) + '</span></div>' +
         '<div class="mob-legende">CA <span class="mono">' + (p.ca === null || p.ca === undefined ? '—' : K.euros(p.ca)) + '</span> · à payer ≈ <span class="mono">' + total + '</span>' +
         (p.echeance ? ' · avant le <span class="mono">' + jour(p.echeance) + '</span>' : '') + '</div></li>';
-    }).join('') + (f.cfe ? '<li><div class="mob-ligne__tete"><strong>CFE ' + f.cfe.annee + '</strong><span class="statut ' + (f.cfe.etat === 'payée' ? 'statut--ok' : f.cfe.etat === 'en retard' ? 'statut--ko' : f.cfe.etat === 'à payer' ? 'statut--alerte' : 'statut--neutre') + '">' + esc(f.cfe.etat) + '</span></div>' +
+    }).join('') + (f.revenus && f.revenus.etat !== 'non due' ? '<li><div class="mob-ligne__tete"><strong>Déclaration de revenus ' + f.revenus.annee + '</strong>' +
+      '<span class="statut ' + ({ 'à faire': 'statut--alerte', 'en retard': 'statut--ko', 'faite': 'statut--ok' }[f.revenus.etat] || 'statut--neutre') + '">' + esc(f.revenus.etat) + '</span></div>' +
+      '<div class="mob-legende">CA ' + f.revenus.anneeCa + ' à reporter : <span class="mono">' + K.euros(f.revenus.ca) + '</span> · avant le <span class="mono">' + jour(f.revenus.echeance) + '</span></div></li>' : '') +
+      (f.cfe ? '<li><div class="mob-ligne__tete"><strong>CFE ' + f.cfe.annee + '</strong><span class="statut ' + (f.cfe.etat === 'payée' ? 'statut--ok' : f.cfe.etat === 'en retard' ? 'statut--ko' : f.cfe.etat === 'à payer' ? 'statut--alerte' : 'statut--neutre') + '">' + esc(f.cfe.etat) + '</span></div>' +
       '<div class="mob-legende">' + (f.cfe.montant !== null ? (f.cfe.estime ? 'estimée ' : '') + '<span class="mono">' + K.euros(f.cfe.montant) + '</span> · ' : '') + (f.cfe.motif ? esc(f.cfe.motif) + ' · ' : '') + 'avant le <span class="mono">' + jour(f.cfe.echeance) + '</span></div></li>' : '') + '</ul>';
 
     el.innerHTML = '<div class="mob">' +
@@ -4255,7 +4276,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
         '<button type="button" class="mob-actualiser" data-actualiser aria-label="Actualiser">' +
         '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>' +
       alertes + tuiles +
-      carte('À faire cette semaine', aFaire, 'mob-afaire') +
+      carte('À faire cette semaine' + (K.semaine ? ' · S' + K.semaine(maintenant) : ''), aFaire, 'mob-afaire') +
       carte('Chiffre d\'affaires ' + ca.annee, caBloc, 'mob-ca') +
       (d.previsionnel ? carte('CA prévisionnel', '<ul class="mob-liste mob-liste--serree">' + d.previsionnel.annees.slice(0, 3).map(function (an) {
         var micro = an.seuils.filter(function (s) { return s.cle === 'seuil.micro_plafond'; })[0];

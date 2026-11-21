@@ -45,6 +45,7 @@
     var debutAn = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
     return Math.ceil(((t - debutAn) / 86400000 + 1) / 7);
   }
+  K.semaine = semaine;
   function badgeSemaine(v) { var n = semaine(v); return n ? ' <span class="semaine mono" title="Semaine ' + n + '">S' + n + '</span>' : ''; }
 
   function rendre(el, r) {

@@ -35,6 +35,17 @@
     var alertes = ((d.etat && d.etat.alertes) || []).map(function (a) {
       return '<div class="mob-alerte"><strong>Mise à jour incomplète.</strong> ' + esc(a) + '</div>';
     }).join('');
+    // Paiements en retard (intérêts moratoires) et seuils de CA dépassés dans le prévisionnel
+    alertes += ((d.alertes && d.alertes.retards) || []).map(function (r) {
+      return '<div class="mob-alerte"><div class="mob-alerte__tete">Paiement en retard · +' + r.jours + ' j</div>' +
+        '<div><strong>' + esc(r.acheteur) + '</strong>' + (r.tranche && r.tranche !== 'MISSION' ? ' · tranche ' + esc(r.tranche) : '') + '</div>' +
+        '<div class="mob-legende">Facture ' + esc(r.numero) + ' · ' + K.euros(r.montant) + ' · intérêts ≈ ' + K.euros(r.interets) + ' + ' + K.euros(r.indemnite) + '</div></div>';
+    }).join('');
+    alertes += ((d.alertes && d.alertes.seuils) || []).map(function (t) {
+      return '<div class="mob-alerte"><div class="mob-alerte__tete">Chiffre d\'affaires</div><div>' + esc(t) + '</div></div>';
+    }).join('');
+    var maj = d.etat && d.etat.majAuto;
+    if (maj && maj.changements && maj.changements.length) alertes += '<div class="mob-info">Classeur complété automatiquement (version ' + esc(maj.version) + ') : ' + esc(maj.changements.join(' ; ')) + '.</div>';
     var remises = s.echeances.filter(function (e) { return e.type === 'Remise' && e.jours >= 0 && e.jours <= 3; });
     alertes += remises.map(function (e) {
       return '<div class="mob-alerte"><div class="mob-alerte__tete">Remise ' + esc(quand(e.jours)) + ' · <span class="mono">' + jour(e.date) + '</span></div>' +
@@ -106,7 +117,10 @@
       return '<li><div class="mob-ligne__tete"><strong>' + esc(p.libelle) + '</strong><span class="statut ' + (ETATS_DECL[p.etat] || 'statut--neutre') + '">' + esc(p.etat) + '</span></div>' +
         '<div class="mob-legende">CA <span class="mono">' + (p.ca === null || p.ca === undefined ? '—' : K.euros(p.ca)) + '</span> · à payer ≈ <span class="mono">' + total + '</span>' +
         (p.echeance ? ' · avant le <span class="mono">' + jour(p.echeance) + '</span>' : '') + '</div></li>';
-    }).join('') + (f.cfe ? '<li><div class="mob-ligne__tete"><strong>CFE ' + f.cfe.annee + '</strong><span class="statut ' + (f.cfe.etat === 'payée' ? 'statut--ok' : f.cfe.etat === 'en retard' ? 'statut--ko' : f.cfe.etat === 'à payer' ? 'statut--alerte' : 'statut--neutre') + '">' + esc(f.cfe.etat) + '</span></div>' +
+    }).join('') + (f.revenus && f.revenus.etat !== 'non due' ? '<li><div class="mob-ligne__tete"><strong>Déclaration de revenus ' + f.revenus.annee + '</strong>' +
+      '<span class="statut ' + ({ 'à faire': 'statut--alerte', 'en retard': 'statut--ko', 'faite': 'statut--ok' }[f.revenus.etat] || 'statut--neutre') + '">' + esc(f.revenus.etat) + '</span></div>' +
+      '<div class="mob-legende">CA ' + f.revenus.anneeCa + ' à reporter : <span class="mono">' + K.euros(f.revenus.ca) + '</span> · avant le <span class="mono">' + jour(f.revenus.echeance) + '</span></div></li>' : '') +
+      (f.cfe ? '<li><div class="mob-ligne__tete"><strong>CFE ' + f.cfe.annee + '</strong><span class="statut ' + (f.cfe.etat === 'payée' ? 'statut--ok' : f.cfe.etat === 'en retard' ? 'statut--ko' : f.cfe.etat === 'à payer' ? 'statut--alerte' : 'statut--neutre') + '">' + esc(f.cfe.etat) + '</span></div>' +
       '<div class="mob-legende">' + (f.cfe.montant !== null ? (f.cfe.estime ? 'estimée ' : '') + '<span class="mono">' + K.euros(f.cfe.montant) + '</span> · ' : '') + (f.cfe.motif ? esc(f.cfe.motif) + ' · ' : '') + 'avant le <span class="mono">' + jour(f.cfe.echeance) + '</span></div></li>' : '') + '</ul>';
 
     el.innerHTML = '<div class="mob">' +
@@ -114,7 +128,7 @@
         '<button type="button" class="mob-actualiser" data-actualiser aria-label="Actualiser">' +
         '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>' +
       alertes + tuiles +
-      carte('À faire cette semaine', aFaire, 'mob-afaire') +
+      carte('À faire cette semaine' + (K.semaine ? ' · S' + K.semaine(maintenant) : ''), aFaire, 'mob-afaire') +
       carte('Chiffre d\'affaires ' + ca.annee, caBloc, 'mob-ca') +
       (d.previsionnel ? carte('CA prévisionnel', '<ul class="mob-liste mob-liste--serree">' + d.previsionnel.annees.slice(0, 3).map(function (an) {
         var micro = an.seuils.filter(function (s) { return s.cle === 'seuil.micro_plafond'; })[0];

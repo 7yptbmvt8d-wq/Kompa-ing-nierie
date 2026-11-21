@@ -156,6 +156,10 @@ function creerEnvironnement(options = {}) {
       flush: () => {}
     },
     PropertiesService: {
+      getUserProperties: () => ({
+        getProperty: (k) => (('u:' + k) in proprietes ? proprietes['u:' + k] : null),
+        setProperty: (k, v) => { proprietes['u:' + k] = String(v); }
+      }),
       getScriptProperties: () => ({
         getProperty: (k) => (k in proprietes ? proprietes[k] : null),
         setProperty: (k, v) => { proprietes[k] = String(v); },

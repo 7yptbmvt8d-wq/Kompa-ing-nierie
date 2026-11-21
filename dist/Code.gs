@@ -5036,16 +5036,35 @@ function doGet() {
   MiseAJour_verifier_(); // classeur complété si le code vient d'être mis à jour (ajouts seulement)
   // Application pour ordinateur (Windows, macOS, ChromeOS). Sur téléphone, seul l'Accueil (tableau de bord)
   // est adapté à l'écran (décision du 18/11/2026) ; les autres écrans gardent la mise en page ordinateur.
-  var sortie = HtmlService.createTemplateFromFile('Index')
-    .evaluate()
-    .setTitle(APP.NOM)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  var sortie = HtmlService.createTemplateFromFile('Index').evaluate();
+  // Thème du compte, appliqué avant l'affichage (repère THEME_SERVEUR de Index.html)
+  try { sortie.setContent(sortie.getContent().replace("'THEME_SERVEUR'", "'" + Theme_lire_() + "'")); } catch (e) { /* thème du navigateur */ }
+  sortie.setTitle(APP.NOM).addMetaTag('viewport', 'width=device-width, initial-scale=1');
   try {
     sortie.setFaviconUrl(Params_texte('app.favicon_url', '') || APP.FAVICON);
   } catch (e) {
     // Classeur pas encore installé : la page s'affiche quand même et signale l'erreur.
   }
   return sortie;
+}
+
+/**
+ * Thème de l'interface (Paramètres › Apparence) : gardé sur le compte, pas seulement dans le navigateur
+ * (la mémoire du navigateur repart à zéro à chaque nouvelle version de l'app). « kompa » ou « neon ».
+ */
+function Theme_lire_() {
+  try {
+    var t = PropertiesService.getUserProperties().getProperty('KA_THEME');
+    return t === 'neon' || t === 'kompa' ? t : '';
+  } catch (e) { return ''; }
+}
+
+function apiTheme(theme) {
+  return repondre_(function () {
+    if (theme !== 'neon' && theme !== 'kompa') throw new Error('Thème inconnu : ' + theme);
+    PropertiesService.getUserProperties().setProperty('KA_THEME', theme);
+    return theme;
+  });
 }
 
 /** Inclusion d'un fichier HTML dans le gabarit : <?!= include('Styles'); ?> */
