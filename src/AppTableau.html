@@ -182,6 +182,11 @@
     var eur = function (x) { return x ? K.euros(x) : '<span class="vide">—</span>'; };
     var annees = p.annees;
     var colonnes = annees.map(function (a) { return '<th scope="col" class="num">' + a.annee + '</th>'; }).join('');
+    var jours = function (x) { return x ? '<span class="mono">' + String(x).replace('.', ',') + ' j</span>' : '<span class="vide">—</span>'; };
+    var ligneJ = function (lib, cle, aide) {
+      return '<tr><th scope="row">' + lib + (aide ? '<div class="legende">' + aide + '</div>' : '') + '</th>' +
+        annees.map(function (a) { return '<td class="num">' + jours(a[cle]) + '</td>'; }).join('') + '</tr>';
+    };
     var ligne = function (lib, cle, gras, aide) {
       return '<tr' + (gras ? ' class="ligne-total"' : '') + '><th scope="row">' + lib + (aide ? '<div class="legende">' + aide + '</div>' : '') + '</th>' +
         annees.map(function (a) { return '<td class="num mono">' + eur(a[cle]) + '</td>'; }).join('') + '</tr>';
@@ -200,7 +205,11 @@
       return '<tr><td><a href="#affaire/' + esc(a.id) + '" class="mono">' + esc(a.id) + '</a><div><strong>' + esc(a.acheteur) + '</strong></div><div class="legende">' + esc(a.objet) + '</div></td>' +
         '<td>' + esc(a.statut === 'Déposée' ? 'Déposée (potentiel)' : a.statut) + '</td>' +
         '<td class="num mono">' + eur(a.base) + '<div class="legende">encaissé ' + K.euros(a.encaisse) + '</div></td>' +
-        annees.map(function (y) { return '<td class="num mono">' + eur(a.parAnnee[y.annee]) + '</td>'; }).join('') +
+        '<td class="num">' + (a.joursEstimes ? '<strong class="mono">' + String(a.joursEstimes).replace('.', ',') + ' j</strong>' +
+          '<div class="legende">' + (a.prixJour ? K.euros(a.prixJour) + '/j · ' : '') + esc(a.joursSource) + '</div>' : '<span class="statut statut--alerte">jours non saisis</span>') + '</td>' +
+        annees.map(function (y) {
+          return '<td class="num mono">' + eur(a.parAnnee[y.annee]) + (a.joursParAnnee[y.annee] ? '<div class="legende">' + String(a.joursParAnnee[y.annee]).replace('.', ',') + ' j</div>' : '') + '</td>';
+        }).join('') +
         '<td>' + (a.aPreciser ? '<span class="statut statut--alerte">répartition à préciser</span>' : '') +
           (a.remarques.length ? '<div class="legende">' + esc(a.remarques.join(' ; ')) + '</div>' : '') + '</td></tr>';
     }).join('');
@@ -212,10 +221,12 @@
         ligne('CA certain', 'certain', true) +
         ligne('Potentiel', 'potentiel', false, 'offres déposées, si elles sont gagnées') +
         ligne('Avec potentiel', 'total', true) +
+        ligneJ('Jours à produire', 'joursPrevu', 'affaires gagnées : montant de l\'année / prix par jour') +
+        ligneJ('Jours potentiels', 'joursPotentiel', 'offres déposées') +
         lignesSeuils +
       '</tbody></table></div>' +
       '<h2 class="sous-titre">Détail par affaire</h2>' +
-      (affaires ? '<div class="tableau-conteneur"><table><thead><tr><th scope="col">Affaire</th><th scope="col">Statut</th><th scope="col" class="num">Montant HT</th>' + colonnes +
+      (affaires ? '<div class="tableau-conteneur"><table><thead><tr><th scope="col">Affaire</th><th scope="col">Statut</th><th scope="col" class="num">Montant HT</th><th scope="col" class="num">Jours</th>' + colonnes +
         '<th scope="col">Remarques</th></tr></thead><tbody>' + affaires + '</tbody></table></div>' : '<p class="vide">Aucune affaire gagnée ou déposée.</p>') +
       '<p class="legende">Seuils comparés au CA certain (encaissé + prévu). Le potentiel n\'est pas pondéré. Seuils modifiables dans Paramètres (seuil.*).</p>';
   }

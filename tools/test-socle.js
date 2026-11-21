@@ -256,6 +256,14 @@ test('CA prévisionnel : encaissé, prévu (gagnées, répartition par année, r
   assert.strictEqual(an(2028).prevu, 30000);
   const af = (id) => p.affaires.find((x) => x.id === id);
   assert.deepStrictEqual(af(g).parAnnee, { 2027: 10000, 2028: 30000 });
+  // Jours : 44 000 € sans jours saisis ni prix de journée → non calculables ; avec 110 j à 400 €/j → 25 j en 2027, 75 j en 2028
+  assert.strictEqual(af(g).joursEstimes, 0);
+  A.Affaires_maj(g, { jours_par_tranche: 'TF : 50 j\nTO1 : 60 j', prix_jour: 400 });
+  const pj = brut(A.Previsionnel_ca(quand));
+  const afj = pj.affaires.find((x) => x.id === g);
+  assert.deepStrictEqual([afj.jours, afj.prixJour, afj.joursSource], [110, 400, 'jours par tranche']);
+  assert.deepStrictEqual(afj.joursParAnnee, { 2027: 25, 2028: 75 });
+  assert.strictEqual(pj.annees.find((x) => x.annee === 2027).joursPrevu, 25);
   assert.strictEqual(af(g2).aPreciser, true);
   assert.strictEqual(af(g).aPreciser, false);
   // Seuils : 2027 dépasse la franchise de TVA avec le potentiel, pas sans

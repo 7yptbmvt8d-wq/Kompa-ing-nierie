@@ -3320,7 +3320,7 @@ function Previsionnel_ca(quand) {
       encaisseAffaire[f.id_affaire][an] = (encaisseAffaire[f.id_affaire][an] || 0) + paye;
     }
   });
-  var prevu = {}, potentiel = {}, annees = {};
+  var prevu = {}, potentiel = {}, annees = {}, joursPrevu = {}, joursPotentiel = {};
   for (var y = anneeCourante; y <= anneeCourante + PREVISIONNEL_HORIZON; y++) annees[y] = true;
   var affaires = [];
   Affaires_lister().forEach(function (a) {
@@ -3332,12 +3332,26 @@ function Previsionnel_ca(quand) {
     var rep = Previsionnel_repartir_(base, deja, a.repartition_ca, anneeCourante);
     var cible = gagnee ? prevu : potentiel;
     Object.keys(rep.parAnnee).forEach(function (k) { cible[k] = (cible[k] || 0) + rep.parAnnee[k]; annees[k] = true; });
+    // Jours : saisis dans « Jours par tranche » ; prix de journée saisi, à défaut montant / jours.
+    // Jours d'une année = montant de l'année / prix de journée.
+    var joursTotal = Affaires_joursTotal_(a.jours_par_tranche);
+    var prixJour = Number(a.prix_jour) || (joursTotal > 0 && base > 0 ? base / joursTotal : 0);
+    var cibleJ = gagnee ? joursPrevu : joursPotentiel;
+    var joursParAnnee = {};
+    if (prixJour > 0) Object.keys(rep.parAnnee).forEach(function (k) {
+      if (!(rep.parAnnee[k] > 0.005)) return;
+      joursParAnnee[k] = Math.round(rep.parAnnee[k] / prixJour * 10) / 10;
+      cibleJ[k] = (cibleJ[k] || 0) + rep.parAnnee[k] / prixJour;
+    });
     if (!base) rep.remarques.push(gagnee ? 'montant notifié manquant' : 'montant de l\'offre manquant');
     affaires.push({
       id: a.id, acheteur: a.acheteur, objet: a.objet, statut: a.statut, base: arrondi_(base),
       encaisse: arrondi_(Object.keys(deja).reduce(function (s, k) { return s + deja[k]; }, 0)),
       parAnnee: Object.keys(rep.parAnnee).reduce(function (o, k) { if (rep.parAnnee[k] > 0.005) o[k] = arrondi_(rep.parAnnee[k]); return o; }, {}),
-      aPreciser: rep.aPreciser && base > 0, remarques: rep.remarques, repartition: String(a.repartition_ca || '')
+      aPreciser: rep.aPreciser && base > 0, remarques: rep.remarques, repartition: String(a.repartition_ca || ''),
+      jours: joursTotal, joursSource: joursTotal > 0 ? 'jours par tranche' : (prixJour > 0 ? 'montant / prix par jour' : ''),
+      joursEstimes: joursTotal > 0 ? joursTotal : (prixJour > 0 && base > 0 ? Math.round(base / prixJour * 10) / 10 : 0),
+      prixJour: Math.round(prixJour * 100) / 100, joursParAnnee: joursParAnnee
     });
   });
   var seuils = Previsionnel_seuils_();
@@ -3348,6 +3362,7 @@ function Previsionnel_ca(quand) {
     return {
       annee: an, encaisse: arrondi_(enc), prevu: arrondi_(prevu[an] || 0), certain: arrondi_(certain),
       potentiel: arrondi_(potentiel[an] || 0), total: arrondi_(total),
+      joursPrevu: Math.round((joursPrevu[an] || 0) * 10) / 10, joursPotentiel: Math.round((joursPotentiel[an] || 0) * 10) / 10,
       seuils: seuils.map(function (s) {
         return { cle: s.cle, libelle: s.libelle, seuil: s.seuil, etat: etat_(certain, s.seuil, alerte), etatTotal: etat_(total, s.seuil, alerte) };
       })
