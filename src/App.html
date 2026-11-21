@@ -219,7 +219,7 @@
       '<div class="chargement">Lecture des paramètres…</div>';
 
     charger('parametres', 'apiParametres', [], function (groupes) {
-      var html = titre('Paramètres', 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.');
+      var html = titre('Paramètres', 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.') + blocApparence();
       groupes.forEach(function (g) {
         html += '<section class="groupe-param"><h2>' + esc(g.titre) + '</h2>' + paramsPC(g.parametres) + '</section>';
       });
@@ -229,6 +229,27 @@
       el.innerHTML = titre('Paramètres', '') + bandeauErreur(e);
     });
   }
+
+  // ——— Apparence : thème au choix, mémorisé sur l'appareil ———
+  function themeActuel() { return document.documentElement.getAttribute('data-theme') === 'neon' ? 'neon' : 'kompa'; }
+  function choisirTheme(t) {
+    if (t === 'neon') document.documentElement.setAttribute('data-theme', 'neon');
+    else document.documentElement.removeAttribute('data-theme');
+    try { localStorage.setItem('ka.theme', t); } catch (e) { /* indisponible */ }
+  }
+  function blocApparence() {
+    var t = themeActuel();
+    var opt = function (v, lib, detail) {
+      return '<label><input type="radio" name="theme" value="' + v + '"' + (t === v ? ' checked' : '') + ' data-theme-choix>' +
+        '<span class="apercu-theme apercu-theme--' + v + '"></span><span><strong>' + lib + '</strong><br><span class="legende">' + detail + '</span></span></label>';
+    };
+    return '<section class="groupe-param" id="apparence"><h2>Apparence</h2><div class="choix-theme">' +
+      opt('kompa', 'Kompa', 'Charte Kompa Ingénierie (par défaut)') + opt('neon', 'Néon Sunset', 'Fond nuit, coucher de soleil néon') +
+      '</div><p class="legende">Choix mémorisé sur cet appareil (ordinateur ou téléphone) ; les e-mails et les fichiers exportés gardent la charte Kompa.</p></section>';
+  }
+  document.addEventListener('change', function (ev) {
+    if (ev.target.matches && ev.target.matches('[data-theme-choix]')) { choisirTheme(ev.target.value); toast('Thème « ' + (ev.target.value === 'neon' ? 'Néon Sunset' : 'Kompa') + ' » appliqué.'); }
+  });
 
   function paramsPC(params) {
     return '<div class="tableau-conteneur"><table>' +
@@ -352,7 +373,7 @@
   window.KA = {
     appel: appel, $: $, $$: $$, esc: esc, toast: toast, titre: titre, bandeauErreur: bandeauErreur,
     dateHeure: dateHeure, euros: euros, ecrans: ECRANS, afficher: afficher,
-    charger: charger, viderMemoire: viderMemoire, basculerVue: basculerVue
+    charger: charger, viderMemoire: viderMemoire, basculerVue: basculerVue, choisirTheme: choisirTheme, themeActuel: themeActuel
   };
   // Démarrage une fois tous les scripts chargés : les écrans des autres lots s'enregistrent avant.
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer);

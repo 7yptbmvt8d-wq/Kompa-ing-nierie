@@ -419,6 +419,41 @@ function assembler() {
     assert.deepStrictEqual(tel.erreurs, [], 'erreurs JavaScript au téléphone : ' + tel.erreurs.join(' | '));
   }
 
+  // ——— Thème « Néon Sunset » : choix dans Paramètres › Apparence, mémorisé, appliqué à tous les écrans ———
+  {
+    const n = await ouvrir({ viewport: { width: 1366, height: 900 }, deviceScaleFactor: 1 });
+    const np = n.page;
+    await np.waitForSelector('#carte-ca table');
+    await np.click('nav a[href="#parametres"]');
+    await np.waitForSelector('#apparence [data-theme-choix][value="neon"]');
+    await np.check('#apparence [data-theme-choix][value="neon"]');
+    assert.strictEqual(await np.evaluate(() => document.documentElement.getAttribute('data-theme')), 'neon');
+    assert.strictEqual(await np.evaluate(() => localStorage.getItem('ka.theme')), 'neon');
+    for (const [ecran, attente] of [['#accueil', '#carte-ca table'], ['#veille', 'table'], ['#affaires', '.fiche-tete, table, .kanban, [data-ouvrir]'], ['#echeancier', 'table, .calendrier, .cal'], ['#estimation', '.sous-nav']]) {
+      await np.click(`nav a[href="${ecran}"]`);
+      await np.waitForSelector(attente);
+      await np.waitForTimeout(300);
+      await np.screenshot({ path: path.join(sortie, 'neon-' + ecran.slice(1) + '.png'), fullPage: ecran === '#accueil' });
+    }
+    await np.click('nav a[href="#affaires"]');
+    await np.click('[data-vue="liste"]');
+    await np.click(`[data-ouvrir="${w1}"]`);
+    await np.waitForSelector('.fiche-tete');
+    await np.screenshot({ path: path.join(sortie, 'neon-fiche.png') });
+    // Retour à la charte Kompa
+    await np.click('nav a[href="#parametres"]');
+    await np.check('#apparence [data-theme-choix][value="kompa"]');
+    assert.strictEqual(await np.evaluate(() => document.documentElement.getAttribute('data-theme')), null);
+    assert.deepStrictEqual(n.erreurs, [], 'erreurs JavaScript (thème) : ' + n.erreurs.join(' | '));
+    // Téléphone : thème mémorisé, bascule depuis le pied de la vue smartphone
+    const t = await ouvrir({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    await t.page.waitForSelector('.mob-tuiles');
+    await t.page.click('[data-theme-mobile]');
+    assert.strictEqual(await t.page.evaluate(() => document.documentElement.getAttribute('data-theme')), 'neon');
+    await t.page.screenshot({ path: path.join(sortie, 'neon-tel.png'), fullPage: true });
+    assert.ok(await t.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'thème néon : pas de débordement au téléphone');
+  }
+
   await navigateur.close();
   const erreurs = pc.erreurs;
   assert.deepStrictEqual(erreurs, [], 'erreurs JavaScript : ' + erreurs.join(' | '));

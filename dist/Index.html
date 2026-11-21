@@ -513,6 +513,124 @@ body.mode-mobile main { padding: 0 var(--kompa-s4) calc(var(--kompa-s6) + env(sa
 .mob-barre__piste span { display: block; height: 10px; min-width: 2px; background: var(--kompa-ardoise); border-radius: 0 4px 4px 0; }
 .mob-pied { text-align: center; color: var(--kompa-gris); font-size: 12px; margin: var(--kompa-s6) 0 0; }
 </style>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
+<style>
+/* Thème au choix « Néon Sunset » (décision du 21/11/2026) — habillage original, ambiance néon / coucher de soleil.
+   Activé par <html data-theme="neon"> (choix mémorisé sur l'appareil, Paramètres › Apparence).
+   Ne redéfinit que les variables de Tokens.html et quelques décors : la charte Kompa reste le thème par défaut. */
+html[data-theme="neon"] {
+  color-scheme: dark;
+  --kompa-encre: #FFF4EC;
+  --kompa-ardoise: #FF5C9E;            /* titres, boutons, accents (5,8:1 sur la nuit) */
+  --kompa-rouille: #FFB35C;
+  --kompa-rouille-clair: #FFD36E;
+  --kompa-papier: #140A26;
+  --kompa-brume: #2A1748;
+  --kompa-gris: #BBA8D8;
+  --kompa-filet: #3D2763;
+  --kompa-blanc: #140A26;              /* fond de page */
+  --kompa-texte-inverse: #140A26;      /* texte sur boutons roses */
+  --kompa-texte-inverse-2: #4A2C70;
+  --app-statut-gagnee: #4BE3AE;   --app-statut-gagnee-fond: #12382F;
+  --app-statut-perdue: #FF7A98;   --app-statut-perdue-fond: #3D1430;
+  --app-focus: #24E0C9;
+  --neon-turq: #24E0C9; --neon-or: #FFD36E; --neon-orange: #FF8A3D; --neon-rose: #FF3D8B; --neon-carte: #21103D;
+  --neon-titre: "Anton", Impact, "Arial Narrow", sans-serif;
+}
+html[data-theme="neon"] body { background: var(--kompa-blanc); }
+
+/* En-tête : ciel du soir */
+html[data-theme="neon"] .entete {
+  background: linear-gradient(90deg, #2A0F4F 0%, #7A1F6E 38%, #FF3D8B 72%, #FF8A3D 92%, #FFD36E 100%);
+  box-shadow: 0 2px 18px rgba(255, 61, 139, .45);
+}
+html[data-theme="neon"] .marque__nom { font-family: var(--neon-titre); font-weight: 400; font-size: 22px; letter-spacing: .04em; color: #FFF4EC; text-shadow: 2px 2px 0 #140A26; }
+html[data-theme="neon"] .marque__nom span { color: #FFD36E; font-weight: 400; }
+html[data-theme="neon"] .nav a { color: rgba(255, 244, 236, .85); text-transform: uppercase; letter-spacing: .06em; font-size: 13px; font-weight: 600; }
+html[data-theme="neon"] .nav a:hover, html[data-theme="neon"] .nav a[aria-current="page"] { color: #FFF4EC; }
+html[data-theme="neon"] .nav a[aria-current="page"] { border-bottom-color: var(--neon-turq); }
+html[data-theme="neon"] .retour-mobile { border-color: #FFF4EC; color: #FFF4EC; }
+
+/* Titres */
+html[data-theme="neon"] .titre-ecran h1 {
+  font-family: var(--neon-titre); font-weight: 400; font-size: 46px; letter-spacing: .02em; text-transform: uppercase; transform: skew(-6deg);
+  background: linear-gradient(180deg, #FFFFFF 0%, #FFD36E 55%, #FF8A3D 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(3px 3px 0 #4A0F3C);
+}
+html[data-theme="neon"] h2, html[data-theme="neon"] .fiche-bloc__titre, html[data-theme="neon"] .mob-carte h2 {
+  font-family: var(--neon-titre); font-weight: 400; letter-spacing: .04em; text-transform: uppercase; color: #FFF4EC;
+}
+html[data-theme="neon"] .groupe-param, html[data-theme="neon"] .mob-carte { border-top-color: var(--neon-rose); }
+
+/* Cartes et tuiles */
+html[data-theme="neon"] .carte, html[data-theme="neon"] .tuile, html[data-theme="neon"] .mob-tuile, html[data-theme="neon"] .synthese > div {
+  background: var(--neon-carte); border-color: transparent; box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+}
+html[data-theme="neon"] .tuile, html[data-theme="neon"] .mob-tuile { border-top: 4px solid var(--neon-turq); }
+html[data-theme="neon"] .tuiles .tuile:nth-child(4n+2), html[data-theme="neon"] .mob-tuiles .mob-tuile:nth-child(4n+2) { border-top-color: var(--neon-rose); }
+html[data-theme="neon"] .tuiles .tuile:nth-child(4n+3), html[data-theme="neon"] .mob-tuiles .mob-tuile:nth-child(4n+3) { border-top-color: var(--neon-orange); }
+html[data-theme="neon"] .tuiles .tuile:nth-child(4n), html[data-theme="neon"] .mob-tuiles .mob-tuile:nth-child(4n) { border-top-color: var(--neon-or); }
+html[data-theme="neon"] .tuile__valeur, html[data-theme="neon"] .mob-tuile__val, html[data-theme="neon"] .ca-chiffre__valeur {
+  font-family: var(--neon-titre); font-weight: 400; color: #FFF4EC; letter-spacing: .01em;
+}
+html[data-theme="neon"] .ca-chiffre__valeur--second, html[data-theme="neon"] .mob-ca__val--2 { color: var(--kompa-gris); }
+
+/* Tableaux */
+html[data-theme="neon"] thead th { background: #2A1748; color: var(--neon-or); text-transform: uppercase; letter-spacing: .06em; font-size: 12px; }
+html[data-theme="neon"] .ligne-total td { background: #2A1748; }
+
+/* Boutons et champs */
+html[data-theme="neon"] .bouton { background: linear-gradient(90deg, #FF3D8B, #FF8A3D); border-color: transparent; color: #140A26; box-shadow: 0 0 14px rgba(255, 61, 139, .35); }
+html[data-theme="neon"] .bouton--discret { background: transparent; border: 1px solid var(--neon-rose); color: #FFF4EC; box-shadow: none; }
+html[data-theme="neon"] .bouton:disabled { background: #2A1748; color: var(--kompa-gris); box-shadow: none; }
+html[data-theme="neon"] .champ { background: #1A0D33; color: #FFF4EC; border-color: #4A2C70; }
+html[data-theme="neon"] .champ::placeholder { color: #8C78AE; }
+html[data-theme="neon"] .champ:focus { border-color: var(--neon-turq); box-shadow: 0 0 0 2px rgba(36, 224, 201, .3); }
+
+/* Jauges, barres, alertes */
+html[data-theme="neon"] .jauge { background: #2A1748; }
+html[data-theme="neon"] .jauge__engage { background: rgba(255, 211, 110, .35); }
+html[data-theme="neon"] .jauge__encaisse { background: linear-gradient(90deg, var(--neon-turq), var(--neon-or), var(--neon-rose)); }
+html[data-theme="neon"] .jauge__repere { background: #FFF4EC; }
+html[data-theme="neon"] .barre__valeur-trait, html[data-theme="neon"] .mob-barre__piste span { background: linear-gradient(90deg, var(--neon-rose), var(--neon-orange)); }
+html[data-theme="neon"] .bandeau { background: #2A1748; }
+html[data-theme="neon"] .encadre-remise, html[data-theme="neon"] .mob-alerte, html[data-theme="neon"] .bandeau--erreur {
+  background: linear-gradient(90deg, rgba(255, 61, 139, .22), rgba(255, 138, 61, .08)); border-color: var(--neon-rose); box-shadow: 0 0 20px rgba(255, 61, 139, .3);
+}
+html[data-theme="neon"] .mob-alerte__tete { color: var(--neon-rose); }
+html[data-theme="neon"] .statut--alerte { background: transparent; color: var(--neon-or); box-shadow: inset 0 0 0 1px var(--neon-or); }
+html[data-theme="neon"] .ech--livrable { background: #3A1F14; color: var(--neon-or); }
+html[data-theme="neon"] .ech--remise { background: var(--neon-rose); color: #140A26; }
+
+/* Panneaux, dialogues, toasts */
+html[data-theme="neon"] .dialogue, html[data-theme="neon"] .tiroir-journal { background: var(--neon-carte); color: #FFF4EC; }
+html[data-theme="neon"] .dialogue::backdrop { background: rgba(5, 2, 12, .7); }
+html[data-theme="neon"] .toast { background: var(--neon-turq); color: #140A26; }
+html[data-theme="neon"] .toast--erreur { background: var(--neon-rose); color: #140A26; }
+html[data-theme="neon"] a { color: var(--neon-turq); }
+html[data-theme="neon"] .nav a, html[data-theme="neon"] .marque { color: #FFF4EC; }
+
+/* Vue smartphone : petit coucher de soleil en tête */
+html[data-theme="neon"] body.mode-mobile .mob-tete {
+  margin: 0 calc(-1 * var(--kompa-s4)); padding: var(--kompa-s4);
+  background: linear-gradient(180deg, #2A0F4F 0%, #7A1F6E 45%, #FF3D8B 80%, #FF8A3D 100%);
+}
+html[data-theme="neon"] .mob-surtitre { color: #FFD36E; }
+html[data-theme="neon"] .mob-date { font-family: var(--neon-titre); font-weight: 400; font-size: 28px; color: #FFF4EC; text-transform: uppercase; text-shadow: 2px 2px 0 #140A26; }
+html[data-theme="neon"] .mob-actualiser { background: rgba(20, 10, 38, .5); color: #FFF4EC; border-color: #FFF4EC; }
+
+/* Choix du thème (Paramètres › Apparence, pied de la vue smartphone) */
+.choix-theme { display: flex; gap: var(--kompa-s4); flex-wrap: wrap; }
+.choix-theme label { display: flex; align-items: center; gap: var(--kompa-s3); padding: var(--kompa-s3) var(--kompa-s4); border: var(--kompa-filet-fin); border-radius: var(--kompa-radius); cursor: pointer; min-width: 16rem; }
+.choix-theme input { accent-color: var(--kompa-ardoise); }
+.apercu-theme { width: 72px; height: 40px; border-radius: 6px; flex: 0 0 auto; }
+.apercu-theme--kompa { background: linear-gradient(180deg, #1B263B 0 40%, #FFFFFF 40%); box-shadow: inset 0 0 0 1px #D5DBE5; }
+.apercu-theme--neon { background: linear-gradient(180deg, #7A1F6E 0, #FF3D8B 25%, #FF8A3D 40%, #140A26 40%); }
+</style>
+  <script>
+    /* Thème choisi sur cet appareil (Paramètres › Apparence), appliqué avant l'affichage. */
+    try { if (localStorage.getItem('ka.theme') === 'neon') document.documentElement.setAttribute('data-theme', 'neon'); } catch (e) { /* indisponible */ }
+  </script>
 </head>
 <body>
   <script>
@@ -771,7 +889,7 @@ body.mode-mobile main { padding: 0 var(--kompa-s4) calc(var(--kompa-s6) + env(sa
       '<div class="chargement">Lecture des paramètres…</div>';
 
     charger('parametres', 'apiParametres', [], function (groupes) {
-      var html = titre('Paramètres', 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.');
+      var html = titre('Paramètres', 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.') + blocApparence();
       groupes.forEach(function (g) {
         html += '<section class="groupe-param"><h2>' + esc(g.titre) + '</h2>' + paramsPC(g.parametres) + '</section>';
       });
@@ -781,6 +899,27 @@ body.mode-mobile main { padding: 0 var(--kompa-s4) calc(var(--kompa-s6) + env(sa
       el.innerHTML = titre('Paramètres', '') + bandeauErreur(e);
     });
   }
+
+  // ——— Apparence : thème au choix, mémorisé sur l'appareil ———
+  function themeActuel() { return document.documentElement.getAttribute('data-theme') === 'neon' ? 'neon' : 'kompa'; }
+  function choisirTheme(t) {
+    if (t === 'neon') document.documentElement.setAttribute('data-theme', 'neon');
+    else document.documentElement.removeAttribute('data-theme');
+    try { localStorage.setItem('ka.theme', t); } catch (e) { /* indisponible */ }
+  }
+  function blocApparence() {
+    var t = themeActuel();
+    var opt = function (v, lib, detail) {
+      return '<label><input type="radio" name="theme" value="' + v + '"' + (t === v ? ' checked' : '') + ' data-theme-choix>' +
+        '<span class="apercu-theme apercu-theme--' + v + '"></span><span><strong>' + lib + '</strong><br><span class="legende">' + detail + '</span></span></label>';
+    };
+    return '<section class="groupe-param" id="apparence"><h2>Apparence</h2><div class="choix-theme">' +
+      opt('kompa', 'Kompa', 'Charte Kompa Ingénierie (par défaut)') + opt('neon', 'Néon Sunset', 'Fond nuit, coucher de soleil néon') +
+      '</div><p class="legende">Choix mémorisé sur cet appareil (ordinateur ou téléphone) ; les e-mails et les fichiers exportés gardent la charte Kompa.</p></section>';
+  }
+  document.addEventListener('change', function (ev) {
+    if (ev.target.matches && ev.target.matches('[data-theme-choix]')) { choisirTheme(ev.target.value); toast('Thème « ' + (ev.target.value === 'neon' ? 'Néon Sunset' : 'Kompa') + ' » appliqué.'); }
+  });
 
   function paramsPC(params) {
     return '<div class="tableau-conteneur"><table>' +
@@ -904,7 +1043,7 @@ body.mode-mobile main { padding: 0 var(--kompa-s4) calc(var(--kompa-s6) + env(sa
   window.KA = {
     appel: appel, $: $, $$: $$, esc: esc, toast: toast, titre: titre, bandeauErreur: bandeauErreur,
     dateHeure: dateHeure, euros: euros, ecrans: ECRANS, afficher: afficher,
-    charger: charger, viderMemoire: viderMemoire, basculerVue: basculerVue
+    charger: charger, viderMemoire: viderMemoire, basculerVue: basculerVue, choisirTheme: choisirTheme, themeActuel: themeActuel
   };
   // Démarrage une fois tous les scripts chargés : les écrans des autres lots s'enregistrent avant.
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer);
@@ -2951,11 +3090,16 @@ body.mode-mobile main { padding: 0 var(--kompa-s4) calc(var(--kompa-s6) + env(sa
       carte('Affaires en cours', statuts) +
       carte('URSSAF ' + f.annee, urssaf) +
       '<p class="mob-pied">' + esc(d.etat ? d.etat.app + ' · v' + d.etat.version : '') + ' · données du ' + String(maintenant.getHours()).padStart(2, '0') + ':' + String(maintenant.getMinutes()).padStart(2, '0') + '<br>' +
-        '<button type="button" class="mob-lien" data-vue-ordinateur>Version ordinateur</button></p>' +
+        '<button type="button" class="mob-lien" data-vue-ordinateur>Version ordinateur</button> · ' +
+        '<button type="button" class="mob-lien" data-theme-mobile>Thème : ' + (K.themeActuel() === 'neon' ? 'Néon Sunset' : 'Kompa') + '</button></p>' +
       '</div>';
 
     $('[data-actualiser]', el).addEventListener('click', function () { K.viderMemoire(); K.mobile(el); });
     $('[data-vue-ordinateur]', el).addEventListener('click', function () { K.basculerVue('ordinateur'); });
+    $('[data-theme-mobile]', el).addEventListener('click', function () {
+      K.choisirTheme(K.themeActuel() === 'neon' ? 'kompa' : 'neon');
+      this.textContent = 'Thème : ' + (K.themeActuel() === 'neon' ? 'Néon Sunset' : 'Kompa');
+    });
   }
 
   K.mobile = function (el) {

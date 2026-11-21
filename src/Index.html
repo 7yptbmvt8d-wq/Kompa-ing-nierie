@@ -5,6 +5,11 @@
   <meta charset="utf-8">
   <?!= include('Tokens'); ?>
   <?!= include('Styles'); ?>
+  <?!= include('ThemeNeon'); ?>
+  <script>
+    /* Thème choisi sur cet appareil (Paramètres › Apparence), appliqué avant l'affichage. */
+    try { if (localStorage.getItem('ka.theme') === 'neon') document.documentElement.setAttribute('data-theme', 'neon'); } catch (e) { /* indisponible */ }
+  </script>
 </head>
 <body>
   <script>
