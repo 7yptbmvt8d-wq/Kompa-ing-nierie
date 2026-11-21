@@ -22,6 +22,7 @@ function collecteQuotidienne() {
     var ctx = Veille_contexte_();
     var bilan = [Veille_executer_(SOURCE_BOAMP, function () { return Veille_lireBoamp_(ctx); }, ctx),
       Veille_executer_(SOURCE_GMAIL, function () { return Veille_lireGmail_(ctx); }, ctx)];
+    try { Qonto_synchroniserSiConnecte_(); } catch (e) { console.error('Qonto : ' + e.message); }
     try { Relances_synchroniser(); } catch (e) { console.error('Relances : ' + e.message); }
     try { Veille_archiver_(); } catch (e) { console.error('Archivage : ' + e.message); }
     console.log(JSON.stringify(bilan));

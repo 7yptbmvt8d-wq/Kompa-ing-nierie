@@ -109,7 +109,7 @@ function Planning_affaire(idAffaire, quand) {
   if (!tranches.length) tranches = [{ tranche: PLANNING_MISSION, jours: Affaires_joursTotal_(a.jours_par_tranche) }];
   var totalJours = tranches.reduce(function (s, t) { return s + t.jours; }, 0);
   var livrables = Livrables_lister(idAffaire);
-  var factures = Db_lire(TABLES.FACTURES).filter(function (f) { return String(f.id_affaire) === String(idAffaire); });
+  var factures = Db_lire(TABLES.FACTURES).filter(function (f) { return String(f.id_affaire) === String(idAffaire) && f.qonto_statut !== 'annulée'; });
   var codes = tranches.map(function (t) { return t.tranche; });
   var etatsT = Planning_etatsTranches_(a.tranches_etat);
   var lignes = tranches.map(function (t) {
@@ -133,7 +133,7 @@ function Planning_affaire(idAffaire, quand) {
     if (f) {
       if (ligne.affermissement === 'optionnelle') ligne.affermissement = 'affermie'; // facturée : affermie de fait
       var dF = date_(f.date), dE = date_(f.date_echeance), dP = date_(f.date_encaissement);
-      ligne.facture = { id: String(f.id), numero: String(f.numero || '') };
+      ligne.facture = { id: String(f.id), numero: String(f.numero || ''), lien: String(f.lien_facture || ''), qonto: String(f.qonto_statut || '') };
       ligne.montant = arrondi_(montant_(f.montant)) || montant;
       ligne.dateFacture = dF ? jourIso_(dF) : '';
       ligne.dateEcheance = dE ? jourIso_(dE) : '';

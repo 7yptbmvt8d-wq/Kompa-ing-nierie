@@ -106,6 +106,7 @@ var PARAMETRES_DEFAUT = [
   ['echeance.rejet_relance_j', '10', 'Relance des motifs du rejet si rien reçu (jours)'],
   ['echeance.paiement_public_j', '30', 'Délai de paiement public (jours)'],
   ['facture.taux_moratoire', '10.15', 'Taux des intérêts moratoires (%) : taux de refinancement de la BCE + 8 points (art. R. 2192-31 CCP), à mettre à jour chaque semestre'],
+  ['facture.mise_en_demeure_j', '30', 'Retard de paiement (jours après l\'échéance) à partir duquel le courrier de relance devient une mise en demeure'],
   ['facture.indemnite_recouvrement', '40', 'Indemnité forfaitaire pour frais de recouvrement (€), due en cas de retard de paiement (art. D. 2192-35 CCP)'],
   ['echeance.validite_defaut_j', '90', 'Validité de l\'offre si non renseignée dans l\'affaire (jours)'],
   ['courrier.signature', 'Sébastien De Raedt EI\nKompa Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · kompa.ingenierie@gmail.com\nSIRET [n°] · TVA non applicable, art. 293 B du CGI',

@@ -37,7 +37,8 @@ function assembler() {
 (async () => {
   fs.mkdirSync(sortie, { recursive: true });
   const echantillon = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'boamp-echantillon.json'), 'utf8'));
-  const env = creerEnvironnement({ boamp: echantillon, gmail: [{ id: 'g1', sujet: 'Alerte : étude de faisabilité — salle des fêtes', de: 'Plateforme <a@b.fr>',
+  const qontoFactures = []; // API Qonto simulée (factures complétées après la création des affaires)
+  const env = creerEnvironnement({ qonto: { cle: 'kompa-demo:secret', factures: qontoFactures }, boamp: echantillon, gmail: [{ id: 'g1', sujet: 'Alerte : étude de faisabilité — salle des fêtes', de: 'Plateforme <a@b.fr>',
     corps: 'Organisme : Commune de Lurs\nCode postal 04700\nDate limite : 20/12/2026\nhttps://www.achatpublic.com/sdm/ent/gen/ent_detail.do?PCSLID=1' }] });
   const log = console.log; console.log = () => {};
   env.ctx.installer();
@@ -368,6 +369,32 @@ function assembler() {
   await p.click('.sous-nav a[href="#finances/encaissements"]');
   await p.waitForSelector('.frise .frise-piste');
   await p.screenshot({ path: path.join(sortie, 'pc-finances-encaissements.png'), fullPage: true });
+  // ——— Qonto : connexion (Paramètres › Finances), synchronisation et rattachement (Finances › Encaissements) ———
+  qontoFactures.push(
+    { id: 'q1', number: 'F-2026-10', purchase_order: w1 + ' TO1', status: 'paid', issue_date: '2026-11-02', due_date: '2026-12-02', paid_at: '2026-11-18T09:00:00Z',
+      total_amount: { value: '9600.00' }, vat_amount: { value: '0.00' }, amount_paid: { value: '9600.00' }, invoice_url: 'https://app.qonto.com/invoices/q1' },
+    { id: 'q2', number: 'F-2026-11', status: 'unpaid', issue_date: '2026-11-15', due_date: '2026-12-15', total_amount: { value: '1200.00' }, vat_amount: { value: '0.00' } });
+  await p.evaluate(() => window.KA.afficher('parametres/finances', true));
+  await p.waitForSelector('#bloc-qonto [data-qonto-form]');
+  await p.fill('#q-login', 'kompa-demo');
+  await p.fill('#q-secret', 'faux');
+  await p.click('#bloc-qonto button[type=submit]');
+  await p.waitForSelector('#toast:has-text("refuse la clé")');
+  await p.fill('#q-secret', 'secret');
+  await p.click('#bloc-qonto button[type=submit]');
+  await p.waitForSelector('#bloc-qonto .statut--ok');
+  await p.locator('#bloc-qonto').screenshot({ path: path.join(sortie, 'pc-parametres-qonto.png') });
+  await p.evaluate(() => window.KA.afficher('finances/encaissements', true));
+  await p.waitForSelector('[data-qonto-synchro]');
+  await p.click('[data-qonto-synchro]');
+  await p.waitForSelector('#toast:has-text("facture(s) lue(s) dans Qonto")');
+  await p.waitForSelector('[data-rattacher]');
+  assert.strictEqual(A.Db_lire(A.TABLES.FACTURES).find((f) => f.numero === 'F-2026-10').tranche, 'TO1');
+  await p.screenshot({ path: path.join(sortie, 'pc-finances-qonto.png'), fullPage: true });
+  await p.selectOption('[data-rattacher] [data-ratt-affaire]', w1);
+  await p.click('[data-rattacher] [data-ratt-ok]');
+  await p.waitForSelector('#toast:has-text("Facture rattachée")');
+  assert.strictEqual(A.Db_lire(A.TABLES.FACTURES).find((f) => f.numero === 'F-2026-11').id_affaire, w1);
   await p.click('.sous-nav a[href="#finances/urssaf"]');
   await p.waitForSelector('#carte-urssaf table');
   const nbDeclarer = await p.locator('[data-declarer]').count();

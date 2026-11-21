@@ -19,7 +19,7 @@ function Finances_encaissements_(quand) {
     });
     // Factures saisies sans tranche (avant le planning) et non payées
     Db_lire(TABLES.FACTURES).forEach(function (f) {
-      if (String(f.id_affaire) !== String(a.id) || f.tranche || date_(f.date_encaissement)) return;
+      if (String(f.id_affaire) !== String(a.id) || f.tranche || date_(f.date_encaissement) || f.qonto_statut === 'annulée') return;
       var dE = date_(f.date_echeance), dF = date_(f.date);
       var enRetard = dE && auj > aujourdhui_(dE);
       lignes.push({

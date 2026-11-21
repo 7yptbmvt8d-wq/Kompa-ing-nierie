@@ -931,6 +931,39 @@ function apiAnnulerDeclaration(idPeriode) {
 }
 
 
+// ════════ ApiQonto.js ════════
+
+/** API de l'interface : connexion à Qonto, synchronisation des factures, rattachement. */
+
+function apiQontoEtat() {
+  return repondre_(function () { return Qonto_etat(); });
+}
+
+/** Teste puis enregistre la clé API (propriétés du script, jamais le classeur). */
+function apiQontoConnecter(login, secret) {
+  return repondre_(function () { var r = Qonto_connecter(login, secret); r.etat = Qonto_etat(); return r; });
+}
+
+function apiQontoDeconnecter() {
+  return repondre_(function () { Qonto_deconnecter(); return Qonto_etat(); });
+}
+
+/** Synchronise puis renvoie le bilan, l'état Qonto et la synthèse Finances à jour. */
+function apiQontoSynchroniser() {
+  return repondre_(function () {
+    var bilan = Qonto_synchroniser();
+    return { bilan: bilan, etat: Qonto_etat(), finances: Finances_synthese() };
+  });
+}
+
+function apiQontoRattacher(idFacture, idAffaire, tranche) {
+  return repondre_(function () {
+    Qonto_rattacher(idFacture, idAffaire, tranche);
+    return { etat: Qonto_etat(), finances: Finances_synthese() };
+  });
+}
+
+
 // ════════ ApiTableau.js ════════
 
 /**
@@ -1246,10 +1279,10 @@ var TABLES = {
     prefixe: 'FA',
     colonnes: [
       'id', 'id_affaire', 'numero', 'date', 'montant', 'date_echeance',
-      'date_encaissement', 'montant_encaisse', 'tranche'
+      'date_encaissement', 'montant_encaisse', 'tranche', 'qonto_id', 'qonto_statut', 'lien_facture'
     ],
     nombres: ['montant', 'montant_encaisse'],
-    texteBrut: ['tranche']
+    texteBrut: ['tranche', 'qonto_id', 'numero']
   },
   RELANCES: {
     onglet: 'Relances',
@@ -1419,6 +1452,28 @@ function Courriers_modele(idRelance) {
       ];
       break;
     case TYPES_RELANCE.ENCAISSEMENT:
+      var retard = f.date_echeance && montant_(f.montant) ? Planning_interets_(montant_(f.montant), date_(f.date_echeance), aujourdhui_()) : null;
+      if (retard && retard.jours >= Params_nombre('facture.mise_en_demeure_j', 30)) {
+        objet = ref + 'Mise en demeure de payer — facture ' + (f.numero || '[n°]');
+        corps = [
+          'Madame, Monsieur,',
+          '',
+          'Malgré notre précédente relance, la facture n° ' + (f.numero || '[n°]') + ' du ' + j(f.date) + ', d\'un montant de ' + e(f.montant) +
+            ' HT (TVA non applicable, art. 293 B du CGI), relative à la mission ' + consultation + ', reste impayée ' + retard.jours +
+            ' jours après son échéance du ' + j(f.date_echeance) + '.',
+          '',
+          'Nous vous mettons en demeure de procéder à son règlement sous quinze jours à compter de la réception du présent courrier.',
+          '',
+          'Conformément aux articles L. 2192-13, R. 2192-31 et D. 2192-35 du code de la commande publique, sont dus de plein droit, sans formalité :',
+          '– des intérêts moratoires au taux de ' + String(retard.taux).replace('.', ',') + ' %, soit ' + Courriers_euros_(retard.interets) + ' arrêtés à ce jour ;',
+          '– une indemnité forfaitaire pour frais de recouvrement de ' + Courriers_euros_(retard.indemnite) + '.',
+          '',
+          'Soit un total de ' + Courriers_euros_(montant_(f.montant) + retard.interets + retard.indemnite) + ' à régler à ce jour.',
+          '',
+          politesse
+        ];
+        break;
+      }
       objet = ref + 'Relance de paiement — facture ' + (f.numero || '[n°]');
       corps = [
         'Madame, Monsieur,',
@@ -1429,7 +1484,8 @@ function Courriers_modele(idRelance) {
         'Le délai global de paiement de 30 jours (article R. 2192-10 du code de la commande publique) est échu depuis le ' + j(f.date_echeance) +
           '. Nous vous remercions de bien vouloir procéder à son règlement dans les meilleurs délais.',
         '',
-        'Pour mémoire, le dépassement du délai de paiement fait courir de plein droit des intérêts moratoires et une indemnité forfaitaire pour frais de recouvrement de 40 € (articles L. 2192-13 et D. 2192-35 du même code).',
+        'Pour mémoire, le dépassement du délai de paiement fait courir de plein droit des intérêts moratoires et une indemnité forfaitaire pour frais de recouvrement de 40 € (articles L. 2192-13 et D. 2192-35 du même code)' +
+          (retard ? ' : à ce jour, ' + retard.jours + ' jours de retard, soit ' + Courriers_euros_(retard.interets) + ' d\'intérêts au taux de ' + String(retard.taux).replace('.', ',') + ' %.' : '.'),
         '',
         politesse
       ];
@@ -2101,6 +2157,7 @@ function Echeances_calculer(debut, fin, quand) {
       { siDepassee: true, id_livrable: l.id });
   });
   Db_lire(TABLES.FACTURES).forEach(function (f) {
+    if (f.qonto_statut === 'annulée') return;
     var a = affaires[f.id_affaire] || { id: f.id_affaire, acheteur: '', objet: '' };
     if (Factures_prevue_(f, auj)) {
       ajouter(date_(f.date), 'Facturation', 'Émettre la facture ' + (f.numero || '') + ' (' + arrondi_(montant_(f.montant)) + ' € HT)', a, { id_facture: f.id });
@@ -2204,6 +2261,7 @@ function Relances_synchroniser(quand) {
   });
 
   Db_lire(TABLES.FACTURES).forEach(function (f) {
+    if (f.qonto_statut === 'annulée') return;
     var encaissee = !!date_(f.date_encaissement);
     var d = date_(f.date), c = date_(f.cree_le);
     if (d && c && aujourdhui_(d) > aujourdhui_(c) && aujourdhui_(d) <= auj && !encaissee) {
@@ -2678,7 +2736,7 @@ function Finances_encaissements_(quand) {
     });
     // Factures saisies sans tranche (avant le planning) et non payées
     Db_lire(TABLES.FACTURES).forEach(function (f) {
-      if (String(f.id_affaire) !== String(a.id) || f.tranche || date_(f.date_encaissement)) return;
+      if (String(f.id_affaire) !== String(a.id) || f.tranche || date_(f.date_encaissement) || f.qonto_statut === 'annulée') return;
       var dE = date_(f.date_echeance), dF = date_(f.date);
       var enRetard = dE && auj > aujourdhui_(dE);
       lignes.push({
@@ -3382,6 +3440,7 @@ var PARAMETRES_DEFAUT = [
   ['echeance.rejet_relance_j', '10', 'Relance des motifs du rejet si rien reçu (jours)'],
   ['echeance.paiement_public_j', '30', 'Délai de paiement public (jours)'],
   ['facture.taux_moratoire', '10.15', 'Taux des intérêts moratoires (%) : taux de refinancement de la BCE + 8 points (art. R. 2192-31 CCP), à mettre à jour chaque semestre'],
+  ['facture.mise_en_demeure_j', '30', 'Retard de paiement (jours après l\'échéance) à partir duquel le courrier de relance devient une mise en demeure'],
   ['facture.indemnite_recouvrement', '40', 'Indemnité forfaitaire pour frais de recouvrement (€), due en cas de retard de paiement (art. D. 2192-35 CCP)'],
   ['echeance.validite_defaut_j', '90', 'Validité de l\'offre si non renseignée dans l\'affaire (jours)'],
   ['courrier.signature', 'Sébastien De Raedt EI\nKompa Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · kompa.ingenierie@gmail.com\nSIRET [n°] · TVA non applicable, art. 293 B du CGI',
@@ -3782,7 +3841,7 @@ function Planning_affaire(idAffaire, quand) {
   if (!tranches.length) tranches = [{ tranche: PLANNING_MISSION, jours: Affaires_joursTotal_(a.jours_par_tranche) }];
   var totalJours = tranches.reduce(function (s, t) { return s + t.jours; }, 0);
   var livrables = Livrables_lister(idAffaire);
-  var factures = Db_lire(TABLES.FACTURES).filter(function (f) { return String(f.id_affaire) === String(idAffaire); });
+  var factures = Db_lire(TABLES.FACTURES).filter(function (f) { return String(f.id_affaire) === String(idAffaire) && f.qonto_statut !== 'annulée'; });
   var codes = tranches.map(function (t) { return t.tranche; });
   var etatsT = Planning_etatsTranches_(a.tranches_etat);
   var lignes = tranches.map(function (t) {
@@ -3806,7 +3865,7 @@ function Planning_affaire(idAffaire, quand) {
     if (f) {
       if (ligne.affermissement === 'optionnelle') ligne.affermissement = 'affermie'; // facturée : affermie de fait
       var dF = date_(f.date), dE = date_(f.date_echeance), dP = date_(f.date_encaissement);
-      ligne.facture = { id: String(f.id), numero: String(f.numero || '') };
+      ligne.facture = { id: String(f.id), numero: String(f.numero || ''), lien: String(f.lien_facture || ''), qonto: String(f.qonto_statut || '') };
       ligne.montant = arrondi_(montant_(f.montant)) || montant;
       ligne.dateFacture = dF ? jourIso_(dF) : '';
       ligne.dateEcheance = dE ? jourIso_(dE) : '';
@@ -4081,6 +4140,214 @@ function Previsionnel_alertes_(quand) {
 }
 
 
+// ════════ Qonto.js ════════
+
+/**
+ * Qonto : récupération des factures clients et de leurs paiements (21/11/2026).
+ *
+ * Les factures sont émises dans Qonto (plateforme agréée pour la facture électronique) ; l'app les lit seulement,
+ * avec une clé API Qonto (« identifiant:clé secrète », en-tête Authorization, API en lecture).
+ * La clé est gardée dans les propriétés du script, jamais dans le classeur.
+ *
+ * Rattachement d'une facture Qonto à une affaire : le n° KA dans le champ « Bon de commande » de la facture
+ * (ex. « KA-2027-003 TF » : affaire et tranche), à défaut dans l'en-tête, le pied ou une ligne de la facture.
+ * Une facture sans n° KA est gardée « à rattacher » (elle compte quand même dans le CA encaissé) ;
+ * le rattachement se fait ensuite dans Finances › Encaissements.
+ *
+ * Une facture saisie à la main dans l'app avec le même numéro est complétée, pas dupliquée.
+ * Rien n'est jamais supprimé : une facture annulée dans Qonto est signalée (qonto_statut « annulée »).
+ */
+
+var QONTO_URL = 'https://thirdparty.qonto.com';
+var QONTO_PROP_LOGIN = 'QONTO_LOGIN';
+var QONTO_PROP_SECRET = 'QONTO_SECRET';
+var QONTO_PROP_SYNCHRO = 'QONTO_DERNIERE_SYNCHRO';
+var QONTO_STATUTS = { unpaid: 'à payer', paid: 'payée', canceled: 'annulée', draft: 'brouillon' };
+
+function Qonto_identifiants_() {
+  var p = PropertiesService.getScriptProperties();
+  var login = p.getProperty(QONTO_PROP_LOGIN), secret = p.getProperty(QONTO_PROP_SECRET);
+  return login && secret ? { login: login, secret: secret } : null;
+}
+
+function Qonto_appel_(chemin, ids) {
+  ids = ids || Qonto_identifiants_();
+  if (!ids) throw new Error('Qonto n\'est pas connecté : Paramètres › Finances › Qonto.');
+  var r = UrlFetchApp.fetch(QONTO_URL + chemin, {
+    method: 'get', muteHttpExceptions: true,
+    headers: { Authorization: ids.login + ':' + ids.secret, Accept: 'application/json' }
+  });
+  var code = r.getResponseCode();
+  if (code === 401 || code === 403) throw new Error('Qonto refuse la clé API (vérifiez l\'identifiant et la clé secrète, et les droits de la clé).');
+  if (code === 429) throw new Error('Qonto : trop de requêtes, réessayez dans une minute.');
+  if (code < 200 || code >= 300) throw new Error('Qonto : erreur ' + code + '.');
+  return JSON.parse(r.getContentText() || '{}');
+}
+
+/** Enregistre la clé après l'avoir testée ; renvoie le nom de la société vu par Qonto. */
+function Qonto_connecter(login, secret) {
+  login = String(login || '').trim(); secret = String(secret || '').trim();
+  if (!login || !secret) throw new Error('Identifiant et clé secrète Qonto obligatoires.');
+  var org = Qonto_appel_('/v2/organization', { login: login, secret: secret });
+  var p = PropertiesService.getScriptProperties();
+  p.setProperty(QONTO_PROP_LOGIN, login);
+  p.setProperty(QONTO_PROP_SECRET, secret);
+  var o = org.organization || {};
+  return { societe: String(o.legal_name || o.name || o.slug || 'connecté') };
+}
+
+function Qonto_deconnecter() {
+  var p = PropertiesService.getScriptProperties();
+  p.deleteProperty(QONTO_PROP_LOGIN);
+  p.deleteProperty(QONTO_PROP_SECRET);
+  return true;
+}
+
+/** Toutes les factures clients Qonto (hors brouillons), toutes pages. */
+function Qonto_factures_() {
+  var toutes = [], page = 1;
+  for (var garde = 0; garde < 50 && page; garde++) {
+    var r = Qonto_appel_('/v2/client_invoices?filter%5Bstatus%5D=unpaid,paid,canceled&per_page=100&page=' + page);
+    toutes = toutes.concat(r.client_invoices || []);
+    page = r.meta && r.meta.next_page ? r.meta.next_page : null;
+  }
+  return toutes;
+}
+
+/** Affaire et tranche lues sur la facture : { id_affaire, tranche } (vides si rien trouvé). */
+function Qonto_reference_(inv, affaires) {
+  var sources = [inv.purchase_order, inv.header, inv.footer].concat((inv.items || []).map(function (i) { return (i.title || '') + ' ' + (i.description || ''); }));
+  for (var i = 0; i < sources.length; i++) {
+    var t = String(sources[i] || '');
+    var m = t.toUpperCase().match(/KA[-\s]?(\d{4})[-\s]?(\d{3})/);
+    if (!m) continue;
+    var id = 'KA-' + m[1] + '-' + m[2];
+    var a = affaires[id];
+    if (!a) continue;
+    var reste = t.toUpperCase().slice(t.toUpperCase().indexOf(m[0]) + m[0].length);
+    var codes = Planning_tranches_(a.jours_par_tranche).map(function (x) { return x.tranche; });
+    var tranche = codes.filter(function (c) { return new RegExp('(^|[^A-Z0-9])' + c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^A-Z0-9]|$)').test(reste); })[0] || '';
+    return { id_affaire: id, tranche: tranche };
+  }
+  return { id_affaire: '', tranche: '' };
+}
+
+function Qonto_jour_(v) {
+  var d = date_(v);
+  return d ? aujourdhui_(d) : '';
+}
+
+/**
+ * Synchronisation : crée ou complète les factures de l'app d'après Qonto.
+ * Renvoie { lues, creees, majs, aRattacher, annulees, payees: [numéros payés depuis la dernière fois] }.
+ */
+function Qonto_synchroniser() {
+  var debut = Date.now();
+  var bilan = { lues: 0, creees: 0, majs: 0, aRattacher: 0, annulees: 0, payees: [], erreur: '' };
+  try {
+    var affaires = {};
+    Affaires_lister().forEach(function (a) { affaires[String(a.id)] = a; });
+    var existantes = Db_lire(TABLES.FACTURES);
+    var parQonto = {}, parNumero = {};
+    existantes.forEach(function (f) {
+      if (f.qonto_id) parQonto[String(f.qonto_id)] = f;
+      if (f.numero) parNumero[String(f.numero).trim().toUpperCase()] = f;
+    });
+    var touchees = {};
+    Qonto_factures_().forEach(function (inv) {
+      bilan.lues++;
+      var statut = QONTO_STATUTS[inv.status] || String(inv.status || '');
+      var ttc = Number(inv.total_amount && inv.total_amount.value) || (Number(inv.total_amount_cents) || 0) / 100;
+      var tva = Number(inv.vat_amount && inv.vat_amount.value) || (Number(inv.vat_amount_cents) || 0) / 100;
+      var ht = arrondi_(ttc - tva);
+      var paye = inv.status === 'paid';
+      var encaisse = paye ? (Number(inv.amount_paid && inv.amount_paid.value) || ttc) : 0;
+      var ref = Qonto_reference_(inv, affaires);
+      var champs = {
+        numero: String(inv.number || ''), date: Qonto_jour_(inv.issue_date), montant: ht,
+        date_echeance: Qonto_jour_(inv.due_date), qonto_id: String(inv.id), qonto_statut: statut, lien_facture: String(inv.invoice_url || '')
+      };
+      if (paye) { champs.date_encaissement = Qonto_jour_(inv.paid_at) || aujourdhui_(); champs.montant_encaisse = arrondi_(encaisse); }
+      var f = parQonto[String(inv.id)] || parNumero[String(inv.number || '').trim().toUpperCase()];
+      if (!f) {
+        if (inv.status === 'canceled') return; // jamais vue dans l'app : rien à faire
+        champs.id_affaire = ref.id_affaire;
+        champs.tranche = ref.tranche;
+        Db_inserer(TABLES.FACTURES, champs);
+        bilan.creees++;
+        if (!ref.id_affaire) bilan.aRattacher++;
+        if (paye) bilan.payees.push(champs.numero);
+        if (ref.id_affaire) touchees[ref.id_affaire] = true;
+        return;
+      }
+      // Facture connue : on complète, sans écraser un rattachement fait à la main
+      if (!f.id_affaire && ref.id_affaire) champs.id_affaire = ref.id_affaire;
+      if (!f.tranche && ref.tranche) champs.tranche = ref.tranche;
+      if (inv.status === 'canceled') {
+        champs = { qonto_id: champs.qonto_id, qonto_statut: statut, lien_facture: champs.lien_facture };
+        if (f.qonto_statut !== statut) bilan.annulees++;
+      }
+      var change = Object.keys(champs).some(function (k) { return String(Qonto_comparable_(champs[k])) !== String(Qonto_comparable_(f[k])); });
+      if (!change) return;
+      if (paye && !date_(f.date_encaissement)) bilan.payees.push(champs.numero);
+      Db_maj(TABLES.FACTURES, f.id, champs);
+      bilan.majs++;
+      if (f.id_affaire || champs.id_affaire) touchees[String(f.id_affaire || champs.id_affaire)] = true;
+    });
+    Object.keys(touchees).forEach(function (id) { try { Affaires_verifierSolde_(id); } catch (e) { /* affaire supprimée */ } });
+    try { Relances_synchroniser(); } catch (e) { console.error('Relances : ' + e.message); }
+    PropertiesService.getScriptProperties().setProperty(QONTO_PROP_SYNCHRO, new Date().toISOString());
+  } catch (e) {
+    bilan.erreur = String(e && e.message ? e.message : e);
+  }
+  Db_inserer(TABLES.JOURNAL_MOTEUR, {
+    date: new Date(), source: 'Qonto', avis_lus: bilan.lues, avis_retenus: bilan.creees + bilan.majs,
+    exclus: 0, doublons: 0, erreurs: bilan.erreur, duree_s: Math.round((Date.now() - debut) / 100) / 10
+  });
+  if (bilan.erreur) throw new Error(bilan.erreur);
+  return bilan;
+}
+
+function Qonto_comparable_(v) {
+  if (v instanceof Date) return jourIso_(v);
+  if (typeof v === 'number') return arrondi_(v);
+  return v === undefined || v === null ? '' : v;
+}
+
+/** État de la connexion et factures à rattacher (Paramètres et Finances). */
+function Qonto_etat() {
+  var ids = Qonto_identifiants_();
+  var derniere = PropertiesService.getScriptProperties().getProperty(QONTO_PROP_SYNCHRO);
+  var aRattacher = Db_lire(TABLES.FACTURES).filter(function (f) { return f.qonto_id && !f.id_affaire && f.qonto_statut !== 'annulée'; })
+    .map(function (f) { return versClient_(TABLES.FACTURES, f); });
+  var annulees = Db_lire(TABLES.FACTURES).filter(function (f) { return f.qonto_statut === 'annulée' && f.id_affaire; })
+    .map(function (f) { return versClient_(TABLES.FACTURES, f); });
+  return {
+    connecte: !!ids, identifiant: ids ? ids.login : '', derniereSynchro: derniere || '',
+    aRattacher: aRattacher, annulees: annulees,
+    affaires: Affaires_lister().filter(function (a) { return ['Gagnée', 'Soldée'].indexOf(String(a.statut)) >= 0; })
+      .map(function (a) { return { id: a.id, acheteur: String(a.acheteur || ''), tranches: Planning_tranches_(a.jours_par_tranche).map(function (t) { return t.tranche; }) }; })
+  };
+}
+
+/** Rattache une facture (venue de Qonto sans n° KA) à une affaire et, si besoin, à une tranche. */
+function Qonto_rattacher(idFacture, idAffaire, tranche) {
+  var f = Db_trouver(TABLES.FACTURES, idFacture);
+  if (!f) throw new Error('Facture introuvable : ' + idFacture);
+  Affaires_get_(idAffaire);
+  Db_maj(TABLES.FACTURES, idFacture, { id_affaire: idAffaire, tranche: Planning_codeTranche_(tranche) });
+  Affaires_verifierSolde_(idAffaire);
+  try { Relances_synchroniser(); } catch (e) { /* sans effet */ }
+  return true;
+}
+
+/** Synchronisation quotidienne (déclencheur de la collecte), seulement si Qonto est connecté. */
+function Qonto_synchroniserSiConnecte_() {
+  if (!Qonto_identifiants_()) return null;
+  try { return Qonto_synchroniser(); } catch (e) { console.error('Qonto : ' + e.message); return null; }
+}
+
+
 // ════════ Veille.js ════════
 
 /**
@@ -4107,6 +4374,7 @@ function collecteQuotidienne() {
     var ctx = Veille_contexte_();
     var bilan = [Veille_executer_(SOURCE_BOAMP, function () { return Veille_lireBoamp_(ctx); }, ctx),
       Veille_executer_(SOURCE_GMAIL, function () { return Veille_lireGmail_(ctx); }, ctx)];
+    try { Qonto_synchroniserSiConnecte_(); } catch (e) { console.error('Qonto : ' + e.message); }
     try { Relances_synchroniser(); } catch (e) { console.error('Relances : ' + e.message); }
     try { Veille_archiver_(); } catch (e) { console.error('Archivage : ' + e.message); }
     console.log(JSON.stringify(bilan));

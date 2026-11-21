@@ -55,6 +55,28 @@ function Courriers_modele(idRelance) {
       ];
       break;
     case TYPES_RELANCE.ENCAISSEMENT:
+      var retard = f.date_echeance && montant_(f.montant) ? Planning_interets_(montant_(f.montant), date_(f.date_echeance), aujourdhui_()) : null;
+      if (retard && retard.jours >= Params_nombre('facture.mise_en_demeure_j', 30)) {
+        objet = ref + 'Mise en demeure de payer — facture ' + (f.numero || '[n°]');
+        corps = [
+          'Madame, Monsieur,',
+          '',
+          'Malgré notre précédente relance, la facture n° ' + (f.numero || '[n°]') + ' du ' + j(f.date) + ', d\'un montant de ' + e(f.montant) +
+            ' HT (TVA non applicable, art. 293 B du CGI), relative à la mission ' + consultation + ', reste impayée ' + retard.jours +
+            ' jours après son échéance du ' + j(f.date_echeance) + '.',
+          '',
+          'Nous vous mettons en demeure de procéder à son règlement sous quinze jours à compter de la réception du présent courrier.',
+          '',
+          'Conformément aux articles L. 2192-13, R. 2192-31 et D. 2192-35 du code de la commande publique, sont dus de plein droit, sans formalité :',
+          '– des intérêts moratoires au taux de ' + String(retard.taux).replace('.', ',') + ' %, soit ' + Courriers_euros_(retard.interets) + ' arrêtés à ce jour ;',
+          '– une indemnité forfaitaire pour frais de recouvrement de ' + Courriers_euros_(retard.indemnite) + '.',
+          '',
+          'Soit un total de ' + Courriers_euros_(montant_(f.montant) + retard.interets + retard.indemnite) + ' à régler à ce jour.',
+          '',
+          politesse
+        ];
+        break;
+      }
       objet = ref + 'Relance de paiement — facture ' + (f.numero || '[n°]');
       corps = [
         'Madame, Monsieur,',
@@ -65,7 +87,8 @@ function Courriers_modele(idRelance) {
         'Le délai global de paiement de 30 jours (article R. 2192-10 du code de la commande publique) est échu depuis le ' + j(f.date_echeance) +
           '. Nous vous remercions de bien vouloir procéder à son règlement dans les meilleurs délais.',
         '',
-        'Pour mémoire, le dépassement du délai de paiement fait courir de plein droit des intérêts moratoires et une indemnité forfaitaire pour frais de recouvrement de 40 € (articles L. 2192-13 et D. 2192-35 du même code).',
+        'Pour mémoire, le dépassement du délai de paiement fait courir de plein droit des intérêts moratoires et une indemnité forfaitaire pour frais de recouvrement de 40 € (articles L. 2192-13 et D. 2192-35 du même code)' +
+          (retard ? ' : à ce jour, ' + retard.jours + ' jours de retard, soit ' + Courriers_euros_(retard.interets) + ' d\'intérêts au taux de ' + String(retard.taux).replace('.', ',') + ' %.' : '.'),
         '',
         politesse
       ];

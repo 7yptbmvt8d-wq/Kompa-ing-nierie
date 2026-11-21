@@ -87,6 +87,7 @@ function Echeances_calculer(debut, fin, quand) {
       { siDepassee: true, id_livrable: l.id });
   });
   Db_lire(TABLES.FACTURES).forEach(function (f) {
+    if (f.qonto_statut === 'annulée') return;
     var a = affaires[f.id_affaire] || { id: f.id_affaire, acheteur: '', objet: '' };
     if (Factures_prevue_(f, auj)) {
       ajouter(date_(f.date), 'Facturation', 'Émettre la facture ' + (f.numero || '') + ' (' + arrondi_(montant_(f.montant)) + ' € HT)', a, { id_facture: f.id });
@@ -190,6 +191,7 @@ function Relances_synchroniser(quand) {
   });
 
   Db_lire(TABLES.FACTURES).forEach(function (f) {
+    if (f.qonto_statut === 'annulée') return;
     var encaissee = !!date_(f.date_encaissement);
     var d = date_(f.date), c = date_(f.cree_le);
     if (d && c && aujourdhui_(d) > aujourdhui_(c) && aujourdhui_(d) <= auj && !encaissee) {

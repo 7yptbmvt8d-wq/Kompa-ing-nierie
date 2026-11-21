@@ -621,7 +621,8 @@
         }
       }
       var liv = livDe(l);
-      var facture = l.facture ? esc(l.facture.numero) + ' du <span class="mono">' + jour(l.dateFacture) + '</span>'
+      var facture = l.facture ? (l.facture.lien ? '<a href="' + esc(l.facture.lien) + '" target="_blank" rel="noopener" data-externe>' + esc(l.facture.numero) + ' ↗</a>' : esc(l.facture.numero)) +
+          ' du <span class="mono">' + jour(l.dateFacture) + '</span>' + (l.facture.qonto ? '<span class="legende">Qonto : ' + esc(l.facture.qonto) + '</span>' : '')
         : l.etat === 'couverte' ? 'facturée hors planning (' + K.euros(l.dejaFacture) + ')'
         : l.dateFacture ? 'prévue le <span class="mono">' + jour(l.dateFacture) + '</span><span class="legende">à la remise du dernier livrable</span>' : '<span class="legende">date à fixer : datez les livrables</span>';
       var paiement = l.etat === 'payée' ? 'payée le <span class="mono">' + jour(l.dateEncaissement) + '</span>'
@@ -971,7 +972,9 @@
           champHtml({ nom: 'numero', libelle: 'N° de facture', type: 'texte', obligatoire: true }, '', {}, 'pf') +
           champHtml({ nom: 'date', libelle: 'Date de la facture', type: 'date', obligatoire: true }, l.dateFacture && l.dateFacture <= p.aujourdhui ? l.dateFacture : aujourdhuiIso(), {}, 'pf') +
           champHtml({ nom: 'montant', libelle: 'Montant HT (' + l.tranche + ')', type: 'euros', obligatoire: true }, String(l.montant).replace('.', ','), {}, 'pf') + '</div>' +
-          '<p class="legende">Échéance de paiement calculée à ' + p.delai + ' jours. La facture apparaît dans Mission › Planning (Toutes les factures).</p>';
+          '<p class="legende">Facture émise dans Qonto ? Indiquez dans Qonto, champ « Bon de commande » : <strong class="mono">' + esc(a.id + (l.tranche && l.tranche !== 'MISSION' ? ' ' + l.tranche : '')) + '</strong>, ' +
+          'puis « Synchroniser Qonto » (Finances › Encaissements) : la facture et son paiement arrivent seuls, inutile de la saisir ici.</p>' +
+          '<p class="legende">Sinon, saisie à la main : échéance de paiement calculée à ' + p.delai + ' jours.</p>';
         dialogue('Facturer la tranche ' + l.tranche, corps, 'Enregistrer la facture', function (form) {
           return K.appel('apiPlanningFacturer', a.id, l.tranche, lireChamps(form)).then(function (fiche) { K.toast('Facture de la tranche ' + l.tranche + ' enregistrée.'); recharger(fiche); });
         });

@@ -158,7 +158,8 @@ function creerEnvironnement(options = {}) {
     PropertiesService: {
       getScriptProperties: () => ({
         getProperty: (k) => (k in proprietes ? proprietes[k] : null),
-        setProperty: (k, v) => { proprietes[k] = String(v); }
+        setProperty: (k, v) => { proprietes[k] = String(v); },
+        deleteProperty: (k) => { delete proprietes[k]; }
       })
     },
     // Cache du script simulé (valeurs texte, sans expiration) ; options.sansCache : service absent
@@ -190,9 +191,19 @@ function creerEnvironnement(options = {}) {
     // API BOAMP simulée : options.boamp = réponse JSON ; options.echecsHttp = nb de coupures avant succès
     UrlFetchApp: {
       appels: [],
-      fetch: (url) => {
+      fetch: (url, opt) => {
         gas.UrlFetchApp.appels.push(url);
         if (/bdm\.insee\.fr/.test(url)) return inseeSimule(url, options);
+        // API Qonto simulée : options.qonto = { factures: [...], cle: 'login:secret' }
+        if (/thirdparty\.qonto\.com/.test(url)) {
+          const q = options.qonto || { factures: [] };
+          const auth = (opt && opt.headers && opt.headers.Authorization) || '';
+          if (q.cle && auth !== q.cle) return { getResponseCode: () => 401, getContentText: () => '{"errors":[{"code":"unauthorized"}]}' };
+          if (/\/v2\/organization/.test(url)) return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ organization: { legal_name: 'KOMPA INGENIERIE' } }) };
+          const page = Number((url.match(/[?&]page=(\d+)/) || [])[1] || 1);
+          const lot = q.factures.slice((page - 1) * 2, page * 2); // 2 par page : la pagination est testée
+          return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ client_invoices: lot, meta: { current_page: page, next_page: page * 2 < q.factures.length ? page + 1 : null } }) };
+        }
         // Export .xlsx d'un Google Sheets (module Estimation)
         if (/docs\.google\.com\/spreadsheets\/d\/[^/]+\/export\?format=xlsx/.test(url)) {
           if (options.exportHttp) return { getResponseCode: () => options.exportHttp, getBlob: () => null };

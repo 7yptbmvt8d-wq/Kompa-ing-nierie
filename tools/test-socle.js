@@ -178,6 +178,89 @@ test('veille apprenante : avis ignorés et No-go font baisser, affaires étudié
   assert.strictEqual(A.Veille_apprentissage_().actif, false);
 });
 
+test('Qonto : connexion testée, factures et paiements récupérés, rattachement par n° KA, rien de supprimé', () => {
+  const inv = (o) => Object.assign({ status: 'unpaid', currency: 'EUR', vat_amount: { value: '0.00' }, items: [] }, o);
+  const factures = [
+    inv({ id: 'q1', number: 'F-2027-001', purchase_order: 'KA-2026-002 TF', issue_date: '2027-03-01', due_date: '2027-03-31', total_amount: { value: '8000.00' },
+      status: 'paid', paid_at: '2027-03-25T10:00:00Z', amount_paid: { value: '8000.00' }, invoice_url: 'https://app.qonto.com/invoices/q1' }),
+    inv({ id: 'q2', number: 'F-2027-002', issue_date: '2027-04-01', due_date: '2027-05-01', total_amount: { value: '1500.00' } }), // sans n° KA
+    inv({ id: 'q3', number: 'F-2027-003', header: 'Mission KA-2026-002 — TO1', issue_date: '2027-06-01', due_date: '2027-07-01', total_amount: { value: '12000.00' } }),
+    inv({ id: 'q4', number: 'F-2027-004', purchase_order: 'KA-2026-002', issue_date: '2027-06-02', due_date: '2027-07-02', total_amount: { value: '100.00' }, status: 'canceled' })
+  ];
+  const env = creerEnvironnement({ qonto: { cle: 'kompa-1234:secret', factures } });
+  const A = env.ctx;
+  console.log = () => {};
+  A.installer({ exercice: false });
+  console.log = journal;
+  A.Affaires_creer({ acheteur: 'Commune de Lurs', objet: 'AMO' });
+  const id = A.Affaires_creer({ acheteur: 'Ville de Marseille', objet: 'AMO programmation' }).id;
+  assert.strictEqual(id, 'KA-2026-002');
+  A.Affaires_maj(id, { jours_par_tranche: 'TF : 20 j\nTO1 : 30 j', prix_jour: 400 });
+  // Facture déjà saisie à la main avec le même numéro : complétée, pas dupliquée
+  A.Affaires_changerStatut(id, 'Go', {}); A.Affaires_changerStatut(id, 'Déposée', { montant_ht: 20000, date_depot: '2027-01-10', jours_reponse: 2 });
+  A.Affaires_changerStatut(id, 'Gagnée', { date_notification: '2027-02-01', montant_notifie: 20000 });
+  A.Factures_ajouter(id, { numero: 'F-2027-003', date: '2027-06-01', montant: 12000 });
+  // Sans clé : message clair ; mauvaise clé refusée et non enregistrée
+  assert.throws(() => A.Qonto_synchroniser(), /Qonto n'est pas connecté/);
+  assert.throws(() => A.Qonto_connecter('kompa-1234', 'faux'), /refuse la clé/);
+  assert.strictEqual(A.Qonto_etat().connecte, false);
+  assert.strictEqual(A.Qonto_connecter('kompa-1234', 'secret').societe, 'KOMPA INGENIERIE');
+  assert.ok(!A.Db_lire(A.TABLES.PARAMETRES).some((p) => /secret/.test(String(p.valeur)))); // clé hors du classeur
+  const b = brut(A.Qonto_synchroniser());
+  assert.deepStrictEqual([b.lues, b.creees, b.majs, b.aRattacher], [4, 2, 1, 1]);
+  assert.deepStrictEqual(b.payees, ['F-2027-001']);
+  const fa = A.Db_lire(A.TABLES.FACTURES);
+  assert.strictEqual(fa.length, 3); // q4 annulée et jamais vue : ignorée ; F-2027-003 complétée
+  const f1 = fa.find((f) => f.numero === 'F-2027-001');
+  assert.deepStrictEqual([f1.id_affaire, f1.tranche, f1.montant, f1.montant_encaisse, f1.qonto_statut], [id, 'TF', 8000, 8000, 'payée']);
+  assert.strictEqual(A.jourIso_(f1.date_encaissement), '2027-03-25');
+  const f3 = fa.find((f) => f.numero === 'F-2027-003');
+  assert.deepStrictEqual([f3.qonto_id, f3.tranche, f3.qonto_statut], ['q3', 'TO1', 'à payer']);
+  // Planning de l'affaire : TF payée (encaissement Qonto), lien vers la facture
+  const tf = A.Planning_affaire(id, new Date(2027, 4, 1)).lignes.find((l) => l.tranche === 'TF');
+  assert.deepStrictEqual([tf.etat, tf.facture.lien], ['payée', 'https://app.qonto.com/invoices/q1']);
+  // Facture sans n° KA : à rattacher, puis rattachée à la main
+  const etat = brut(A.Qonto_etat());
+  assert.deepStrictEqual(etat.aRattacher.map((f) => f.numero), ['F-2027-002']);
+  A.Qonto_rattacher(etat.aRattacher[0].id, id, 'to1');
+  assert.strictEqual(A.Db_lire(A.TABLES.FACTURES).find((f) => f.numero === 'F-2027-002').tranche, 'TO1');
+  // Deuxième synchronisation : rien de neuf ; le rattachement manuel n'est pas écrasé
+  const b2 = brut(A.Qonto_synchroniser());
+  assert.deepStrictEqual([b2.creees, b2.majs], [0, 0]);
+  // Annulation dans Qonto d'une facture connue : signalée, exclue du planning, jamais supprimée
+  factures[0].status = 'canceled';
+  A.Qonto_synchroniser();
+  const f1b = A.Db_lire(A.TABLES.FACTURES).find((f) => f.numero === 'F-2027-001');
+  assert.strictEqual(f1b.qonto_statut, 'annulée');
+  assert.strictEqual(brut(A.Qonto_etat()).annulees.length, 1);
+  assert.ok(A.Db_lire(A.TABLES.JOURNAL_MOTEUR).some((j) => j.source === 'Qonto'));
+  A.Qonto_deconnecter();
+  assert.strictEqual(A.Qonto_etat().connecte, false);
+});
+
+test('relance de paiement : intérêts moratoires chiffrés, mise en demeure au-delà de 30 jours de retard', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  console.log = () => {};
+  A.installer({ exercice: false });
+  console.log = journal;
+  const id = A.Affaires_creer({ acheteur: 'Ville de Marseille', objet: 'AMO programmation' }).id;
+  A.Affaires_changerStatut(id, 'Go', {}); A.Affaires_changerStatut(id, 'Déposée', { montant_ht: 20000, date_depot: '2026-01-10', jours_reponse: 2 });
+  A.Affaires_changerStatut(id, 'Gagnée', { date_notification: '2026-02-01', montant_notifie: 20000 });
+  const aujourd = new Date(); aujourd.setHours(12, 0, 0, 0);
+  const il_y_a = (j) => { const d = new Date(aujourd); d.setDate(d.getDate() - j); return A.jourIso_(d); };
+  A.Factures_ajouter(id, { numero: 'F-1', date: il_y_a(40), montant: 10000, date_echeance: il_y_a(10) });
+  A.Factures_ajouter(id, { numero: 'F-2', date: il_y_a(90), montant: 10000, date_echeance: il_y_a(60) });
+  A.Relances_synchroniser();
+  const rel = A.Db_lire(A.TABLES.RELANCES).filter((r) => r.type === A.TYPES_RELANCE.ENCAISSEMENT);
+  const c1 = A.Courriers_modele(rel.find((r) => A.Db_trouver(A.TABLES.FACTURES, r.id_facture).numero === 'F-1').id);
+  assert.match(c1.objet, /Relance de paiement/);
+  assert.match(c1.corps, /10 jours de retard, soit .* d'intérêts au taux de 10,15 %/);
+  const c2 = A.Courriers_modele(rel.find((r) => A.Db_trouver(A.TABLES.FACTURES, r.id_facture).numero === 'F-2').id);
+  assert.match(c2.objet, /Mise en demeure de payer/);
+  assert.match(c2.corps, /indemnité forfaitaire pour frais de recouvrement de 40,00\s€/);
+});
+
 test('chaque onglet a id/clé en 1re colonne et cree_le, modifie_le en fin', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });

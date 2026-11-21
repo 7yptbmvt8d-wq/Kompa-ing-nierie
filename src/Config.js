@@ -115,10 +115,10 @@ var TABLES = {
     prefixe: 'FA',
     colonnes: [
       'id', 'id_affaire', 'numero', 'date', 'montant', 'date_echeance',
-      'date_encaissement', 'montant_encaisse', 'tranche'
+      'date_encaissement', 'montant_encaisse', 'tranche', 'qonto_id', 'qonto_statut', 'lien_facture'
     ],
     nombres: ['montant', 'montant_encaisse'],
-    texteBrut: ['tranche']
+    texteBrut: ['tranche', 'qonto_id', 'numero']
   },
   RELANCES: {
     onglet: 'Relances',

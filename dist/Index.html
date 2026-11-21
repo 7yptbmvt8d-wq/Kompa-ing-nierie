@@ -827,7 +827,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
   var LECTURES = ['apiEtat', 'apiParametres', 'apiCompteurCA', 'apiAccueil', 'apiAffaires', 'apiAffaire', 'apiVeille',
     'apiEcheancier', 'apiSuivi', 'apiCourrier', 'apiEmailApercu', 'apiTableau', 'apiEnseignements', 'apiFiscal', 'apiPieces',
     'apiEstReferentiels', 'apiEstAccueil', 'apiEstAffaire', 'apiEstIndices', 'apiEstIndiceHistorique', 'apiEstActualiser',
-    'apiEstBibliotheque', 'apiEstAnalyserPostes', 'apiEstRatios', 'apiEstFormulaire', 'apiEstApercu', 'apiEstEstimation', 'apiPrevisionnel', 'apiFinances', 'apiRecherche'];
+    'apiEstBibliotheque', 'apiEstAnalyserPostes', 'apiEstRatios', 'apiEstFormulaire', 'apiEstApercu', 'apiEstEstimation', 'apiPrevisionnel', 'apiFinances', 'apiRecherche', 'apiQontoEtat'];
 
   function appel(nom) {
     var args = Array.prototype.slice.call(arguments, 1);
@@ -1145,11 +1145,13 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       var html = tete;
       if (onglet[0] === 'apparence') html += blocApparence();
       if (onglet[0] === 'socle') html += '<section class="groupe-param carte" id="carte-etat"><h2>État du socle</h2><div class="chargement">Lecture du classeur…</div></section>';
+      if (onglet[0] === 'finances') html += '<section class="groupe-param" id="bloc-qonto"><h2>Qonto (factures et paiements)</h2><div class="chargement">Lecture…</div></section>';
       groupes.filter(function (g) { return onglet[2].indexOf(g.prefixe) >= 0; }).forEach(function (g) {
         html += '<section class="groupe-param"><h2>' + esc(g.titre) + '</h2>' + paramsPC(g.parametres) + '</section>';
       });
       el.innerHTML = html;
       brancherParams(el);
+      if (onglet[0] === 'finances' && window.KA.blocQonto) window.KA.blocQonto($('#bloc-qonto', el));
       if (onglet[0] === 'socle') appel('apiEtat').then(rendreEtat).catch(function (e) { var z = $('#carte-etat'); if (z) z.innerHTML = '<h2>État du socle</h2>' + bandeauErreur(e); });
     }, function (e) {
       el.innerHTML = tete + bandeauErreur(e);
@@ -1980,7 +1982,8 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
         }
       }
       var liv = livDe(l);
-      var facture = l.facture ? esc(l.facture.numero) + ' du <span class="mono">' + jour(l.dateFacture) + '</span>'
+      var facture = l.facture ? (l.facture.lien ? '<a href="' + esc(l.facture.lien) + '" target="_blank" rel="noopener" data-externe>' + esc(l.facture.numero) + ' ↗</a>' : esc(l.facture.numero)) +
+          ' du <span class="mono">' + jour(l.dateFacture) + '</span>' + (l.facture.qonto ? '<span class="legende">Qonto : ' + esc(l.facture.qonto) + '</span>' : '')
         : l.etat === 'couverte' ? 'facturée hors planning (' + K.euros(l.dejaFacture) + ')'
         : l.dateFacture ? 'prévue le <span class="mono">' + jour(l.dateFacture) + '</span><span class="legende">à la remise du dernier livrable</span>' : '<span class="legende">date à fixer : datez les livrables</span>';
       var paiement = l.etat === 'payée' ? 'payée le <span class="mono">' + jour(l.dateEncaissement) + '</span>'
@@ -2330,7 +2333,9 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
           champHtml({ nom: 'numero', libelle: 'N° de facture', type: 'texte', obligatoire: true }, '', {}, 'pf') +
           champHtml({ nom: 'date', libelle: 'Date de la facture', type: 'date', obligatoire: true }, l.dateFacture && l.dateFacture <= p.aujourdhui ? l.dateFacture : aujourdhuiIso(), {}, 'pf') +
           champHtml({ nom: 'montant', libelle: 'Montant HT (' + l.tranche + ')', type: 'euros', obligatoire: true }, String(l.montant).replace('.', ','), {}, 'pf') + '</div>' +
-          '<p class="legende">Échéance de paiement calculée à ' + p.delai + ' jours. La facture apparaît dans Mission › Planning (Toutes les factures).</p>';
+          '<p class="legende">Facture émise dans Qonto ? Indiquez dans Qonto, champ « Bon de commande » : <strong class="mono">' + esc(a.id + (l.tranche && l.tranche !== 'MISSION' ? ' ' + l.tranche : '')) + '</strong>, ' +
+          'puis « Synchroniser Qonto » (Finances › Encaissements) : la facture et son paiement arrivent seuls, inutile de la saisir ici.</p>' +
+          '<p class="legende">Sinon, saisie à la main : échéance de paiement calculée à ' + p.delai + ' jours.</p>';
         dialogue('Facturer la tranche ' + l.tranche, corps, 'Enregistrer la facture', function (form) {
           return K.appel('apiPlanningFacturer', a.id, l.tranche, lireChamps(form)).then(function (fiche) { K.toast('Facture de la tranche ' + l.tranche + ' enregistrée.'); recharger(fiche); });
         });
@@ -3931,7 +3936,11 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
 
   function rendreEncaissements(zone, s) {
     var e = s.encaissements;
-    if (!e.lignes.length) { zone.innerHTML = '<p class="vide">Aucune affaire gagnée à facturer.</p>'; return; }
+    if (!e.lignes.length) {
+      zone.innerHTML = '<section class="qonto-fin" id="qonto-fin"></section><p class="vide">Aucune affaire gagnée à facturer.</p>';
+      blocQontoFinances($('#qonto-fin', zone), zone);
+      return;
+    }
     var pistes = e.lignes.map(function (l) {
       var f = K.friseTranche(l, '');
       f.libelle = '<a href="#affaire/' + esc(l.id_affaire) + '" class="mono">' + esc(l.id_affaire) + '</a> ' + esc(l.acheteur) +
@@ -3951,11 +3960,13 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
           (l.retard ? '<div class="plan-retard">' + l.retard.jours + ' j de retard · intérêts ≈ ' + K.euros(l.retard.interets) + ' + ' + K.euros(l.retard.indemnite) + '</div>' : '') + '</td>' +
         '<td>' + action + '</td></tr>';
     }).join('');
-    zone.innerHTML = '<p class="legende">Toutes les affaires gagnées sur une même ligne de temps : facture à la remise du dernier livrable de chaque tranche, paiement à 30 jours.</p>' +
+    zone.innerHTML = '<section class="qonto-fin" id="qonto-fin"></section>' +
+      '<p class="legende">Toutes les affaires gagnées sur une même ligne de temps : facture à la remise du dernier livrable de chaque tranche, paiement à 30 jours.</p>' +
       K.friseCle() + K.frise({ debut: e.debut, fin: e.fin, aujourdhui: e.aujourdhui, libelles: true, pistes: pistes }) +
       '<div class="tableau-conteneur"><table><thead><tr><th scope="col">Affaire</th><th scope="col">Tranche</th><th scope="col" class="num">Montant HT</th><th scope="col">État</th><th scope="col"><span class="seul-lecteur">Action</span></th></tr></thead><tbody>' +
       table + '</tbody></table></div>';
     var recharger = function (s2) { K.viderMemoire(); rendreEncaissements(zone, s2); };
+    blocQontoFinances($('#qonto-fin', zone), zone);
     $$('[data-fin-facturer]', zone).forEach(function (b) {
       b.addEventListener('click', function () {
         var l = e.lignes[Number(b.getAttribute('data-fin-facturer'))];
@@ -3982,6 +3993,100 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
         K.afficher('affaire/' + l.id_affaire, true);
         K.toast('Affermissement : fiche › Mission › Marché, tranche ' + l.tranche + '.');
       });
+    });
+  }
+
+  // ——— Qonto : synchronisation et factures à rattacher (Finances › Encaissements) ———
+  function quandIso(iso) { var d = new Date(iso); return isNaN(d) ? '' : K.dateHeure(iso); }
+
+  function blocQontoFinances(cible, zone) {
+    if (!cible) return;
+    K.appel('apiQontoEtat').then(function (q) { rendreQontoFinances(cible, zone, q); })
+      .catch(function (er) { cible.innerHTML = K.bandeauErreur(er); });
+  }
+
+  function rendreQontoFinances(cible, zone, q) {
+    if (!q.connecte) {
+      cible.innerHTML = '<p class="bandeau">Vos factures sont émises dans Qonto : <a href="#parametres/finances">connectez Qonto</a> (Paramètres › Finances) pour récupérer automatiquement les factures et leurs paiements.</p>';
+      return;
+    }
+    var options = q.affaires.map(function (a) { return '<option value="' + esc(a.id) + '">' + esc(a.id + ' — ' + a.acheteur) + '</option>'; }).join('');
+    var aRatt = q.aRattacher.length ? '<h3>Factures Qonto à rattacher (' + q.aRattacher.length + ')</h3>' +
+      '<p class="legende">Sans n° KA dans le champ « Bon de commande » de la facture Qonto. Elles comptent déjà dans le CA encaissé ; rattachez-les pour le planning de l\'affaire.</p>' +
+      '<div class="tableau-conteneur"><table><thead><tr><th scope="col">N°</th><th scope="col">Date</th><th scope="col" class="num">Montant HT</th><th scope="col">État</th><th scope="col">Affaire</th><th scope="col">Tranche</th><th scope="col"><span class="seul-lecteur">Action</span></th></tr></thead><tbody>' +
+      q.aRattacher.map(function (f) {
+        return '<tr data-rattacher="' + esc(f.id) + '"><td class="mono">' + (f.lien_facture ? '<a href="' + esc(f.lien_facture) + '" target="_blank" rel="noopener">' + esc(f.numero) + ' ↗</a>' : esc(f.numero)) + '</td>' +
+          '<td class="mono">' + jour(f.date) + '</td><td class="num mono">' + K.euros(Number(f.montant) || 0) + '</td><td>' + esc(f.qonto_statut) + '</td>' +
+          '<td><select class="champ champ--compact" data-ratt-affaire aria-label="Affaire de la facture ' + esc(f.numero) + '"><option value=""></option>' + options + '</select></td>' +
+          '<td><select class="champ champ--compact" data-ratt-tranche aria-label="Tranche"><option value="">—</option></select></td>' +
+          '<td><button type="button" class="bouton bouton--petit" data-ratt-ok disabled>Rattacher</button></td></tr>';
+      }).join('') + '</tbody></table></div>' : '';
+    var annulees = q.annulees.length ? '<p class="bandeau bandeau--erreur">Annulée' + (q.annulees.length > 1 ? 's' : '') + ' dans Qonto : ' +
+      q.annulees.map(function (f) { return '<a href="#affaire/' + esc(f.id_affaire) + '" class="mono">' + esc(f.numero) + '</a>'; }).join(', ') +
+      ' — exclue' + (q.annulees.length > 1 ? 's' : '') + ' du planning et des relances (rien n\'a été supprimé).</p>' : '';
+    cible.innerHTML = '<div class="actions-ligne"><button type="button" class="bouton" data-qonto-synchro>Synchroniser Qonto</button>' +
+      '<span class="legende">Qonto connecté · ' + (q.derniereSynchro ? 'dernière synchronisation le ' + quandIso(q.derniereSynchro) : 'jamais synchronisé') +
+      ' · automatique chaque matin. Dans Qonto, indiquez le n° de l\'affaire et la tranche dans « Bon de commande » (ex. KA-2027-003 TF).</span></div>' + annulees + aRatt;
+    $('[data-qonto-synchro]', cible).addEventListener('click', function () {
+      var b = this; b.disabled = true; b.textContent = 'Synchronisation…';
+      K.appel('apiQontoSynchroniser').then(function (r) {
+        var bi = r.bilan;
+        K.toast(bi.lues + ' facture(s) lue(s) dans Qonto : ' + bi.creees + ' ajoutée(s), ' + bi.majs + ' mise(s) à jour' + (bi.payees.length ? ', payée(s) : ' + bi.payees.join(', ') : '') + '.');
+        K.viderMemoire();
+        rendreEncaissements(zone, r.finances);
+      }).catch(function (er) { b.disabled = false; b.textContent = 'Synchroniser Qonto'; K.toast(er.message, true); });
+    });
+    $$('[data-rattacher]', cible).forEach(function (tr) {
+      var sa = $('[data-ratt-affaire]', tr), st = $('[data-ratt-tranche]', tr), ok = $('[data-ratt-ok]', tr);
+      sa.addEventListener('change', function () {
+        var a = q.affaires.filter(function (x) { return x.id === sa.value; })[0];
+        st.innerHTML = '<option value="">—</option>' + (a ? a.tranches.map(function (t) { return '<option>' + esc(t) + '</option>'; }).join('') : '');
+        ok.disabled = !sa.value;
+      });
+      ok.addEventListener('click', function () {
+        ok.disabled = true;
+        K.appel('apiQontoRattacher', tr.getAttribute('data-rattacher'), sa.value, st.value).then(function (r) {
+          K.toast('Facture rattachée à ' + sa.value + (st.value ? ' (' + st.value + ')' : '') + '.');
+          K.viderMemoire();
+          rendreEncaissements(zone, r.finances);
+        }).catch(function (er) { ok.disabled = false; K.toast(er.message, true); });
+      });
+    });
+  }
+
+  // ——— Paramètres › Finances : connexion Qonto (clé API en lecture) ———
+  K.blocQonto = function (cible) {
+    K.appel('apiQontoEtat').then(function (q) { rendreBlocQonto(cible, q); }).catch(function (er) { cible.innerHTML = '<h2>Qonto (factures et paiements)</h2>' + K.bandeauErreur(er); });
+  };
+
+  function rendreBlocQonto(cible, q) {
+    var tete = '<h2>Qonto (factures et paiements)</h2>';
+    if (q.connecte) {
+      cible.innerHTML = tete + '<p><span class="statut statut--ok">Connecté</span> identifiant <span class="mono">' + esc(q.identifiant) + '</span>' +
+        (q.derniereSynchro ? ' · dernière synchronisation le ' + quandIso(q.derniereSynchro) : '') + '</p>' +
+        '<p class="legende">L\'app lit vos factures clients Qonto chaque matin (et à la demande dans Finances › Encaissements) : numéro, date, montant, échéance, paiement. Elle ne crée ni ne modifie rien dans Qonto. ' +
+        'Pour rattacher une facture à une affaire, indiquez dans Qonto, champ « Bon de commande » : le n° KA et la tranche (ex. KA-2027-003 TF).</p>' +
+        '<p><button type="button" class="bouton bouton--discret" data-qonto-oublier>Déconnecter Qonto</button></p>';
+      $('[data-qonto-oublier]', cible).addEventListener('click', function () {
+        if (!window.confirm('Déconnecter Qonto ? Les factures déjà récupérées restent dans l\'app.')) return;
+        K.appel('apiQontoDeconnecter').then(function (q2) { K.toast('Qonto déconnecté.'); rendreBlocQonto(cible, q2); }).catch(function (er) { K.toast(er.message, true); });
+      });
+      return;
+    }
+    cible.innerHTML = tete +
+      '<p class="legende">Dans Qonto : Paramètres › Intégrations et partenariats › Clé API. Copiez l\'identifiant et la clé secrète ci-dessous. ' +
+      'La clé est gardée dans les propriétés du script (jamais dans le classeur) et sert seulement à lire les factures et leurs paiements.</p>' +
+      '<form class="form-grille form-grille--4" data-qonto-form novalidate autocomplete="off">' +
+        '<div class="champ-bloc"><label for="q-login">Identifiant</label><input class="champ mono" id="q-login" autocomplete="off" placeholder="ex. kompa-ingenierie-1234"></div>' +
+        '<div class="champ-bloc"><label for="q-secret">Clé secrète</label><input class="champ mono" id="q-secret" type="password" autocomplete="new-password"></div>' +
+        '<div class="bloc-form__actions"><button type="submit" class="bouton">Tester et enregistrer</button></div></form>';
+    $('[data-qonto-form]', cible).addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var b = $('button[type=submit]', cible); b.disabled = true;
+      K.appel('apiQontoConnecter', $('#q-login', cible).value, $('#q-secret', cible).value).then(function (r) {
+        K.toast('Qonto connecté : ' + r.societe + '.');
+        rendreBlocQonto(cible, r.etat);
+      }).catch(function (er) { b.disabled = false; K.toast(er.message, true); });
     });
   }
 

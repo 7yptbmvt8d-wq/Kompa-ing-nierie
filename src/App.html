@@ -8,7 +8,7 @@
   var LECTURES = ['apiEtat', 'apiParametres', 'apiCompteurCA', 'apiAccueil', 'apiAffaires', 'apiAffaire', 'apiVeille',
     'apiEcheancier', 'apiSuivi', 'apiCourrier', 'apiEmailApercu', 'apiTableau', 'apiEnseignements', 'apiFiscal', 'apiPieces',
     'apiEstReferentiels', 'apiEstAccueil', 'apiEstAffaire', 'apiEstIndices', 'apiEstIndiceHistorique', 'apiEstActualiser',
-    'apiEstBibliotheque', 'apiEstAnalyserPostes', 'apiEstRatios', 'apiEstFormulaire', 'apiEstApercu', 'apiEstEstimation', 'apiPrevisionnel', 'apiFinances', 'apiRecherche'];
+    'apiEstBibliotheque', 'apiEstAnalyserPostes', 'apiEstRatios', 'apiEstFormulaire', 'apiEstApercu', 'apiEstEstimation', 'apiPrevisionnel', 'apiFinances', 'apiRecherche', 'apiQontoEtat'];
 
   function appel(nom) {
     var args = Array.prototype.slice.call(arguments, 1);
@@ -326,11 +326,13 @@
       var html = tete;
       if (onglet[0] === 'apparence') html += blocApparence();
       if (onglet[0] === 'socle') html += '<section class="groupe-param carte" id="carte-etat"><h2>État du socle</h2><div class="chargement">Lecture du classeur…</div></section>';
+      if (onglet[0] === 'finances') html += '<section class="groupe-param" id="bloc-qonto"><h2>Qonto (factures et paiements)</h2><div class="chargement">Lecture…</div></section>';
       groupes.filter(function (g) { return onglet[2].indexOf(g.prefixe) >= 0; }).forEach(function (g) {
         html += '<section class="groupe-param"><h2>' + esc(g.titre) + '</h2>' + paramsPC(g.parametres) + '</section>';
       });
       el.innerHTML = html;
       brancherParams(el);
+      if (onglet[0] === 'finances' && window.KA.blocQonto) window.KA.blocQonto($('#bloc-qonto', el));
       if (onglet[0] === 'socle') appel('apiEtat').then(rendreEtat).catch(function (e) { var z = $('#carte-etat'); if (z) z.innerHTML = '<h2>État du socle</h2>' + bandeauErreur(e); });
     }, function (e) {
       el.innerHTML = tete + bandeauErreur(e);
