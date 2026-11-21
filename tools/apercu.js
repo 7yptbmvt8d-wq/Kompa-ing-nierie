@@ -48,6 +48,7 @@ function assembler() {
   env.ctx.creerAffaireExerciceMouthe();
   env.ctx.creerAffairesTestIndicateurs();
   env.ctx.Params_enregistrer('fiscal.debut_suivi', '2026-01-01');
+  env.ctx.Params_enregistrer('fiscal.date_creation', '2026-01-01'); // démonstration : entreprise déjà en activité
   env.ctx.Params_enregistrer('fiscal.taux_cotisations', '23,2');
   env.ctx.Params_cache_ = null;
   const A = env.ctx;
