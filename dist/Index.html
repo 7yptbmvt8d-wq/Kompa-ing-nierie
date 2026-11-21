@@ -1035,14 +1035,16 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
   }
 
   function rendreEtat(etat) {
-    var present = etat.onglets.filter(function (o) { return o.present; }).length;
-    var ok = present === etat.onglets.length;
     $('#pied').textContent = etat.app + ' · v' + etat.version;
     var zoneA = $('#alertes-deploiement');
+    var maj = etat.majAuto;
     if (zoneA) zoneA.innerHTML = (etat.alertes || []).map(function (a) {
       return '<p class="bandeau bandeau--erreur" role="alert"><strong>Mise à jour incomplète.</strong> ' + esc(a) + '</p>';
-    }).join('');
-    if (!$('#carte-etat')) return;
+    }).join('') + (maj && maj.changements && maj.changements.length ? '<p class="bandeau">Classeur complété automatiquement pour la version ' + esc(maj.version) + ' le ' + esc(dateHeure(maj.date)) + ' : ' +
+      esc(maj.changements.join(' ; ')) + '. Rien n\'a été supprimé ni modifié.</p>' : '');
+    if (!$('#carte-etat') || !etat.onglets) return;
+    var present = etat.onglets.filter(function (o) { return o.present; }).length;
+    var ok = present === etat.onglets.length;
     $('#carte-etat').innerHTML = '<h2>État du socle</h2>' +
       '<dl class="liste-def">' +
         '<dt>Classeur</dt><dd><span class="statut ' + (ok ? 'statut--ok">Connecté' : 'statut--ko">Incomplet') + '</span> ' +
@@ -2627,7 +2629,11 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
           '<td>' + (j.erreurs ? '<span class="statut statut--ko">' + esc(j.erreurs) + '</span>' : '<span class="legende">—</span>') + '</td></tr>';
       }).join('') + '</tbody></table></div>' : '<p class="vide">Aucune collecte pour l\'instant.</p>');
 
-    el.innerHTML = K.titre('Veille', sousTitre) + barre + table + journal;
+    var ap = r.apprentissage;
+    var appr = !ap || !ap.active ? '' : '<p class="legende apprentissage">' + (ap.actif
+      ? 'La veille apprend de vos décisions (' + ap.decisions + ' : ' + ap.retenus + ' retenue' + (ap.retenus > 1 ? 's' : '') + ', ' + ap.ecartes + ' écartée' + (ap.ecartes > 1 ? 's' : '') + ') : ajustement « Historique » visible dans le détail du pré-score.'
+      : 'Apprentissage de vos décisions : ' + ap.decisions + ' sur ' + ap.min + ' nécessaires (ignorez les avis hors cible, étudiez les bons).') + '</p>';
+    el.innerHTML = K.titre('Veille', sousTitre) + barre + appr + table + journal;
     brancher(el, r);
   }
 

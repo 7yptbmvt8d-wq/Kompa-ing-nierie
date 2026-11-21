@@ -104,6 +104,80 @@ test('classeur pas à jour : alerte sur l\'accueil et erreur explicite au lieu d
   assert.deepStrictEqual([t2.optionnelle, t2.affermissement], [true, 'optionnelle']);
 });
 
+test('mise à jour automatique du classeur : ajouts seulement, une fois par version, signalée sur l\'accueil', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  console.log = () => {};
+  A.installer({ exercice: false });
+  console.log = journal;
+  // Juste après installer() : rien à faire
+  assert.strictEqual(A.MiseAJour_verifier_(), null);
+  const id = A.Affaires_creer({ acheteur: 'Ville de Marseille', objet: 'AMO' }).id;
+  A.Affaires_maj(id, { objet: 'Ne pas toucher', prix_jour: 400 });
+  // Code mis à jour : colonne et paramètre ajoutés au schéma, déclencheur de la collecte supprimé à la main
+  const ss = Object.values(env.classeurs).find((x) => x.getSheetByName('Affaires'));
+  const f = ss.getSheetByName('Affaires');
+  const avant = f.lignes.map((l) => l.slice());
+  A.TABLES.AFFAIRES.colonnes.push('nouvelle_colonne');
+  A.PARAMETRES_DEFAUT.push(['test.nouveau', '12', 'Paramètre ajouté par la nouvelle version']);
+  A.Params_enregistrer('capacite.montant_max_mission', '55555'); // valeur saisie, à conserver
+  const t = A.ScriptApp.getProjectTriggers().find((x) => x.getHandlerFunction() === 'collecteQuotidienne');
+  A.ScriptApp.deleteTrigger(t);
+  const nbDecl = A.ScriptApp.getProjectTriggers().length;
+  const r = brut(A.MiseAJour_verifier_());
+  assert.ok(r.changements.some((c) => /Affaires : colonne nouvelle_colonne ajoutée/.test(c)), r.changements.join(' | '));
+  assert.ok(r.changements.some((c) => /1 paramètre ajouté/.test(c)));
+  assert.ok(r.changements.some((c) => /collecteQuotidienne recréé/.test(c)));
+  assert.strictEqual(A.ScriptApp.getProjectTriggers().length, nbDecl + 1); // les autres déclencheurs ne sont pas touchés
+  // Aucune donnée déplacée ni modifiée : anciennes colonnes identiques, nouvelle colonne en fin
+  avant.forEach((ligne, i) => ligne.forEach((v, j) => { if (j < avant[0].length) assert.deepStrictEqual(f.lignes[i][j], v); }));
+  assert.strictEqual(f.lignes[0][avant[0].length], 'nouvelle_colonne');
+  A.Db_viderCache_(); A.Params_cache_ = null;
+  assert.strictEqual(A.Affaires_get_(id).objet, 'Ne pas toucher');
+  assert.strictEqual(A.Params_texte('capacite.montant_max_mission'), '55555');
+  assert.strictEqual(A.Params_texte('test.nouveau'), '12');
+  // Une seule fois par version ; signalée sur l'accueil et notée au journal
+  assert.strictEqual(A.MiseAJour_verifier_(), null);
+  assert.match(A.MiseAJour_dernier_().changements.join(' '), /nouvelle_colonne/);
+  assert.ok(A.Db_lire(A.TABLES.JOURNAL_MOTEUR).some((l) => l.source === 'Mise à jour automatique' && /nouvelle_colonne/.test(l.erreurs)));
+  assert.ok(brut(A.Etat_leger_()).majAuto);
+});
+
+test('veille apprenante : avis ignorés et No-go font baisser, affaires étudiées font monter le pré-score', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  console.log = () => {};
+  A.installer({ exercice: false });
+  console.log = journal;
+  const avis = (objet, statut, extra) => Object.assign({ source: 'BOAMP', acheteur: 'Commune X', objet, statut, departement: '04' }, extra || {});
+  // Moins de 15 décisions : pas d'apprentissage
+  A.Db_insererPlusieurs(A.TABLES.AVIS, [avis('Mission d\'AMO assurance flotte automobile', 'ignoré')]);
+  assert.strictEqual(A.Veille_apprentissage_().actif, false);
+  const ignores = [], etudies = [];
+  for (let i = 0; i < 9; i++) ignores.push(avis('AMO assurance dommages ouvrage et flotte n°' + i, 'ignoré'));
+  for (let i = 0; i < 6; i++) {
+    const id = A.Affaires_creer({ acheteur: 'Commune ' + i, objet: 'Étude de faisabilité et programmation école ' + i }).id;
+    if (i < 5) A.Affaires_changerStatut(id, 'Go', {});
+    etudies.push(avis('Étude de faisabilité et programmation école ' + i, 'étudié', { id_affaire: id }));
+  }
+  A.Db_insererPlusieurs(A.TABLES.AVIS, ignores.concat(etudies));
+  const app = A.Veille_apprentissage_();
+  assert.strictEqual(app.actif, true);
+  const moins = brut(A.Veille_ajustementHistorique_('Assistance assurance construction flotte véhicules', app));
+  assert.ok(moins.points < 0, JSON.stringify(moins));
+  assert.ok(moins.moins.includes('assurance'));
+  const plus = brut(A.Veille_ajustementHistorique_('Faisabilité et programmation d\'une école maternelle', app));
+  assert.ok(plus.points > 0 && plus.points <= 10, JSON.stringify(plus));
+  assert.strictEqual(A.Veille_ajustementHistorique_('Réhabilitation du gymnase', app), null); // mots inconnus : pas d'ajustement
+  // Le détail du pré-score l'explique ; désactivable par paramètre
+  const ctx = A.Veille_contexte_();
+  const a = A.Veille_scorer_({ objet: 'AMO assurance flotte de véhicules', departement: '04', type_acheteur: 'Commune', date_limite: new Date(Date.now() + 20 * 86400000) }, ctx);
+  assert.match(a.score_detail, /Historique -\d+ \(proche d'avis écartés : .*assurance/);
+  A.Params_enregistrer('veille.apprentissage', 'non');
+  A.Params_cache_ = null;
+  assert.strictEqual(A.Veille_apprentissage_().actif, false);
+});
+
 test('chaque onglet a id/clé en 1re colonne et cree_le, modifie_le en fin', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });
@@ -1942,7 +2016,8 @@ test('fluidité : l\'accueil en un seul appel', () => {
   const r = brut(env.ctx.apiAccueil());
   assert.ok(r.ok, r.erreur);
   assert.deepStrictEqual(Object.keys(r.data).sort(), ['alertes', 'ca', 'etat', 'fiscal', 'previsionnel', 'suivi', 'tableau']);
-  assert.strictEqual(r.data.etat.onglets.length, 25); // 13 onglets du suivi + 12 du module Estimation
+  assert.strictEqual(r.data.etat.onglets, undefined); // accueil : état léger, les onglets ne sont pas relus
+  assert.strictEqual(brut(env.ctx.apiEtat()).data.onglets.length, 25); // 13 onglets du suivi + 12 du module Estimation
 });
 
 test('fluidité : relances recalculées après un changement de statut, pas à la lecture', () => {

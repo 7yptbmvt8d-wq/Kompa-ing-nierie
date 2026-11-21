@@ -7,6 +7,7 @@
 
 function doGet() {
   verifierAcces_();
+  MiseAJour_verifier_(); // classeur complété si le code vient d'être mis à jour (ajouts seulement)
   // Application pour ordinateur (Windows, macOS, ChromeOS). Sur téléphone, seul l'Accueil (tableau de bord)
   // est adapté à l'écran (décision du 18/11/2026) ; les autres écrans gardent la mise en page ordinateur.
   var sortie = HtmlService.createTemplateFromFile('Index')
@@ -58,7 +59,7 @@ function apiAccueil() {
       ca: Compteur_ca(),
       fiscal: Fiscal_declarations(),
       suivi: Suivi_accueil_(),
-      etat: Etat_socle_(),
+      etat: Etat_leger_(),
       previsionnel: Previsionnel_ca(),
       alertes: { retards: Finances_retards_(), seuils: Previsionnel_alertes_() }
     };
@@ -94,6 +95,11 @@ function apiEtat() {
   return repondre_(Etat_socle_);
 }
 
+/** État pour l'accueil : version, alertes de déploiement, dernière mise à jour automatique (sans relire les onglets). */
+function Etat_leger_() {
+  return { app: APP.NOM, version: APP.VERSION, alertes: Etat_alertes_(), majAuto: MiseAJour_dernier_() };
+}
+
 function Etat_socle_() {
   return (function () {
     var classeur = Db_classeur();
@@ -107,6 +113,7 @@ function Etat_socle_() {
       app: APP.NOM,
       version: APP.VERSION,
       alertes: Etat_alertes_(),
+      majAuto: MiseAJour_dernier_(),
       compte: Session.getEffectiveUser().getEmail(),
       classeur: { nom: classeur.getName(), url: classeur.getUrl() },
       onglets: onglets,

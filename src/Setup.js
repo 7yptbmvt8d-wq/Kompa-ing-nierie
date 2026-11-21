@@ -36,6 +36,8 @@ function installer(options) {
   // Dossiers Drive des affaires existantes
   try { rapport.dossiersDrive = creerDossiersManquants(); } catch (e) { rapport.dossiersDrive = 'erreur : ' + e.message; }
   rapport.declencheurs = Setup_declencheurs_();
+  // Classeur à jour pour cette version : la mise à jour automatique n'a rien à refaire
+  try { PropertiesService.getScriptProperties().setProperty(MAJ_PROP_SIGNATURE, MiseAJour_signature_()); } catch (e) { /* sans effet */ }
   rapport.duree_s = Math.round((Date.now() - debut) / 100) / 10;
 
   console.log(JSON.stringify(rapport, null, 2));
@@ -121,7 +123,7 @@ function Setup_supprimerFeuilleVide_(classeur, cle) {
  * Déclencheurs : sauvegarde hebdomadaire (lundi, 5 h), collecte de la veille (6 h, paramètre).
  * et e-mail du matin (7 h, paramètre ; l'envoi vérifie le jour de la semaine).
  */
-function Setup_declencheurs_() {
+function Setup_declencheurs_(seulement) {
   var voulus = [
     {
       fonction: 'sauvegardeHebdo',
@@ -148,6 +150,8 @@ function Setup_declencheurs_() {
   ];
   // Module Estimation (Estimation.gs) : mise à jour mensuelle des index Insee
   if (typeof Est_declencheurs_ === 'function') voulus = voulus.concat(Est_declencheurs_());
+  // Mise à jour automatique : seulement les déclencheurs absents (les autres ne sont pas touchés)
+  if (seulement) voulus = voulus.filter(function (v) { return seulement.indexOf(v.fonction) >= 0; });
   var existants = ScriptApp.getProjectTriggers();
   return voulus.map(function (v) {
     existants

@@ -71,7 +71,11 @@
           '<td>' + (j.erreurs ? '<span class="statut statut--ko">' + esc(j.erreurs) + '</span>' : '<span class="legende">—</span>') + '</td></tr>';
       }).join('') + '</tbody></table></div>' : '<p class="vide">Aucune collecte pour l\'instant.</p>');
 
-    el.innerHTML = K.titre('Veille', sousTitre) + barre + table + journal;
+    var ap = r.apprentissage;
+    var appr = !ap || !ap.active ? '' : '<p class="legende apprentissage">' + (ap.actif
+      ? 'La veille apprend de vos décisions (' + ap.decisions + ' : ' + ap.retenus + ' retenue' + (ap.retenus > 1 ? 's' : '') + ', ' + ap.ecartes + ' écartée' + (ap.ecartes > 1 ? 's' : '') + ') : ajustement « Historique » visible dans le détail du pré-score.'
+      : 'Apprentissage de vos décisions : ' + ap.decisions + ' sur ' + ap.min + ' nécessaires (ignorez les avis hors cible, étudiez les bons).') + '</p>';
+    el.innerHTML = K.titre('Veille', sousTitre) + barre + appr + table + journal;
     brancher(el, r);
   }
 

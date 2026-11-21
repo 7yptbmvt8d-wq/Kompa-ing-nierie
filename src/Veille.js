@@ -15,6 +15,7 @@ var SOURCE_GMAIL = 'Alerte e-mail';
 // ——— Collecte quotidienne (déclencheur 6 h) ———
 
 function collecteQuotidienne() {
+  MiseAJour_verifier_();
   var verrou = LockService.getScriptLock();
   if (!verrou.tryLock(1000)) { console.warn('Collecte déjà en cours.'); return null; }
   try {
@@ -55,7 +56,8 @@ function Veille_contexte_() {
     jours: Params_nombre('veille.fenetre_jours', 3),
     montantMax: Params_nombre('capacite.montant_max_mission', null),
     resteSousPlafond: typeof vise === 'number' ? vise : null,
-    existants: Db_lire(TABLES.AVIS)
+    existants: Db_lire(TABLES.AVIS),
+    apprentissage: Veille_apprentissage_()
   };
 }
 
@@ -392,6 +394,9 @@ function Veille_scorer_(a, ctx) {
     montant: !montant ? p('montant_inconnu', 8) : compatible ? p('montant_compatible', 15) : p('montant_hors', 0)
   };
   var total = detail.zone + detail.mission + detail.delai + detail.acheteur + detail.montant;
+  // Historique de vos décisions (avis ignorés, No-go, affaires étudiées) : ajustement borné
+  var hist = Veille_ajustementHistorique_(a.objet, ctx.apprentissage);
+  if (hist) total = Math.max(0, Math.min(100, total + hist.points));
   var classement = total >= p('seuil_etudier', 60) ? 'à étudier' : total >= p('seuil_possible', 40) ? 'possible' : 'archivé';
   // Domaine bâtiment non cité dans l'objet : au mieux « possible », jamais « à étudier »
   if (a.batimentAVerifier && classement === 'à étudier') classement = 'possible';
@@ -401,6 +406,9 @@ function Veille_scorer_(a, ctx) {
   a.pre_score = total;
   a.score_detail = 'Zone ' + detail.zone + ' · Mission ' + detail.mission + ' · Délai ' + detail.delai +
     (jours === null ? ' (date inconnue)' : ' (' + jours + ' j)') + ' · Acheteur ' + detail.acheteur + ' · Montant ' + detail.montant +
+    (hist ? ' · Historique ' + (hist.points > 0 ? '+' : '') + hist.points + ' (' +
+      [hist.plus.length ? 'proche d\'avis retenus : ' + hist.plus.join(', ') : '', hist.moins.length ? 'proche d\'avis écartés : ' + hist.moins.join(', ') : '']
+        .filter(String).join(' ; ') + ')' : '') +
     (a.batimentAVerifier ? ' · Bâtiment à vérifier (objet sans mot du bâtiment)' : '');
   a.alerte_delai = jours !== null && jours < 10 ? 'oui' : '';
   a.classement = classement;

@@ -216,14 +216,16 @@
   }
 
   function rendreEtat(etat) {
-    var present = etat.onglets.filter(function (o) { return o.present; }).length;
-    var ok = present === etat.onglets.length;
     $('#pied').textContent = etat.app + ' · v' + etat.version;
     var zoneA = $('#alertes-deploiement');
+    var maj = etat.majAuto;
     if (zoneA) zoneA.innerHTML = (etat.alertes || []).map(function (a) {
       return '<p class="bandeau bandeau--erreur" role="alert"><strong>Mise à jour incomplète.</strong> ' + esc(a) + '</p>';
-    }).join('');
-    if (!$('#carte-etat')) return;
+    }).join('') + (maj && maj.changements && maj.changements.length ? '<p class="bandeau">Classeur complété automatiquement pour la version ' + esc(maj.version) + ' le ' + esc(dateHeure(maj.date)) + ' : ' +
+      esc(maj.changements.join(' ; ')) + '. Rien n\'a été supprimé ni modifié.</p>' : '');
+    if (!$('#carte-etat') || !etat.onglets) return;
+    var present = etat.onglets.filter(function (o) { return o.present; }).length;
+    var ok = present === etat.onglets.length;
     $('#carte-etat').innerHTML = '<h2>État du socle</h2>' +
       '<dl class="liste-def">' +
         '<dt>Classeur</dt><dd><span class="statut ' + (ok ? 'statut--ok">Connecté' : 'statut--ko">Incomplet') + '</span> ' +

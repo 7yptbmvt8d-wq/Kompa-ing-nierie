@@ -16,7 +16,12 @@ function apiVeille() {
       journal: journal,
       paca: Params_texte('zone.libelle_paca', 'PACA'),
       seuils: { etudier: Params_nombre('score.seuil_etudier', 60), possible: Params_nombre('score.seuil_possible', 40) },
-      heure: Params_nombre('veille.heure_collecte', 6)
+      heure: Params_nombre('veille.heure_collecte', 6),
+      apprentissage: (function () {
+        var app = Veille_apprentissage_();
+        return { actif: app.actif, decisions: app.decisions, retenus: app.retenus, ecartes: app.ecartes, min: Params_nombre('veille.apprentissage_min', 15),
+          active: Params_texte('veille.apprentissage', 'oui').toLowerCase() === 'oui' };
+      })()
     };
   });
 }

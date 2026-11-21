@@ -40,6 +40,8 @@ function installer(options) {
   // Dossiers Drive des affaires existantes
   try { rapport.dossiersDrive = creerDossiersManquants(); } catch (e) { rapport.dossiersDrive = 'erreur : ' + e.message; }
   rapport.declencheurs = Setup_declencheurs_();
+  // Classeur à jour pour cette version : la mise à jour automatique n'a rien à refaire
+  try { PropertiesService.getScriptProperties().setProperty(MAJ_PROP_SIGNATURE, MiseAJour_signature_()); } catch (e) { /* sans effet */ }
   rapport.duree_s = Math.round((Date.now() - debut) / 100) / 10;
 
   console.log(JSON.stringify(rapport, null, 2));
@@ -125,7 +127,7 @@ function Setup_supprimerFeuilleVide_(classeur, cle) {
  * Déclencheurs : sauvegarde hebdomadaire (lundi, 5 h), collecte de la veille (6 h, paramètre).
  * et e-mail du matin (7 h, paramètre ; l'envoi vérifie le jour de la semaine).
  */
-function Setup_declencheurs_() {
+function Setup_declencheurs_(seulement) {
   var voulus = [
     {
       fonction: 'sauvegardeHebdo',
@@ -152,6 +154,8 @@ function Setup_declencheurs_() {
   ];
   // Module Estimation (Estimation.gs) : mise à jour mensuelle des index Insee
   if (typeof Est_declencheurs_ === 'function') voulus = voulus.concat(Est_declencheurs_());
+  // Mise à jour automatique : seulement les déclencheurs absents (les autres ne sont pas touchés)
+  if (seulement) voulus = voulus.filter(function (v) { return seulement.indexOf(v.fonction) >= 0; });
   var existants = ScriptApp.getProjectTriggers();
   return voulus.map(function (v) {
     existants
@@ -971,7 +975,12 @@ function apiVeille() {
       journal: journal,
       paca: Params_texte('zone.libelle_paca', 'PACA'),
       seuils: { etudier: Params_nombre('score.seuil_etudier', 60), possible: Params_nombre('score.seuil_possible', 40) },
-      heure: Params_nombre('veille.heure_collecte', 6)
+      heure: Params_nombre('veille.heure_collecte', 6),
+      apprentissage: (function () {
+        var app = Veille_apprentissage_();
+        return { actif: app.actif, decisions: app.decisions, retenus: app.retenus, ecartes: app.ecartes, min: Params_nombre('veille.apprentissage_min', 15),
+          active: Params_texte('veille.apprentissage', 'oui').toLowerCase() === 'oui' };
+      })()
     };
   });
 }
@@ -2282,6 +2291,7 @@ var JOURS_SEMAINE = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
 
 /** Déclencheur quotidien (7 h). */
 function envoyerEmailMatin() {
+  MiseAJour_verifier_();
   return Email_envoyer_(new Date(), false);
 }
 
@@ -3142,6 +3152,126 @@ function Livrables_resume_(livrables) {
 }
 
 
+// ════════ MiseAJour.js ════════
+
+/**
+ * Mise à jour automatique du classeur (décision du 21/11/2026) : après le collage d'une nouvelle version du code,
+ * le premier appel (ouverture de l'app ou déclencheur du matin) complète le classeur, sans relancer installer().
+ *
+ * Seulement des AJOUTS, jamais de suppression, de déplacement ni de modification d'une valeur saisie :
+ * - onglets absents créés, colonnes absentes ajoutées en fin de ligne d'en-tête ;
+ * - paramètres absents ajoutés avec leur valeur par défaut ;
+ * - référentiels du module Estimation : lignes absentes ajoutées ;
+ * - déclencheurs absents recréés (ceux qui existent ne sont pas touchés).
+ * installer() reste disponible pour une remise à plat complète (migrations de valeurs, avis re-filtrés…).
+ * Le résultat est noté dans le Journal moteur et signalé une fois sur l'accueil.
+ */
+
+var MAJ_PROP_SIGNATURE = 'KA_SIGNATURE_SCHEMA';
+var MAJ_PROP_RAPPORT = 'KA_DERNIERE_MAJ_AUTO';
+
+/** Empreinte de ce que le code attend du classeur : colonnes, paramètres, référentiels, déclencheurs. */
+function MiseAJour_signature_() {
+  var tables = Tables_toutes_();
+  var morceaux = [APP.VERSION, typeof EST_VERSION !== 'undefined' ? EST_VERSION : '-'];
+  Object.keys(tables).sort().forEach(function (k) { morceaux.push(tables[k].onglet + ':' + colonnesTable_(tables[k]).join(',')); });
+  morceaux.push(PARAMETRES_DEFAUT.map(function (p) { return p[0]; }).join(','));
+  if (typeof EST_PARAMS_DEFAUT !== 'undefined') {
+    morceaux.push(EST_PARAMS_DEFAUT.map(function (p) { return p[0]; }).join(','));
+    morceaux.push(EST_LOTS_DEFAUT.map(function (p) { return p[0]; }).join(','));
+    morceaux.push(EST_TYPOLOGIES_DEFAUT.map(function (p) { return p[0]; }).join(','));
+  }
+  morceaux.push(MiseAJour_declencheursVoulus_().join(','));
+  var texte = morceaux.join('|'), h = 5381;
+  for (var i = 0; i < texte.length; i++) h = ((h * 33) ^ texte.charCodeAt(i)) >>> 0;
+  return APP.VERSION + '-' + h.toString(36) + '-' + texte.length;
+}
+
+function MiseAJour_declencheursVoulus_() {
+  var noms = ['sauvegardeHebdo', 'collecteQuotidienne', 'envoyerEmailMatin'];
+  if (typeof Est_declencheurs_ === 'function') noms = noms.concat(Est_declencheurs_().map(function (d) { return d.fonction; }));
+  return noms;
+}
+
+/**
+ * Vérifie, très vite, si le classeur correspond à la version du code ; sinon le complète.
+ * Renvoie null (rien à faire) ou le rapport de mise à jour. Ne lève jamais d'erreur.
+ */
+function MiseAJour_verifier_() {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    if (!props.getProperty(CLASSEURS.SUIVI.prop)) return null; // pas encore installé : installer() d'abord
+    var signature = MiseAJour_signature_();
+    if (props.getProperty(MAJ_PROP_SIGNATURE) === signature) return null;
+    var verrou = LockService.getScriptLock();
+    if (!verrou.tryLock(15000)) return null; // un autre appel s'en charge
+    try {
+      if (props.getProperty(MAJ_PROP_SIGNATURE) === signature) return null;
+      var rapport = MiseAJour_appliquer_();
+      props.setProperty(MAJ_PROP_SIGNATURE, signature);
+      if (rapport.changements.length) props.setProperty(MAJ_PROP_RAPPORT, JSON.stringify({ date: new Date().toISOString(), version: APP.VERSION, changements: rapport.changements }));
+      return rapport;
+    } finally {
+      verrou.releaseLock();
+    }
+  } catch (e) {
+    console.error('Mise à jour automatique du classeur : ' + e.message);
+    try { Db_inserer(TABLES.JOURNAL_MOTEUR, { date: new Date(), source: 'Mise à jour automatique', avis_lus: 0, avis_retenus: 0, erreurs: String(e.message).slice(0, 300) }); } catch (e2) { /* sans effet */ }
+    return null;
+  }
+}
+
+/** Ajouts seulement (voir l'en-tête du fichier). Renvoie { changements: [libellés] }. */
+function MiseAJour_appliquer_() {
+  Db_viderCache_();
+  var changements = [];
+  var classeurs = { SUIVI: Db_classeur('SUIVI') };
+  var tables = Tables_toutes_();
+  Object.keys(tables).forEach(function (k) {
+    var t = tables[k], cle = t.classeur || 'SUIVI';
+    if (!classeurs[cle]) {
+      if (!PropertiesService.getScriptProperties().getProperty(CLASSEURS[cle].prop)) { classeurs[cle] = Setup_classeur_(cle); changements.push('classeur « ' + CLASSEURS[cle].nom + ' » créé'); }
+      else classeurs[cle] = Db_classeur(cle);
+    }
+    var onglet = classeurs[cle].getSheetByName(t.onglet);
+    var presentes = onglet ? Db_entetes_(onglet).filter(String) : [];
+    var manquantes = colonnesTable_(t).filter(function (c) { return presentes.indexOf(c) < 0; });
+    if (onglet && !manquantes.length) return; // rien à faire : l'onglet n'est pas retouché
+    Setup_onglet_(classeurs[cle], t);
+    changements.push(onglet ? t.onglet + ' : colonne' + (manquantes.length > 1 ? 's' : '') + ' ' + manquantes.join(', ') + ' ajoutée' + (manquantes.length > 1 ? 's' : '') : 'onglet « ' + t.onglet + ' » créé');
+  });
+  Db_viderCache_();
+  var p = Params_initialiser_();
+  if (p) changements.push(p + ' paramètre' + (p > 1 ? 's' : '') + ' ajouté' + (p > 1 ? 's' : ''));
+  if (typeof Est_initialiserReferentiels_ === 'function') {
+    var r = Est_initialiserReferentiels_();
+    var nb = (r.parametres || 0) + (r.lots || 0) + (r.typologies || 0) + (Number(r.k) || 0);
+    if (nb) changements.push('Estimation : ' + nb + ' ligne' + (nb > 1 ? 's' : '') + ' de référentiel ajoutée' + (nb > 1 ? 's' : ''));
+  }
+  var existants = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
+  var absents = MiseAJour_declencheursVoulus_().filter(function (n) { return existants.indexOf(n) < 0; });
+  if (absents.length && existants.length) {
+    // Seulement si l'installation a déjà des déclencheurs : on recrée ceux qui manquent, sans toucher aux autres.
+    Setup_declencheurs_(absents);
+    changements.push('déclencheur' + (absents.length > 1 ? 's' : '') + ' ' + absents.join(', ') + ' recréé' + (absents.length > 1 ? 's' : ''));
+  }
+  if (changements.length) Db_inserer(TABLES.JOURNAL_MOTEUR, {
+    date: new Date(), source: 'Mise à jour automatique', avis_lus: 0, avis_retenus: 0,
+    erreurs: changements.length ? ('v' + APP.VERSION + ' : ' + changements.join(' ; ')).slice(0, 500) : ''
+  });
+  return { changements: changements };
+}
+
+/** Dernière mise à jour automatique (affichée sur l'accueil pendant 3 jours), ou null. */
+function MiseAJour_dernier_() {
+  try {
+    var r = JSON.parse(PropertiesService.getScriptProperties().getProperty(MAJ_PROP_RAPPORT) || 'null');
+    if (!r || (new Date() - new Date(r.date)) > 3 * 86400000) return null;
+    return r;
+  } catch (e) { return null; }
+}
+
+
 // ════════ Params.js ════════
 
 /**
@@ -3195,6 +3325,8 @@ var PARAMETRES_DEFAUT = [
     '… sauf s\'il contient aussi celui-ci'],
   ['veille.libelle_gmail', 'Veille', 'Libellé Gmail des alertes des plateformes'],
   ['veille.heure_collecte', '6', 'Heure de la collecte quotidienne (0-23)'],
+  ['veille.apprentissage', 'oui', 'oui : le pré-score des nouveaux avis tient compte de vos décisions passées (mots des avis ignorés, No-go, étudiés)'],
+  ['veille.apprentissage_min', '15', 'Nombre de décisions (avis ignorés ou étudiés, No-go) à partir duquel l\'apprentissage s\'applique'],
   ['veille.archivage_jours', '60', 'Avis échus depuis plus de N jours déplacés dans l\'onglet « Avis archivés » (allège l\'écran Veille)'],
   ['veille.fenetre_jours', '3', 'Avis BOAMP et alertes des N derniers jours (le dédoublonnage évite les reprises)'],
   ['veille.plateformes_domaines', 'marches-publics.gouv.fr;marches-publics.info;achatpublic.com;marches-securises.fr;e-marchespublics.com;marchesonline.com;francemarches.com;klekoon.com;maximilien.fr;demat-ampa.fr;awsolutions.fr;boamp.fr;ampmetropole.fr;safetender.com;ville-gap.fr;maregionsud.fr;departement13.fr;laprovencemarchespublics.com',
@@ -3218,6 +3350,7 @@ var PARAMETRES_DEFAUT = [
   ['score.montant_compatible', '15', 'Montant compatible avec la capacité'],
   ['score.montant_inconnu', '8', 'Montant inconnu'],
   ['score.montant_hors', '0', 'Montant hors capacité'],
+  ['score.apprentissage_max', '10', 'Ajustement maximal « Historique » (points) appris de vos décisions : avis ignorés et No-go en moins, affaires étudiées en plus'],
   ['score.seuil_etudier', '60', 'Pré-score ≥ ce seuil : « à étudier »'],
   ['score.seuil_possible', '40', 'Pré-score ≥ ce seuil : « possible » ; en dessous : archivé'],
 
@@ -3967,6 +4100,7 @@ var SOURCE_GMAIL = 'Alerte e-mail';
 // ——— Collecte quotidienne (déclencheur 6 h) ———
 
 function collecteQuotidienne() {
+  MiseAJour_verifier_();
   var verrou = LockService.getScriptLock();
   if (!verrou.tryLock(1000)) { console.warn('Collecte déjà en cours.'); return null; }
   try {
@@ -4007,7 +4141,8 @@ function Veille_contexte_() {
     jours: Params_nombre('veille.fenetre_jours', 3),
     montantMax: Params_nombre('capacite.montant_max_mission', null),
     resteSousPlafond: typeof vise === 'number' ? vise : null,
-    existants: Db_lire(TABLES.AVIS)
+    existants: Db_lire(TABLES.AVIS),
+    apprentissage: Veille_apprentissage_()
   };
 }
 
@@ -4344,6 +4479,9 @@ function Veille_scorer_(a, ctx) {
     montant: !montant ? p('montant_inconnu', 8) : compatible ? p('montant_compatible', 15) : p('montant_hors', 0)
   };
   var total = detail.zone + detail.mission + detail.delai + detail.acheteur + detail.montant;
+  // Historique de vos décisions (avis ignorés, No-go, affaires étudiées) : ajustement borné
+  var hist = Veille_ajustementHistorique_(a.objet, ctx.apprentissage);
+  if (hist) total = Math.max(0, Math.min(100, total + hist.points));
   var classement = total >= p('seuil_etudier', 60) ? 'à étudier' : total >= p('seuil_possible', 40) ? 'possible' : 'archivé';
   // Domaine bâtiment non cité dans l'objet : au mieux « possible », jamais « à étudier »
   if (a.batimentAVerifier && classement === 'à étudier') classement = 'possible';
@@ -4353,6 +4491,9 @@ function Veille_scorer_(a, ctx) {
   a.pre_score = total;
   a.score_detail = 'Zone ' + detail.zone + ' · Mission ' + detail.mission + ' · Délai ' + detail.delai +
     (jours === null ? ' (date inconnue)' : ' (' + jours + ' j)') + ' · Acheteur ' + detail.acheteur + ' · Montant ' + detail.montant +
+    (hist ? ' · Historique ' + (hist.points > 0 ? '+' : '') + hist.points + ' (' +
+      [hist.plus.length ? 'proche d\'avis retenus : ' + hist.plus.join(', ') : '', hist.moins.length ? 'proche d\'avis écartés : ' + hist.moins.join(', ') : '']
+        .filter(String).join(' ; ') + ')' : '') +
     (a.batimentAVerifier ? ' · Bâtiment à vérifier (objet sans mot du bâtiment)' : '');
   a.alerte_delai = jours !== null && jours < 10 ? 'oui' : '';
   a.classement = classement;
@@ -4450,6 +4591,96 @@ function Veille_procedure_(libelle) {
 }
 
 
+// ════════ VeilleApprentissage.js ════════
+
+/**
+ * Veille qui apprend de vos décisions (21/11/2026).
+ *
+ * Exemples écartés : avis « ignoré » (onglets Avis et Avis archivés) et affaires passées en No-go.
+ * Exemples retenus : avis « étudié » dont l'affaire n'est pas en No-go.
+ * Pour chaque mot de l'objet (4 lettres et plus, hors mots vides), part des avis retenus parmi ceux qui le contiennent,
+ * comparée à la part globale. Le pré-score d'un nouvel avis reçoit un ajustement « Historique » borné
+ * (paramètre score.apprentissage_max, 10 points), visible dans le détail du score avec les mots qui l'expliquent.
+ * Sans effet tant qu'il y a moins de veille.apprentissage_min décisions (15) ou si veille.apprentissage = non.
+ */
+
+var VEILLE_MOTS_VIDES = ['avec', 'pour', 'dans', 'des', 'les', 'une', 'sur', 'aux', 'par', 'entre', 'suite', 'cadre', 'relative', 'relatif',
+  'concernant', 'objet', 'marche', 'marches', 'lot', 'lots', 'prestation', 'prestations', 'mission', 'missions', 'assistance', 'maitrise', 'ouvrage',
+  'travaux', 'commune', 'ville', 'departement', 'communaute', 'communes', 'accord', 'accords', 'cadre', 'service', 'services', 'realisation',
+  'operation', 'projet', 'etude', 'etudes', 'dans', 'leur', 'tout', 'tous', 'plus', 'autres', 'type', 'site', 'sites'];
+
+function Veille_motsObjet_(objet) {
+  var vus = {};
+  return Veille_norm_(objet).split(/[^a-z0-9]+/).filter(function (w) {
+    if (w.length < 4 || /^\d+$/.test(w) || VEILLE_MOTS_VIDES.indexOf(w) >= 0 || vus[w]) return false;
+    vus[w] = true;
+    return true;
+  });
+}
+
+/** Statistiques apprises : { actif, decisions, retenus, ecartes, mots: { mot: [retenus, ecartes] } }. */
+function Veille_apprentissage_() {
+  var actif = Params_texte('veille.apprentissage', 'oui').toLowerCase() === 'oui';
+  var res = { actif: false, decisions: 0, retenus: 0, ecartes: 0, mots: {} };
+  if (!actif) return res;
+  var affaires = {};
+  Db_lire(TABLES.AFFAIRES).forEach(function (a) { affaires[String(a.id)] = a; });
+  var exemples = [], avisLies = {};
+  var avis = Db_lire(TABLES.AVIS);
+  try { avis = avis.concat(Db_lire(TABLES.AVIS_ARCHIVES)); } catch (e) { /* onglet absent */ }
+  avis.forEach(function (x) {
+    if (x.statut === 'ignoré') exemples.push({ objet: x.objet, retenu: false });
+    else if (x.statut === 'étudié' && x.id_affaire && affaires[String(x.id_affaire)]) {
+      avisLies[String(x.id_affaire)] = true;
+      exemples.push({ objet: x.objet, retenu: affaires[String(x.id_affaire)].statut !== 'No-go' });
+    }
+  });
+  // Affaires créées à la main (sans avis) : leur décision compte aussi
+  Object.keys(affaires).forEach(function (id) {
+    var a = affaires[id];
+    if (avisLies[id] || /^\[EXERCICE\]/.test(String(a.objet || ''))) return;
+    if (a.statut === 'No-go') exemples.push({ objet: a.objet, retenu: false });
+    else if (['Go', 'Déposée', 'Gagnée', 'Perdue', 'Sans suite', 'Soldée', 'Abandonnée'].indexOf(String(a.statut)) >= 0) exemples.push({ objet: a.objet, retenu: true });
+  });
+  res.decisions = exemples.length;
+  if (exemples.length < Params_nombre('veille.apprentissage_min', 15)) return res;
+  exemples.forEach(function (ex) {
+    if (ex.retenu) res.retenus++; else res.ecartes++;
+    Veille_motsObjet_(ex.objet).forEach(function (w) {
+      var m = res.mots[w] = res.mots[w] || [0, 0];
+      m[ex.retenu ? 0 : 1]++;
+    });
+  });
+  res.actif = res.retenus > 0 && res.ecartes > 0;
+  return res;
+}
+
+/**
+ * Ajustement « Historique » d'un objet d'avis : { points, plus: [mots], moins: [mots] } ou null.
+ * Un mot compte s'il apparaît dans au moins 3 décisions ; il faut au moins 2 mots connus.
+ */
+function Veille_ajustementHistorique_(objet, app) {
+  if (!app || !app.actif) return null;
+  var base = (app.retenus + 1) / (app.retenus + app.ecartes + 2);
+  var connus = Veille_motsObjet_(objet).map(function (w) {
+    var m = app.mots[w];
+    if (!m || m[0] + m[1] < 3) return null;
+    return { mot: w, ecart: (m[0] + 1) / (m[0] + m[1] + 2) - base };
+  }).filter(Boolean);
+  if (connus.length < 2) return null;
+  var moyenne = connus.reduce(function (s, c) { return s + c.ecart; }, 0) / connus.length;
+  var max = Params_nombre('score.apprentissage_max', 10);
+  var points = Math.round(Math.max(-1, Math.min(1, moyenne * 2)) * max);
+  if (!points) return null;
+  connus.sort(function (x, y) { return x.ecart - y.ecart; });
+  return {
+    points: points,
+    moins: connus.filter(function (c) { return c.ecart < -0.1; }).slice(0, 3).map(function (c) { return c.mot; }),
+    plus: connus.filter(function (c) { return c.ecart > 0.1; }).reverse().slice(0, 3).map(function (c) { return c.mot; })
+  };
+}
+
+
 // ════════ WebApp.js ════════
 
 /**
@@ -4461,6 +4692,7 @@ function Veille_procedure_(libelle) {
 
 function doGet() {
   verifierAcces_();
+  MiseAJour_verifier_(); // classeur complété si le code vient d'être mis à jour (ajouts seulement)
   // Application pour ordinateur (Windows, macOS, ChromeOS). Sur téléphone, seul l'Accueil (tableau de bord)
   // est adapté à l'écran (décision du 18/11/2026) ; les autres écrans gardent la mise en page ordinateur.
   var sortie = HtmlService.createTemplateFromFile('Index')
@@ -4512,7 +4744,7 @@ function apiAccueil() {
       ca: Compteur_ca(),
       fiscal: Fiscal_declarations(),
       suivi: Suivi_accueil_(),
-      etat: Etat_socle_(),
+      etat: Etat_leger_(),
       previsionnel: Previsionnel_ca(),
       alertes: { retards: Finances_retards_(), seuils: Previsionnel_alertes_() }
     };
@@ -4548,6 +4780,11 @@ function apiEtat() {
   return repondre_(Etat_socle_);
 }
 
+/** État pour l'accueil : version, alertes de déploiement, dernière mise à jour automatique (sans relire les onglets). */
+function Etat_leger_() {
+  return { app: APP.NOM, version: APP.VERSION, alertes: Etat_alertes_(), majAuto: MiseAJour_dernier_() };
+}
+
 function Etat_socle_() {
   return (function () {
     var classeur = Db_classeur();
@@ -4561,6 +4798,7 @@ function Etat_socle_() {
       app: APP.NOM,
       version: APP.VERSION,
       alertes: Etat_alertes_(),
+      majAuto: MiseAJour_dernier_(),
       compte: Session.getEffectiveUser().getEmail(),
       classeur: { nom: classeur.getName(), url: classeur.getUrl() },
       onglets: onglets,

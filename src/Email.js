@@ -17,6 +17,7 @@ var JOURS_SEMAINE = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
 
 /** Déclencheur quotidien (7 h). */
 function envoyerEmailMatin() {
+  MiseAJour_verifier_();
   return Email_envoyer_(new Date(), false);
 }
 

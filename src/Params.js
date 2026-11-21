@@ -49,6 +49,8 @@ var PARAMETRES_DEFAUT = [
     '… sauf s\'il contient aussi celui-ci'],
   ['veille.libelle_gmail', 'Veille', 'Libellé Gmail des alertes des plateformes'],
   ['veille.heure_collecte', '6', 'Heure de la collecte quotidienne (0-23)'],
+  ['veille.apprentissage', 'oui', 'oui : le pré-score des nouveaux avis tient compte de vos décisions passées (mots des avis ignorés, No-go, étudiés)'],
+  ['veille.apprentissage_min', '15', 'Nombre de décisions (avis ignorés ou étudiés, No-go) à partir duquel l\'apprentissage s\'applique'],
   ['veille.archivage_jours', '60', 'Avis échus depuis plus de N jours déplacés dans l\'onglet « Avis archivés » (allège l\'écran Veille)'],
   ['veille.fenetre_jours', '3', 'Avis BOAMP et alertes des N derniers jours (le dédoublonnage évite les reprises)'],
   ['veille.plateformes_domaines', 'marches-publics.gouv.fr;marches-publics.info;achatpublic.com;marches-securises.fr;e-marchespublics.com;marchesonline.com;francemarches.com;klekoon.com;maximilien.fr;demat-ampa.fr;awsolutions.fr;boamp.fr;ampmetropole.fr;safetender.com;ville-gap.fr;maregionsud.fr;departement13.fr;laprovencemarchespublics.com',
@@ -72,6 +74,7 @@ var PARAMETRES_DEFAUT = [
   ['score.montant_compatible', '15', 'Montant compatible avec la capacité'],
   ['score.montant_inconnu', '8', 'Montant inconnu'],
   ['score.montant_hors', '0', 'Montant hors capacité'],
+  ['score.apprentissage_max', '10', 'Ajustement maximal « Historique » (points) appris de vos décisions : avis ignorés et No-go en moins, affaires étudiées en plus'],
   ['score.seuil_etudier', '60', 'Pré-score ≥ ce seuil : « à étudier »'],
   ['score.seuil_possible', '40', 'Pré-score ≥ ce seuil : « possible » ; en dessous : archivé'],
 
