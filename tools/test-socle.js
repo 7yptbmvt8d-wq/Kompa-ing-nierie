@@ -173,6 +173,11 @@ test('veille apprenante : avis ignorés et No-go font baisser, affaires étudié
   const ctx = A.Veille_contexte_();
   const a = A.Veille_scorer_({ objet: 'AMO assurance flotte de véhicules', departement: '04', type_acheteur: 'Commune', date_limite: new Date(Date.now() + 20 * 86400000) }, ctx);
   assert.match(a.score_detail, /Historique -\d+ \(proche d'avis écartés : .*assurance/);
+  // Garde-fou : un avis « possible » par ses critères de base n'est jamais archivé par l'historique
+  const limite = A.Veille_scorer_({ objet: 'AMO assurance flotte de véhicules', departement: '75', type_acheteur: 'Région', date_limite: new Date(Date.now() + 5 * 86400000) }, ctx);
+  assert.strictEqual(limite.classement, 'possible', limite.score_detail);
+  assert.strictEqual(limite.pre_score, 40);
+  assert.match(limite.score_detail, /jamais archivé par l'historique/);
   A.Params_enregistrer('veille.apprentissage', 'non');
   A.Params_cache_ = null;
   assert.strictEqual(A.Veille_apprentissage_().actif, false);

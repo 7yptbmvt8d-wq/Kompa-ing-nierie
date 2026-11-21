@@ -3408,7 +3408,7 @@ var PARAMETRES_DEFAUT = [
   ['score.montant_compatible', '15', 'Montant compatible avec la capacité'],
   ['score.montant_inconnu', '8', 'Montant inconnu'],
   ['score.montant_hors', '0', 'Montant hors capacité'],
-  ['score.apprentissage_max', '10', 'Ajustement maximal « Historique » (points) appris de vos décisions : avis ignorés et No-go en moins, affaires étudiées en plus'],
+  ['score.apprentissage_max', '10', 'Ajustement maximal « Historique » (points) appris de vos décisions : avis ignorés et No-go en moins, affaires étudiées en plus. Ne fait jamais passer un avis en « archivé » (au pire « possible ») ; 0 = sans effet'],
   ['score.seuil_etudier', '60', 'Pré-score ≥ ce seuil : « à étudier »'],
   ['score.seuil_possible', '40', 'Pré-score ≥ ce seuil : « possible » ; en dessous : archivé'],
 
@@ -4749,7 +4749,12 @@ function Veille_scorer_(a, ctx) {
   var total = detail.zone + detail.mission + detail.delai + detail.acheteur + detail.montant;
   // Historique de vos décisions (avis ignorés, No-go, affaires étudiées) : ajustement borné
   var hist = Veille_ajustementHistorique_(a.objet, ctx.apprentissage);
-  if (hist) total = Math.max(0, Math.min(100, total + hist.points));
+  if (hist) {
+    var base = total, plancher = p('seuil_possible', 40);
+    total = Math.max(0, Math.min(100, total + hist.points));
+    // Garde-fou : l'historique ne fait jamais archiver un avis que les critères de base gardent (au pire « possible »)
+    if (base >= plancher && total < plancher) { total = plancher; hist.plancher = true; }
+  }
   var classement = total >= p('seuil_etudier', 60) ? 'à étudier' : total >= p('seuil_possible', 40) ? 'possible' : 'archivé';
   // Domaine bâtiment non cité dans l'objet : au mieux « possible », jamais « à étudier »
   if (a.batimentAVerifier && classement === 'à étudier') classement = 'possible';
@@ -4761,7 +4766,7 @@ function Veille_scorer_(a, ctx) {
     (jours === null ? ' (date inconnue)' : ' (' + jours + ' j)') + ' · Acheteur ' + detail.acheteur + ' · Montant ' + detail.montant +
     (hist ? ' · Historique ' + (hist.points > 0 ? '+' : '') + hist.points + ' (' +
       [hist.plus.length ? 'proche d\'avis retenus : ' + hist.plus.join(', ') : '', hist.moins.length ? 'proche d\'avis écartés : ' + hist.moins.join(', ') : '']
-        .filter(String).join(' ; ') + ')' : '') +
+        .filter(String).join(' ; ') + ')' + (hist.plancher ? ' limité : jamais archivé par l\'historique' : '') : '') +
     (a.batimentAVerifier ? ' · Bâtiment à vérifier (objet sans mot du bâtiment)' : '');
   a.alerte_delai = jours !== null && jours < 10 ? 'oui' : '';
   a.classement = classement;

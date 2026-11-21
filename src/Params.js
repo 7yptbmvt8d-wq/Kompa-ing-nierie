@@ -74,7 +74,7 @@ var PARAMETRES_DEFAUT = [
   ['score.montant_compatible', '15', 'Montant compatible avec la capacité'],
   ['score.montant_inconnu', '8', 'Montant inconnu'],
   ['score.montant_hors', '0', 'Montant hors capacité'],
-  ['score.apprentissage_max', '10', 'Ajustement maximal « Historique » (points) appris de vos décisions : avis ignorés et No-go en moins, affaires étudiées en plus'],
+  ['score.apprentissage_max', '10', 'Ajustement maximal « Historique » (points) appris de vos décisions : avis ignorés et No-go en moins, affaires étudiées en plus. Ne fait jamais passer un avis en « archivé » (au pire « possible ») ; 0 = sans effet'],
   ['score.seuil_etudier', '60', 'Pré-score ≥ ce seuil : « à étudier »'],
   ['score.seuil_possible', '40', 'Pré-score ≥ ce seuil : « possible » ; en dessous : archivé'],
 
