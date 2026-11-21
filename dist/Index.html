@@ -427,6 +427,9 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .bouton--petit { padding: 2px 10px; font-size: 13px; }
 .actions-pieces { margin: var(--kompa-s3) 0 0; }
 #coller-liste { width: 100%; min-height: 14rem; font-size: 13px; }
+.table-previsionnel th[scope="row"] { text-align: left; font-weight: 500; }
+.table-previsionnel td .legende { margin-top: 2px; }
+.apercu-repartition { margin: var(--kompa-s1) 0 0; }
 .calcul-offre { margin: var(--kompa-s3) 0 0; padding: var(--kompa-s2) var(--kompa-s3); background: var(--kompa-brume); border-radius: var(--kompa-radius-sm); font-size: var(--kompa-fs-small); }
 .calcul-offre:empty { display: none; }
 .ajout-piece { display: flex; gap: var(--kompa-s2); flex-wrap: wrap; margin-top: var(--kompa-s3); }
@@ -680,7 +683,7 @@ html[data-theme="neon"] .mob-actualiser { background: rgba(20, 10, 38, .5); colo
   var LECTURES = ['apiEtat', 'apiParametres', 'apiCompteurCA', 'apiAccueil', 'apiAffaires', 'apiAffaire', 'apiVeille',
     'apiEcheancier', 'apiSuivi', 'apiCourrier', 'apiEmailApercu', 'apiTableau', 'apiEnseignements', 'apiFiscal', 'apiPieces',
     'apiEstReferentiels', 'apiEstAccueil', 'apiEstAffaire', 'apiEstIndices', 'apiEstIndiceHistorique', 'apiEstActualiser',
-    'apiEstBibliotheque', 'apiEstAnalyserPostes', 'apiEstRatios', 'apiEstFormulaire', 'apiEstApercu', 'apiEstEstimation'];
+    'apiEstBibliotheque', 'apiEstAnalyserPostes', 'apiEstRatios', 'apiEstFormulaire', 'apiEstApercu', 'apiEstEstimation', 'apiPrevisionnel'];
 
   function appel(nom) {
     var args = Array.prototype.slice.call(arguments, 1);
@@ -883,7 +886,8 @@ html[data-theme="neon"] .mob-actualiser { background: rgba(20, 10, 38, .5); colo
         }).join('') +
       '</tbody></table></div>' +
       '<p class="legende">Engagé = encaissé + factures non payées (' + euros(ca.aEncaisser) + ') + reste à facturer sur les affaires gagnées (' + euros(ca.resteAFacturer) + '). ' +
-      'Factures et encaissements : onglet Exécution de chaque fiche affaire.</p>';
+      'Factures et encaissements : onglet Exécution de chaque fiche affaire.</p>' +
+      '<p><a class="bouton bouton--discret" href="#previsionnel">CA prévisionnel des prochaines années</a></p>';
   }
 
   function ecranParametres(el) {
@@ -1887,6 +1891,28 @@ html[data-theme="neon"] .mob-actualiser { background: rgba(20, 10, 38, .5); colo
         cMontant.addEventListener('input', function (ev) { if (ev.isTrusted) calculer(false); });
         calculer(!cMontant.value);
       }
+      // Encaissements prévus par année : aperçu (montant de référence = notifié, à défaut offre)
+      var cRep = $('[data-champ="repartition_ca"]', fo);
+      if (cRep) {
+        var apRep = document.createElement('p');
+        apRep.className = 'legende apercu-repartition';
+        cRep.insertAdjacentElement('afterend', apRep);
+        var majRep = function () {
+          var base = Number(a.montant_notifie) || nb(cMontant.value) || 0;
+          var lignes = String(cRep.value || '').split(/\r?\n|;/).map(function (l) { return l.trim().match(/^(\d{4})\s*[:=\-–]?\s*(.*)$/); }).filter(Boolean);
+          if (!lignes.length) { apRep.textContent = 'Sans répartition : tout le reste à encaisser compte sur l\'année en cours.'; return; }
+          var fixe = 0, resteSur = '';
+          var parts = lignes.map(function (m) {
+            if (!m[2] || /^(le\s+)?reste|solde/i.test(m[2])) { resteSur = resteSur || m[1]; return null; }
+            var v = nb(m[2].replace(/€|ht/gi, '')); fixe += v || 0; return m[1] + ' : ' + K.euros(v || 0);
+          }).filter(Boolean);
+          if (resteSur) parts.push(resteSur + ' : ' + K.euros(Math.max(base - fixe, 0)) + ' (reste)');
+          apRep.textContent = parts.join(' · ') + (base ? ' — sur ' + K.euros(base) + ' HT' : '') + (base && fixe > base ? ' — attention, répartition supérieure au montant' : '');
+        };
+        cRep.addEventListener('input', majRep);
+        if (cMontant) cMontant.addEventListener('input', majRep);
+        majRep();
+      }
     }
     // Blocs : bouton actif dès qu'un champ change
     $$('form[data-bloc]', el).forEach(function (form) {
@@ -2486,6 +2512,60 @@ html[data-theme="neon"] .mob-actualiser { background: rgba(20, 10, 38, .5); colo
   }
 
   K.ecrans.enseignements = { titre: 'Enseignements', rendu: ecranEnseignements };
+
+  // ——— CA prévisionnel par année d'encaissement ———
+  var CLS_ETAT = { ok: 'statut--ok', alerte: 'statut--alerte', depasse: 'statut--ko' };
+  var LIB_ETAT = { ok: 'sous le seuil', alerte: 'proche', depasse: 'dépassé' };
+
+  function ecranPrevisionnel(el) {
+    el.innerHTML = K.titre('CA prévisionnel', 'Par année d\'encaissement : base des seuils de la micro-entreprise et de la franchise de TVA') + '<div class="chargement">Calcul…</div>';
+    K.charger('previsionnel', 'apiPrevisionnel', [], function (p) { rendrePrevisionnel(el, p); },
+      function (e) { el.innerHTML = K.titre('CA prévisionnel', '') + K.bandeauErreur(e); });
+  }
+
+  function rendrePrevisionnel(el, p) {
+    var eur = function (x) { return x ? K.euros(x) : '<span class="vide">—</span>'; };
+    var annees = p.annees;
+    var colonnes = annees.map(function (a) { return '<th scope="col" class="num">' + a.annee + '</th>'; }).join('');
+    var ligne = function (lib, cle, gras, aide) {
+      return '<tr' + (gras ? ' class="ligne-total"' : '') + '><th scope="row">' + lib + (aide ? '<div class="legende">' + aide + '</div>' : '') + '</th>' +
+        annees.map(function (a) { return '<td class="num mono">' + eur(a[cle]) + '</td>'; }).join('') + '</tr>';
+    };
+    var lignesSeuils = p.seuils.map(function (s) {
+      return '<tr><th scope="row">' + esc(s.libelle) + ' <span class="legende mono">' + K.euros(s.seuil) + '</span></th>' + annees.map(function (a) {
+        var x = a.seuils.filter(function (y) { return y.cle === s.cle; })[0];
+        var reste = s.seuil - a.certain;
+        return '<td class="num"><span class="statut ' + CLS_ETAT[x.etat] + '">' + LIB_ETAT[x.etat] + '</span>' +
+          '<div class="legende mono">' + (reste >= 0 ? 'marge ' + K.euros(reste) : 'dépassé de ' + K.euros(-reste)) + '</div>' +
+          (x.etatTotal !== x.etat ? '<div class="legende">avec potentiel : ' + LIB_ETAT[x.etatTotal] + '</div>' : '') + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    var aPreciser = p.affaires.filter(function (a) { return a.aPreciser; }).length;
+    var affaires = p.affaires.map(function (a) {
+      return '<tr><td><a href="#affaire/' + esc(a.id) + '" class="mono">' + esc(a.id) + '</a><div><strong>' + esc(a.acheteur) + '</strong></div><div class="legende">' + esc(a.objet) + '</div></td>' +
+        '<td>' + esc(a.statut === 'Déposée' ? 'Déposée (potentiel)' : a.statut) + '</td>' +
+        '<td class="num mono">' + eur(a.base) + '<div class="legende">encaissé ' + K.euros(a.encaisse) + '</div></td>' +
+        annees.map(function (y) { return '<td class="num mono">' + eur(a.parAnnee[y.annee]) + '</td>'; }).join('') +
+        '<td>' + (a.aPreciser ? '<span class="statut statut--alerte">répartition à préciser</span>' : '') +
+          (a.remarques.length ? '<div class="legende">' + esc(a.remarques.join(' ; ')) + '</div>' : '') + '</td></tr>';
+    }).join('');
+    el.innerHTML = K.titre('CA prévisionnel', 'Par année d\'encaissement : base des seuils de la micro-entreprise et de la franchise de TVA') +
+      (aPreciser ? '<div class="bandeau">' + aPreciser + ' affaire(s) sans répartition : leur reste à encaisser est compté sur ' + p.anneeCourante + '. Précisez-la dans la fiche (Appel d\'offres › Offre › « Encaissements prévus par année »).</div>' : '') +
+      '<div class="tableau-conteneur"><table class="table-previsionnel"><thead><tr><th scope="col"><span class="seul-lecteur">Rubrique</span></th>' + colonnes + '</tr></thead><tbody>' +
+        ligne('Encaissé', 'encaisse', false, 'factures payées') +
+        ligne('Prévu', 'prevu', false, 'affaires gagnées, reste à encaisser') +
+        ligne('CA certain', 'certain', true) +
+        ligne('Potentiel', 'potentiel', false, 'offres déposées, si elles sont gagnées') +
+        ligne('Avec potentiel', 'total', true) +
+        lignesSeuils +
+      '</tbody></table></div>' +
+      '<h2 class="sous-titre">Détail par affaire</h2>' +
+      (affaires ? '<div class="tableau-conteneur"><table><thead><tr><th scope="col">Affaire</th><th scope="col">Statut</th><th scope="col" class="num">Montant HT</th>' + colonnes +
+        '<th scope="col">Remarques</th></tr></thead><tbody>' + affaires + '</tbody></table></div>' : '<p class="vide">Aucune affaire gagnée ou déposée.</p>') +
+      '<p class="legende">Seuils comparés au CA certain (encaissé + prévu). Le potentiel n\'est pas pondéré. Seuils modifiables dans Paramètres (seuil.*).</p>';
+  }
+
+  K.ecrans.previsionnel = { titre: 'CA prévisionnel', rendu: ecranPrevisionnel, nav: 'accueil' };
 })();
 </script>
   <script>
@@ -3119,6 +3199,13 @@ html[data-theme="neon"] .mob-actualiser { background: rgba(20, 10, 38, .5); colo
       alertes + tuiles +
       carte('À faire cette semaine', aFaire, 'mob-afaire') +
       carte('Chiffre d\'affaires ' + ca.annee, caBloc, 'mob-ca') +
+      (d.previsionnel ? carte('CA prévisionnel', '<ul class="mob-liste mob-liste--serree">' + d.previsionnel.annees.slice(0, 3).map(function (an) {
+        var micro = an.seuils.filter(function (s) { return s.cle === 'seuil.micro_plafond'; })[0];
+        var pire = an.seuils.filter(function (s) { return s.etat === 'depasse'; }).pop();
+        return '<li><div class="mob-ligne__tete"><strong>' + an.annee + '</strong><span class="mono">' + K.euros(an.certain) + '</span></div>' +
+          '<div class="mob-ligne__tete mob-legende"><span>+ potentiel ' + K.euros(an.potentiel) + '</span>' +
+          (pire ? '<span class="statut statut--ko">' + esc(pire.libelle) + '</span>' : micro ? '<span class="statut statut--ok">marge ' + K.euros(Math.max(micro.seuil - an.certain, 0)) + '</span>' : '') + '</div></li>';
+      }).join('') + '</ul>') : '') +
       carte('Affaires en cours', statuts) +
       carte('URSSAF ' + f.annee, urssaf) +
       '<p class="mob-pied">' + esc(d.etat ? d.etat.app + ' · v' + d.etat.version : '') + ' · données du ' + String(maintenant.getHours()).padStart(2, '0') + ':' + String(maintenant.getMinutes()).padStart(2, '0') + '<br>' +

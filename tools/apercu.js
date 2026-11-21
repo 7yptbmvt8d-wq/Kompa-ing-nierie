@@ -210,6 +210,17 @@ function assembler() {
   await p.waitForSelector('#toast:has-text("enregistré")');
   assert.strictEqual(A.Affaires_get_(g1).montant_ht, 44000);
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-offre-pieces.png'), fullPage: true });
+  // Encaissements prévus par année, puis écran « CA prévisionnel »
+  await p.fill('form[data-bloc="offre"] [data-champ="repartition_ca"]', '2027 : 10000\n2028 : reste');
+  assert.match(await p.textContent('.apercu-repartition'), /2028 : 34\s000\s€ \(reste\)/);
+  await p.click('form[data-bloc="offre"] button[type=submit]');
+  await p.waitForSelector('#toast:has-text("enregistré")');
+  await p.evaluate(() => window.KA.afficher('previsionnel', true));
+  await p.waitForSelector('.table-previsionnel');
+  assert.match(await p.textContent('.table-previsionnel'), /CA certain/);
+  await p.screenshot({ path: path.join(sortie, 'pc-previsionnel.png'), fullPage: true });
+  await p.evaluate((id) => window.KA.afficher('affaire/' + id, true), g1);
+  await p.waitForSelector('[data-passer="Déposée"]');
   await p.click('[data-passer="Déposée"]');
   await p.fill('#p-montant_ht', '21000');
   await p.fill('#p-jours_reponse', '3');

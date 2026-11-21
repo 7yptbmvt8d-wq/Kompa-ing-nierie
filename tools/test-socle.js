@@ -222,6 +222,54 @@ test('offre : montant HT = total des jours par tranche × prix par jour (montant
   assert.strictEqual(f.affaire.montant_ht, 49500);
 });
 
+test('CA prévisionnel : encaissé, prévu (gagnées, répartition par année, reste), potentiel (déposées), seuils', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const ok = (r) => { assert.ok(r.ok, r.erreur); return brut(r.data); };
+  const quand = new Date(2026, 10, 21);
+  // Lecture de la répartition
+  assert.deepStrictEqual(brut(A.Previsionnel_lireRepartition_('2027 : 10 000 €\n2028 : reste')).lignes, [{ annee: 2027, montant: 10000 }, { annee: 2028, montant: null }]);
+  assert.match(brut(A.Previsionnel_lireRepartition_('l\'an prochain')).erreurs[0], /illisible/);
+  // Gagnée 44 000 € : 4 000 € encaissés en 2026, 10 000 € en 2027, reste en 2028
+  const g = A.Affaires_creer({ acheteur: 'Ville de Marseille', objet: 'AMO programmation' }).id;
+  A.Affaires_changerStatut(g, 'Go', {});
+  A.Affaires_changerStatut(g, 'Déposée', { montant_ht: 44000, jours_reponse: 2, date_depot: '2026-06-01' });
+  A.Affaires_changerStatut(g, 'Gagnée', { date_notification: '2026-07-01', montant_notifie: 44000 });
+  A.Factures_ajouter(g, { numero: 'F1', date: '2026-09-30', montant: 4000, date_encaissement: '2026-10-30', montant_encaisse: 4000 });
+  A.Affaires_maj(g, { repartition_ca: '2026 : 4000\n2027 : 10000\n2028 : reste' });
+  // Gagnée sans répartition : reste sur 2026, signalé
+  const g2 = A.Affaires_creer({ acheteur: 'Commune de Gap', objet: 'Faisabilité' }).id;
+  A.Affaires_changerStatut(g2, 'Go', {});
+  A.Affaires_changerStatut(g2, 'Déposée', { montant_ht: 12000, jours_reponse: 1, date_depot: '2026-06-01' });
+  A.Affaires_changerStatut(g2, 'Gagnée', { date_notification: '2026-07-01', montant_notifie: 12000 });
+  // Déposée : potentiel 2027
+  const d = A.Affaires_creer({ acheteur: 'Commune de Digne', objet: 'Programmation' }).id;
+  A.Affaires_changerStatut(d, 'Go', {});
+  A.Affaires_changerStatut(d, 'Déposée', { montant_ht: 70000, jours_reponse: 3, date_depot: '2026-11-01' });
+  A.Affaires_maj(d, { repartition_ca: '2027 : reste' });
+  const p = brut(A.Previsionnel_ca(quand));
+  const an = (y) => p.annees.find((x) => x.annee === y);
+  assert.deepStrictEqual(p.annees.map((x) => x.annee), [2026, 2027, 2028, 2029]);
+  assert.deepStrictEqual([an(2026).encaisse, an(2026).prevu, an(2026).certain], [4000, 12000, 16000]);
+  assert.deepStrictEqual([an(2027).prevu, an(2027).potentiel, an(2027).total], [10000, 70000, 80000]);
+  assert.strictEqual(an(2028).prevu, 30000);
+  const af = (id) => p.affaires.find((x) => x.id === id);
+  assert.deepStrictEqual(af(g).parAnnee, { 2027: 10000, 2028: 30000 });
+  assert.strictEqual(af(g2).aPreciser, true);
+  assert.strictEqual(af(g).aPreciser, false);
+  // Seuils : 2027 dépasse la franchise de TVA avec le potentiel, pas sans
+  const tva = an(2027).seuils.find((s) => s.cle === 'seuil.tva_franchise');
+  assert.deepStrictEqual([tva.etat, tva.etatTotal], ['ok', 'depasse']);
+  assert.ok(A.Previsionnel_alertes_(quand).some((t) => /^2027 : .*si les offres déposées sont gagnées/.test(t)));
+  // API et e-mail
+  assert.strictEqual(ok(A.apiPrevisionnel()).affaires.length, 3);
+  assert.match(A.Email_construire(quand).html, /CA prévisionnel : seuil dépassé/);
+  // Répartition supérieure au restant : signalée
+  A.Affaires_maj(g, { repartition_ca: '2027 : 50000' });
+  assert.match(brut(A.Previsionnel_ca(quand)).affaires.find((x) => x.id === g).remarques.join(' '), /supérieure au montant restant/);
+});
+
 test('pièces de l\'offre : liste collée depuis l\'analyse du DCE (titres, préfixes, puces, doublons)', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });
@@ -1672,7 +1720,7 @@ test('fluidité : l\'accueil en un seul appel', () => {
   env.ctx.installer();
   const r = brut(env.ctx.apiAccueil());
   assert.ok(r.ok, r.erreur);
-  assert.deepStrictEqual(Object.keys(r.data).sort(), ['ca', 'etat', 'fiscal', 'suivi', 'tableau']);
+  assert.deepStrictEqual(Object.keys(r.data).sort(), ['ca', 'etat', 'fiscal', 'previsionnel', 'suivi', 'tableau']);
   assert.strictEqual(r.data.etat.onglets.length, 25); // 13 onglets du suivi + 12 du module Estimation
 });
 

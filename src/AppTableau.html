@@ -167,5 +167,59 @@
   }
 
   K.ecrans.enseignements = { titre: 'Enseignements', rendu: ecranEnseignements };
+
+  // ——— CA prévisionnel par année d'encaissement ———
+  var CLS_ETAT = { ok: 'statut--ok', alerte: 'statut--alerte', depasse: 'statut--ko' };
+  var LIB_ETAT = { ok: 'sous le seuil', alerte: 'proche', depasse: 'dépassé' };
+
+  function ecranPrevisionnel(el) {
+    el.innerHTML = K.titre('CA prévisionnel', 'Par année d\'encaissement : base des seuils de la micro-entreprise et de la franchise de TVA') + '<div class="chargement">Calcul…</div>';
+    K.charger('previsionnel', 'apiPrevisionnel', [], function (p) { rendrePrevisionnel(el, p); },
+      function (e) { el.innerHTML = K.titre('CA prévisionnel', '') + K.bandeauErreur(e); });
+  }
+
+  function rendrePrevisionnel(el, p) {
+    var eur = function (x) { return x ? K.euros(x) : '<span class="vide">—</span>'; };
+    var annees = p.annees;
+    var colonnes = annees.map(function (a) { return '<th scope="col" class="num">' + a.annee + '</th>'; }).join('');
+    var ligne = function (lib, cle, gras, aide) {
+      return '<tr' + (gras ? ' class="ligne-total"' : '') + '><th scope="row">' + lib + (aide ? '<div class="legende">' + aide + '</div>' : '') + '</th>' +
+        annees.map(function (a) { return '<td class="num mono">' + eur(a[cle]) + '</td>'; }).join('') + '</tr>';
+    };
+    var lignesSeuils = p.seuils.map(function (s) {
+      return '<tr><th scope="row">' + esc(s.libelle) + ' <span class="legende mono">' + K.euros(s.seuil) + '</span></th>' + annees.map(function (a) {
+        var x = a.seuils.filter(function (y) { return y.cle === s.cle; })[0];
+        var reste = s.seuil - a.certain;
+        return '<td class="num"><span class="statut ' + CLS_ETAT[x.etat] + '">' + LIB_ETAT[x.etat] + '</span>' +
+          '<div class="legende mono">' + (reste >= 0 ? 'marge ' + K.euros(reste) : 'dépassé de ' + K.euros(-reste)) + '</div>' +
+          (x.etatTotal !== x.etat ? '<div class="legende">avec potentiel : ' + LIB_ETAT[x.etatTotal] + '</div>' : '') + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    var aPreciser = p.affaires.filter(function (a) { return a.aPreciser; }).length;
+    var affaires = p.affaires.map(function (a) {
+      return '<tr><td><a href="#affaire/' + esc(a.id) + '" class="mono">' + esc(a.id) + '</a><div><strong>' + esc(a.acheteur) + '</strong></div><div class="legende">' + esc(a.objet) + '</div></td>' +
+        '<td>' + esc(a.statut === 'Déposée' ? 'Déposée (potentiel)' : a.statut) + '</td>' +
+        '<td class="num mono">' + eur(a.base) + '<div class="legende">encaissé ' + K.euros(a.encaisse) + '</div></td>' +
+        annees.map(function (y) { return '<td class="num mono">' + eur(a.parAnnee[y.annee]) + '</td>'; }).join('') +
+        '<td>' + (a.aPreciser ? '<span class="statut statut--alerte">répartition à préciser</span>' : '') +
+          (a.remarques.length ? '<div class="legende">' + esc(a.remarques.join(' ; ')) + '</div>' : '') + '</td></tr>';
+    }).join('');
+    el.innerHTML = K.titre('CA prévisionnel', 'Par année d\'encaissement : base des seuils de la micro-entreprise et de la franchise de TVA') +
+      (aPreciser ? '<div class="bandeau">' + aPreciser + ' affaire(s) sans répartition : leur reste à encaisser est compté sur ' + p.anneeCourante + '. Précisez-la dans la fiche (Appel d\'offres › Offre › « Encaissements prévus par année »).</div>' : '') +
+      '<div class="tableau-conteneur"><table class="table-previsionnel"><thead><tr><th scope="col"><span class="seul-lecteur">Rubrique</span></th>' + colonnes + '</tr></thead><tbody>' +
+        ligne('Encaissé', 'encaisse', false, 'factures payées') +
+        ligne('Prévu', 'prevu', false, 'affaires gagnées, reste à encaisser') +
+        ligne('CA certain', 'certain', true) +
+        ligne('Potentiel', 'potentiel', false, 'offres déposées, si elles sont gagnées') +
+        ligne('Avec potentiel', 'total', true) +
+        lignesSeuils +
+      '</tbody></table></div>' +
+      '<h2 class="sous-titre">Détail par affaire</h2>' +
+      (affaires ? '<div class="tableau-conteneur"><table><thead><tr><th scope="col">Affaire</th><th scope="col">Statut</th><th scope="col" class="num">Montant HT</th>' + colonnes +
+        '<th scope="col">Remarques</th></tr></thead><tbody>' + affaires + '</tbody></table></div>' : '<p class="vide">Aucune affaire gagnée ou déposée.</p>') +
+      '<p class="legende">Seuils comparés au CA certain (encaissé + prévu). Le potentiel n\'est pas pondéré. Seuils modifiables dans Paramètres (seuil.*).</p>';
+  }
+
+  K.ecrans.previsionnel = { titre: 'CA prévisionnel', rendu: ecranPrevisionnel, nav: 'accueil' };
 })();
 </script>

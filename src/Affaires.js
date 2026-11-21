@@ -109,6 +109,7 @@ var FICHE_BLOCS = [
     ['jours_par_tranche', 'Jours par tranche', 'long'],
     ['prix_jour', 'Prix par jour HT (€)', 'euros'],
     ['montant_ht', 'Montant HT (€)', 'euros'],
+    ['repartition_ca', 'Encaissements prévus par année', 'long'],
     ['montant_pondere', 'Montant pondéré (€)', 'euros'],
     ['jours_reponse', 'Jours passés à répondre', 'nombre'],
     ['date_depot', 'Date de dépôt', 'date']
@@ -167,6 +168,7 @@ var AIDES_CHAMPS = {
   jours_par_tranche: ['Jours que vous prévoyez pour chaque tranche, dans le même ordre. Une ligne par tranche.', 'TF : 6 j\nTO1 : 8 j\nTO2 : 10 j'],
   prix_jour: ['Votre prix de journée HT. Le montant HT se calcule tout seul avec les jours par tranche.', '400'],
   montant_ht: ['Calculé automatiquement : total des jours par tranche × prix par jour. Vous pouvez le corriger (prix arrondi, frais en sus) : c\'est le prix inscrit à l\'acte d\'engagement.', '13200'],
+  repartition_ca: ['Pour le CA prévisionnel : année d\'encaissement prévue et montant HT, une ligne par année ; « reste » pour le solde. Sans répartition, tout le reste à encaisser compte sur l\'année en cours.', '2027 : 10000\n2028 : reste'],
   montant_pondere: ['Seulement si l\'acheteur compare les prix sur une simulation (détail quantitatif estimatif, DQE, ou bordereau pondéré) : montant de cette simulation. Sinon, laisser vide.'],
   jours_reponse: ['Temps passé à préparer l\'offre, en jours (une demi-journée = 0,5). Mesure le coût de vos réponses.', '2,5'],
   date_depot: ['Date du dépôt sur la plateforme, sur l\'accusé de réception.'],

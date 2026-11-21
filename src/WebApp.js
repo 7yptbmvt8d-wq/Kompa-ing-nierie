@@ -58,9 +58,15 @@ function apiAccueil() {
       ca: Compteur_ca(),
       fiscal: Fiscal_declarations(),
       suivi: Suivi_accueil_(),
-      etat: Etat_socle_()
+      etat: Etat_socle_(),
+      previsionnel: Previsionnel_ca()
     };
   });
+}
+
+/** CA prévisionnel par année d'encaissement (écran « CA prévisionnel »). */
+function apiPrevisionnel() {
+  return repondre_(function () { return Previsionnel_ca(); });
 }
 
 /** État du socle : compte, classeur, onglets, quotas. */

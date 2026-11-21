@@ -12,6 +12,14 @@
 /** Statuts d'affaire dont le montant notifié compte dans le CA engagé (Gagnée = notifiée et en exécution). */
 var STATUTS_CA_ENGAGE = ['Gagnée'];
 
+/** Seuils comparés au CA (paramètres seuil.*), dans l'ordre croissant habituel. */
+var JALONS_CA = [
+  { cle: 'seuil.tva_franchise', libelle: 'Franchise de TVA', consequence: 'Au-delà : TVA à facturer à partir du 1er janvier suivant.' },
+  { cle: 'seuil.tva_majore', libelle: 'Franchise de TVA — seuil majoré', consequence: 'Au-delà : TVA à facturer dès le jour du dépassement.' },
+  { cle: 'seuil.plafond_vise', libelle: 'Plafond visé', consequence: 'Votre limite de CA pour l\'année.', vise: true },
+  { cle: 'seuil.micro_plafond', libelle: 'Plafond micro-entreprise', consequence: 'Dépassé deux années de suite : sortie du régime micro.' }
+];
+
 function Compteur_ca(annee) {
   var aujourdhui = new Date();
   annee = annee || Number(Utilities.formatDate(aujourdhui, APP.FUSEAU, 'yyyy'));
@@ -45,12 +53,7 @@ function Compteur_ca(annee) {
   var engage = encaisse + aEncaisser + resteAFacturer;
   var alerte = Params_nombre('seuil.alerte_pct', 80) / 100;
 
-  var jalons = [
-    { cle: 'seuil.tva_franchise', libelle: 'Franchise de TVA', consequence: 'Au-delà : TVA à facturer à partir du 1er janvier suivant.' },
-    { cle: 'seuil.tva_majore', libelle: 'Franchise de TVA — seuil majoré', consequence: 'Au-delà : TVA à facturer dès le jour du dépassement.' },
-    { cle: 'seuil.plafond_vise', libelle: 'Plafond visé', consequence: 'Votre limite de CA pour l\'année.', vise: true },
-    { cle: 'seuil.micro_plafond', libelle: 'Plafond micro-entreprise', consequence: 'Dépassé deux années de suite : sortie du régime micro.' }
-  ].map(function (j) {
+  var jalons = JALONS_CA.map(function (j) {
     var seuil = Params_nombre(j.cle, 0);
     return {
       cle: j.cle,

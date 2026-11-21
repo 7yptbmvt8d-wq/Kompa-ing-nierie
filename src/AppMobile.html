@@ -115,6 +115,13 @@
       alertes + tuiles +
       carte('À faire cette semaine', aFaire, 'mob-afaire') +
       carte('Chiffre d\'affaires ' + ca.annee, caBloc, 'mob-ca') +
+      (d.previsionnel ? carte('CA prévisionnel', '<ul class="mob-liste mob-liste--serree">' + d.previsionnel.annees.slice(0, 3).map(function (an) {
+        var micro = an.seuils.filter(function (s) { return s.cle === 'seuil.micro_plafond'; })[0];
+        var pire = an.seuils.filter(function (s) { return s.etat === 'depasse'; }).pop();
+        return '<li><div class="mob-ligne__tete"><strong>' + an.annee + '</strong><span class="mono">' + K.euros(an.certain) + '</span></div>' +
+          '<div class="mob-ligne__tete mob-legende"><span>+ potentiel ' + K.euros(an.potentiel) + '</span>' +
+          (pire ? '<span class="statut statut--ko">' + esc(pire.libelle) + '</span>' : micro ? '<span class="statut statut--ok">marge ' + K.euros(Math.max(micro.seuil - an.certain, 0)) + '</span>' : '') + '</div></li>';
+      }).join('') + '</ul>') : '') +
       carte('Affaires en cours', statuts) +
       carte('URSSAF ' + f.annee, urssaf) +
       '<p class="mob-pied">' + esc(d.etat ? d.etat.app + ' · v' + d.etat.version : '') + ' · données du ' + String(maintenant.getHours()).padStart(2, '0') + ':' + String(maintenant.getMinutes()).padStart(2, '0') + '<br>' +

@@ -143,6 +143,11 @@ function Email_construire(quand, depuis) {
   // Module Estimation : panne de la mise à jour des index Insee
   var alerteEst = '';
   if (typeof Est_alerteEmail_ === 'function') { try { alerteEst = Est_alerteEmail_(); } catch (e) { alerteEst = ''; } }
+  var alertesPrev = [];
+  try { alertesPrev = Previsionnel_alertes_(quand); } catch (e) { alertesPrev = []; }
+  if (alertesPrev.length) corps += section('CA prévisionnel : seuil dépassé', alertesPrev.length, alertesPrev.map(function (t) {
+    return '<tr><td style="padding:8px 0;border-bottom:1px solid ' + C.filet + ';color:' + C.rouille + '">' + h(t) + '</td></tr>';
+  }).join('') + '<tr><td style="padding:8px 0"><a href="' + h(url) + '#previsionnel" style="color:' + C.ardoise + '">Voir le CA prévisionnel</a></td></tr>');
   if (alerteEst) corps += section('Module Estimation', 1, '<tr><td style="padding:8px 0;color:' + C.rouille + '">' + h(alerteEst) + '</td></tr>');
   var contenu = !!corps;
   var bilanVeille = Email_bilanVeille_(quand);
@@ -193,6 +198,7 @@ function Email_construire(quand, depuis) {
     .concat(echeances.length ? ['ÉCHÉANCES À 7 JOURS'].concat(echeances.map(function (e) { return '- ' + jr(e.date) + ' ' + e.libelle + ' — ' + e.acheteur; })).concat(['']) : [])
     .concat(relances.length ? ['RELANCES À FAIRE'].concat(relances.map(function (r) { return '- ' + jr(r.date_prevue) + ' ' + r.type + ' — ' + r.acheteur; })).concat(['']) : [])
     .concat(contenu ? [] : ['Rien de nouveau depuis le dernier envoi.', bilanVeille.texte, ''])
+    .concat(alertesPrev.length ? ['CA PRÉVISIONNEL : SEUIL DÉPASSÉ'].concat(alertesPrev.map(function (t) { return '- ' + t; })).concat(['']) : [])
     .concat(alerteEst ? ['MODULE ESTIMATION', '- ' + alerteEst, ''] : [])
     .concat(['Ouvrir l\'app : ' + url]).join('\n');
 

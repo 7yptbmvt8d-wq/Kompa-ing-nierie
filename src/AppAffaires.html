@@ -833,6 +833,28 @@
         cMontant.addEventListener('input', function (ev) { if (ev.isTrusted) calculer(false); });
         calculer(!cMontant.value);
       }
+      // Encaissements prévus par année : aperçu (montant de référence = notifié, à défaut offre)
+      var cRep = $('[data-champ="repartition_ca"]', fo);
+      if (cRep) {
+        var apRep = document.createElement('p');
+        apRep.className = 'legende apercu-repartition';
+        cRep.insertAdjacentElement('afterend', apRep);
+        var majRep = function () {
+          var base = Number(a.montant_notifie) || nb(cMontant.value) || 0;
+          var lignes = String(cRep.value || '').split(/\r?\n|;/).map(function (l) { return l.trim().match(/^(\d{4})\s*[:=\-–]?\s*(.*)$/); }).filter(Boolean);
+          if (!lignes.length) { apRep.textContent = 'Sans répartition : tout le reste à encaisser compte sur l\'année en cours.'; return; }
+          var fixe = 0, resteSur = '';
+          var parts = lignes.map(function (m) {
+            if (!m[2] || /^(le\s+)?reste|solde/i.test(m[2])) { resteSur = resteSur || m[1]; return null; }
+            var v = nb(m[2].replace(/€|ht/gi, '')); fixe += v || 0; return m[1] + ' : ' + K.euros(v || 0);
+          }).filter(Boolean);
+          if (resteSur) parts.push(resteSur + ' : ' + K.euros(Math.max(base - fixe, 0)) + ' (reste)');
+          apRep.textContent = parts.join(' · ') + (base ? ' — sur ' + K.euros(base) + ' HT' : '') + (base && fixe > base ? ' — attention, répartition supérieure au montant' : '');
+        };
+        cRep.addEventListener('input', majRep);
+        if (cMontant) cMontant.addEventListener('input', majRep);
+        majRep();
+      }
     }
     // Blocs : bouton actif dès qu'un champ change
     $$('form[data-bloc]', el).forEach(function (form) {

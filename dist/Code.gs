@@ -315,6 +315,7 @@ var FICHE_BLOCS = [
     ['jours_par_tranche', 'Jours par tranche', 'long'],
     ['prix_jour', 'Prix par jour HT (€)', 'euros'],
     ['montant_ht', 'Montant HT (€)', 'euros'],
+    ['repartition_ca', 'Encaissements prévus par année', 'long'],
     ['montant_pondere', 'Montant pondéré (€)', 'euros'],
     ['jours_reponse', 'Jours passés à répondre', 'nombre'],
     ['date_depot', 'Date de dépôt', 'date']
@@ -373,6 +374,7 @@ var AIDES_CHAMPS = {
   jours_par_tranche: ['Jours que vous prévoyez pour chaque tranche, dans le même ordre. Une ligne par tranche.', 'TF : 6 j\nTO1 : 8 j\nTO2 : 10 j'],
   prix_jour: ['Votre prix de journée HT. Le montant HT se calcule tout seul avec les jours par tranche.', '400'],
   montant_ht: ['Calculé automatiquement : total des jours par tranche × prix par jour. Vous pouvez le corriger (prix arrondi, frais en sus) : c\'est le prix inscrit à l\'acte d\'engagement.', '13200'],
+  repartition_ca: ['Pour le CA prévisionnel : année d\'encaissement prévue et montant HT, une ligne par année ; « reste » pour le solde. Sans répartition, tout le reste à encaisser compte sur l\'année en cours.', '2027 : 10000\n2028 : reste'],
   montant_pondere: ['Seulement si l\'acheteur compare les prix sur une simulation (détail quantitatif estimatif, DQE, ou bordereau pondéré) : montant de cette simulation. Sinon, laisser vide.'],
   jours_reponse: ['Temps passé à préparer l\'offre, en jours (une demi-journée = 0,5). Mesure le coût de vos réponses.', '2,5'],
   date_depot: ['Date du dépôt sur la plateforme, sur l\'accusé de réception.'],
@@ -979,6 +981,14 @@ function apiAvisStatut(idAvis, statut) {
 /** Statuts d'affaire dont le montant notifié compte dans le CA engagé (Gagnée = notifiée et en exécution). */
 var STATUTS_CA_ENGAGE = ['Gagnée'];
 
+/** Seuils comparés au CA (paramètres seuil.*), dans l'ordre croissant habituel. */
+var JALONS_CA = [
+  { cle: 'seuil.tva_franchise', libelle: 'Franchise de TVA', consequence: 'Au-delà : TVA à facturer à partir du 1er janvier suivant.' },
+  { cle: 'seuil.tva_majore', libelle: 'Franchise de TVA — seuil majoré', consequence: 'Au-delà : TVA à facturer dès le jour du dépassement.' },
+  { cle: 'seuil.plafond_vise', libelle: 'Plafond visé', consequence: 'Votre limite de CA pour l\'année.', vise: true },
+  { cle: 'seuil.micro_plafond', libelle: 'Plafond micro-entreprise', consequence: 'Dépassé deux années de suite : sortie du régime micro.' }
+];
+
 function Compteur_ca(annee) {
   var aujourdhui = new Date();
   annee = annee || Number(Utilities.formatDate(aujourdhui, APP.FUSEAU, 'yyyy'));
@@ -1012,12 +1022,7 @@ function Compteur_ca(annee) {
   var engage = encaisse + aEncaisser + resteAFacturer;
   var alerte = Params_nombre('seuil.alerte_pct', 80) / 100;
 
-  var jalons = [
-    { cle: 'seuil.tva_franchise', libelle: 'Franchise de TVA', consequence: 'Au-delà : TVA à facturer à partir du 1er janvier suivant.' },
-    { cle: 'seuil.tva_majore', libelle: 'Franchise de TVA — seuil majoré', consequence: 'Au-delà : TVA à facturer dès le jour du dépassement.' },
-    { cle: 'seuil.plafond_vise', libelle: 'Plafond visé', consequence: 'Votre limite de CA pour l\'année.', vise: true },
-    { cle: 'seuil.micro_plafond', libelle: 'Plafond micro-entreprise', consequence: 'Dépassé deux années de suite : sortie du régime micro.' }
-  ].map(function (j) {
+  var jalons = JALONS_CA.map(function (j) {
     var seuil = Params_nombre(j.cle, 0);
     return {
       cle: j.cle,
@@ -1150,7 +1155,7 @@ var TABLES = {
       'pre_score', 'score_final', 'decision', 'motif_decision', 'date_decision',
       // Offre
       'groupement', 'cotraitant', 'tranches', 'jours_par_tranche', 'prix_jour',
-      'montant_ht', 'montant_pondere', 'jours_reponse', 'date_depot',
+      'montant_ht', 'montant_pondere', 'jours_reponse', 'date_depot', 'repartition_ca',
       // Résultat
       'statut_final', 'date_resultat', 'attributaire', 'prix_attributaire', 'rang',
       'motifs_rejet',
@@ -1166,7 +1171,7 @@ var TABLES = {
       'montant_pondere', 'jours_reponse', 'prix_attributaire', 'rang', 'montant_notifie'
     ],
     horodatages: ['date_statut'],
-    texteBrut: ['departement', 'reference_acheteur']
+    texteBrut: ['departement', 'reference_acheteur', 'repartition_ca']
   },
   HISTORIQUE: {
     onglet: 'Historique',
@@ -2219,6 +2224,11 @@ function Email_construire(quand, depuis) {
   // Module Estimation : panne de la mise à jour des index Insee
   var alerteEst = '';
   if (typeof Est_alerteEmail_ === 'function') { try { alerteEst = Est_alerteEmail_(); } catch (e) { alerteEst = ''; } }
+  var alertesPrev = [];
+  try { alertesPrev = Previsionnel_alertes_(quand); } catch (e) { alertesPrev = []; }
+  if (alertesPrev.length) corps += section('CA prévisionnel : seuil dépassé', alertesPrev.length, alertesPrev.map(function (t) {
+    return '<tr><td style="padding:8px 0;border-bottom:1px solid ' + C.filet + ';color:' + C.rouille + '">' + h(t) + '</td></tr>';
+  }).join('') + '<tr><td style="padding:8px 0"><a href="' + h(url) + '#previsionnel" style="color:' + C.ardoise + '">Voir le CA prévisionnel</a></td></tr>');
   if (alerteEst) corps += section('Module Estimation', 1, '<tr><td style="padding:8px 0;color:' + C.rouille + '">' + h(alerteEst) + '</td></tr>');
   var contenu = !!corps;
   var bilanVeille = Email_bilanVeille_(quand);
@@ -2269,6 +2279,7 @@ function Email_construire(quand, depuis) {
     .concat(echeances.length ? ['ÉCHÉANCES À 7 JOURS'].concat(echeances.map(function (e) { return '- ' + jr(e.date) + ' ' + e.libelle + ' — ' + e.acheteur; })).concat(['']) : [])
     .concat(relances.length ? ['RELANCES À FAIRE'].concat(relances.map(function (r) { return '- ' + jr(r.date_prevue) + ' ' + r.type + ' — ' + r.acheteur; })).concat(['']) : [])
     .concat(contenu ? [] : ['Rien de nouveau depuis le dernier envoi.', bilanVeille.texte, ''])
+    .concat(alertesPrev.length ? ['CA PRÉVISIONNEL : SEUIL DÉPASSÉ'].concat(alertesPrev.map(function (t) { return '- ' + t; })).concat(['']) : [])
     .concat(alerteEst ? ['MODULE ESTIMATION', '- ' + alerteEst, ''] : [])
     .concat(['Ouvrir l\'app : ' + url]).join('\n');
 
@@ -3201,6 +3212,168 @@ function PiecesOffre_resume_(pieces) {
 }
 
 
+// ════════ Previsionnel.js ════════
+
+/**
+ * CA prévisionnel par année d'encaissement (décision du 21/11/2026).
+ *
+ * - Base : encaissements (règle des seuils de la micro-entreprise et de la franchise de TVA).
+ * - Encaissé : factures payées, par année de date_encaissement.
+ * - Prévu : affaires Gagnées, reste à encaisser (montant notifié, à défaut montant de l'offre − déjà encaissé),
+ *   réparti selon le champ « Encaissements prévus par année » de l'affaire (« 2027 : 10000 », « 2028 : reste »).
+ *   Sans répartition : tout le reste sur l'année en cours, signalé « répartition à préciser ».
+ * - Potentiel : affaires Déposées, montant de l'offre réparti de la même façon, affiché à part (non pondéré).
+ */
+
+var STATUTS_CA_POTENTIEL = ['Déposée'];
+var PREVISIONNEL_HORIZON = 3; // années affichées après l'année en cours (au minimum)
+
+/**
+ * Lit une répartition : une ligne (ou « ; ») par année, « AAAA : montant » ou « AAAA : reste ».
+ * Renvoie { lignes: [{ annee, montant|null (reste) }], erreurs: [texte] }.
+ */
+function Previsionnel_lireRepartition_(texte) {
+  var lignes = [], erreurs = [];
+  String(texte || '').split(/\r?\n|;/).forEach(function (l) {
+    var t = l.trim();
+    if (!t) return;
+    var m = t.match(/^(\d{4})\s*[:=\-–]?\s*(.*)$/);
+    if (!m) { erreurs.push('ligne illisible : « ' + t + ' »'); return; }
+    var v = m[2].trim();
+    if (!v || /^(le\s+)?reste|solde/i.test(v)) { lignes.push({ annee: Number(m[1]), montant: null }); return; }
+    var n = montant_(v.replace(/€|ht/gi, ''));
+    if (!(n > 0)) { erreurs.push('montant illisible pour ' + m[1] + ' : « ' + v + ' »'); return; }
+    lignes.push({ annee: Number(m[1]), montant: n });
+  });
+  if (lignes.filter(function (x) { return x.montant === null; }).length > 1) erreurs.push('« reste » indiqué sur plusieurs années : seule la première est retenue');
+  return { lignes: lignes, erreurs: erreurs };
+}
+
+/**
+ * Montants à encaisser par année pour une affaire, à partir de l'année en cours.
+ * base = montant total du marché ; dejaParAnnee = encaissé de l'affaire par année.
+ * Renvoie { parAnnee: {annee: montant}, aPreciser, remarques: [] }.
+ */
+function Previsionnel_repartir_(base, dejaParAnnee, texte, anneeCourante) {
+  var deja = Object.keys(dejaParAnnee).reduce(function (s, k) { return s + dejaParAnnee[k]; }, 0);
+  var reste = Math.max(base - deja, 0);
+  var out = { parAnnee: {}, aPreciser: false, remarques: [] };
+  if (reste <= 0) return out;
+  var r = Previsionnel_lireRepartition_(texte);
+  out.remarques = r.erreurs.slice();
+  // Lignes futures (année en cours incluse) ; une ligne passée ne compte que pour ce qui y a été encaissé
+  var lignes = r.lignes.filter(function (l) { return l.annee >= anneeCourante; });
+  if (!lignes.length) {
+    out.parAnnee[anneeCourante] = reste;
+    out.aPreciser = true;
+    if (r.lignes.length) out.remarques.push('répartition sans année à venir : reste mis sur ' + anneeCourante);
+    return out;
+  }
+  // Montant d'une année = prévu − déjà encaissé cette année-là ; « reste » = ce qui n'est pas réparti ailleurs
+  var idxReste = -1;
+  var alloue = 0;
+  lignes.forEach(function (l, i) {
+    if (l.montant === null) { if (idxReste < 0) idxReste = i; return; }
+    var v = Math.max(l.montant - (dejaParAnnee[l.annee] || 0), 0);
+    out.parAnnee[l.annee] = (out.parAnnee[l.annee] || 0) + v;
+    alloue += v;
+  });
+  var solde = arrondi_(reste - alloue);
+  if (idxReste >= 0) {
+    out.parAnnee[lignes[idxReste].annee] = (out.parAnnee[lignes[idxReste].annee] || 0) + Math.max(solde, 0);
+    if (solde < 0) out.remarques.push('répartition supérieure au montant restant de ' + Courriers_euros_(-solde));
+  } else if (solde > 0.005) {
+    var der = lignes[lignes.length - 1].annee;
+    out.parAnnee[der] += solde;
+    out.remarques.push(Courriers_euros_(solde) + ' non répartis, ajoutés à ' + der);
+  } else if (solde < -0.005) {
+    out.remarques.push('répartition supérieure au montant restant de ' + Courriers_euros_(-solde));
+  }
+  return out;
+}
+
+/** Seuils (mêmes paramètres que le compteur de CA). */
+function Previsionnel_seuils_() {
+  return JALONS_CA.map(function (j) {
+    return { cle: j.cle, libelle: j.libelle, vise: !!j.vise, seuil: Params_nombre(j.cle, 0) };
+  }).filter(function (j) { return j.seuil > 0; });
+}
+
+/**
+ * Tableau prévisionnel : années, détail par affaire, comparaison aux seuils.
+ * Renvoie { annees: [{ annee, encaisse, prevu, certain, potentiel, total, etats: {...}, depasse: [libellés] }],
+ *           affaires: [{ id, acheteur, objet, statut, base, encaisse, parAnnee, aPreciser, remarques, repartition }], seuils, alertePct }.
+ */
+function Previsionnel_ca(quand) {
+  var auj = quand || new Date();
+  var anneeCourante = Number(Utilities.formatDate(auj, APP.FUSEAU, 'yyyy'));
+  var alerte = Params_nombre('seuil.alerte_pct', 80) / 100;
+  var encaisseAnnee = {}, encaisseAffaire = {};
+  Db_lire(TABLES.FACTURES).forEach(function (f) {
+    var d = date_(f.date_encaissement);
+    var paye = montant_(f.montant_encaisse);
+    if (!d || !paye) return;
+    var an = anneeDe_(d);
+    encaisseAnnee[an] = (encaisseAnnee[an] || 0) + paye;
+    if (f.id_affaire) {
+      encaisseAffaire[f.id_affaire] = encaisseAffaire[f.id_affaire] || {};
+      encaisseAffaire[f.id_affaire][an] = (encaisseAffaire[f.id_affaire][an] || 0) + paye;
+    }
+  });
+  var prevu = {}, potentiel = {}, annees = {};
+  for (var y = anneeCourante; y <= anneeCourante + PREVISIONNEL_HORIZON; y++) annees[y] = true;
+  var affaires = [];
+  Affaires_lister().forEach(function (a) {
+    var gagnee = STATUTS_CA_ENGAGE.indexOf(String(a.statut)) >= 0;
+    var deposee = STATUTS_CA_POTENTIEL.indexOf(String(a.statut)) >= 0;
+    if (!gagnee && !deposee) return;
+    var base = montant_(gagnee ? (a.montant_notifie || a.montant_ht) : a.montant_ht);
+    var deja = encaisseAffaire[a.id] || {};
+    var rep = Previsionnel_repartir_(base, deja, a.repartition_ca, anneeCourante);
+    var cible = gagnee ? prevu : potentiel;
+    Object.keys(rep.parAnnee).forEach(function (k) { cible[k] = (cible[k] || 0) + rep.parAnnee[k]; annees[k] = true; });
+    if (!base) rep.remarques.push(gagnee ? 'montant notifié manquant' : 'montant de l\'offre manquant');
+    affaires.push({
+      id: a.id, acheteur: a.acheteur, objet: a.objet, statut: a.statut, base: arrondi_(base),
+      encaisse: arrondi_(Object.keys(deja).reduce(function (s, k) { return s + deja[k]; }, 0)),
+      parAnnee: Object.keys(rep.parAnnee).reduce(function (o, k) { if (rep.parAnnee[k] > 0.005) o[k] = arrondi_(rep.parAnnee[k]); return o; }, {}),
+      aPreciser: rep.aPreciser && base > 0, remarques: rep.remarques, repartition: String(a.repartition_ca || '')
+    });
+  });
+  var seuils = Previsionnel_seuils_();
+  var lignes = Object.keys(annees).map(Number).filter(function (an) { return an >= anneeCourante; }).sort().map(function (an) {
+    var enc = an === anneeCourante ? (encaisseAnnee[an] || 0) : 0;
+    var certain = enc + (prevu[an] || 0);
+    var total = certain + (potentiel[an] || 0);
+    return {
+      annee: an, encaisse: arrondi_(enc), prevu: arrondi_(prevu[an] || 0), certain: arrondi_(certain),
+      potentiel: arrondi_(potentiel[an] || 0), total: arrondi_(total),
+      seuils: seuils.map(function (s) {
+        return { cle: s.cle, libelle: s.libelle, seuil: s.seuil, etat: etat_(certain, s.seuil, alerte), etatTotal: etat_(total, s.seuil, alerte) };
+      })
+    };
+  });
+  affaires.sort(function (x, y) { return String(x.id).localeCompare(String(y.id), 'fr', { numeric: true }); });
+  return { anneeCourante: anneeCourante, annees: lignes, affaires: affaires, seuils: seuils, alertePct: alerte * 100 };
+}
+
+/** Années à venir dont le CA certain dépasse un seuil (pour l'e-mail du matin) : [« 2027 : Plafond micro-entreprise dépassé (…) »]. */
+function Previsionnel_alertes_(quand) {
+  var p = Previsionnel_ca(quand);
+  var out = [];
+  p.annees.forEach(function (an) {
+    var dep = an.seuils.filter(function (s) { return s.etat === 'depasse'; });
+    var pire = dep[dep.length - 1];
+    if (pire) out.push(an.annee + ' : ' + pire.libelle + ' dépassé — ' + Courriers_euros_(an.certain) + ' prévus pour ' + Courriers_euros_(pire.seuil));
+    else {
+      var pot = an.seuils.filter(function (s) { return s.etatTotal === 'depasse'; }).pop();
+      if (pot) out.push(an.annee + ' : ' + pot.libelle + ' dépassé si les offres déposées sont gagnées — ' + Courriers_euros_(an.total) + ' pour ' + Courriers_euros_(pot.seuil));
+    }
+  });
+  return out;
+}
+
+
 // ════════ Veille.js ════════
 
 /**
@@ -3765,9 +3938,15 @@ function apiAccueil() {
       ca: Compteur_ca(),
       fiscal: Fiscal_declarations(),
       suivi: Suivi_accueil_(),
-      etat: Etat_socle_()
+      etat: Etat_socle_(),
+      previsionnel: Previsionnel_ca()
     };
   });
+}
+
+/** CA prévisionnel par année d'encaissement (écran « CA prévisionnel »). */
+function apiPrevisionnel() {
+  return repondre_(function () { return Previsionnel_ca(); });
 }
 
 /** État du socle : compte, classeur, onglets, quotas. */

@@ -8,7 +8,7 @@
   var LECTURES = ['apiEtat', 'apiParametres', 'apiCompteurCA', 'apiAccueil', 'apiAffaires', 'apiAffaire', 'apiVeille',
     'apiEcheancier', 'apiSuivi', 'apiCourrier', 'apiEmailApercu', 'apiTableau', 'apiEnseignements', 'apiFiscal', 'apiPieces',
     'apiEstReferentiels', 'apiEstAccueil', 'apiEstAffaire', 'apiEstIndices', 'apiEstIndiceHistorique', 'apiEstActualiser',
-    'apiEstBibliotheque', 'apiEstAnalyserPostes', 'apiEstRatios', 'apiEstFormulaire', 'apiEstApercu', 'apiEstEstimation'];
+    'apiEstBibliotheque', 'apiEstAnalyserPostes', 'apiEstRatios', 'apiEstFormulaire', 'apiEstApercu', 'apiEstEstimation', 'apiPrevisionnel'];
 
   function appel(nom) {
     var args = Array.prototype.slice.call(arguments, 1);
@@ -211,7 +211,8 @@
         }).join('') +
       '</tbody></table></div>' +
       '<p class="legende">Engagé = encaissé + factures non payées (' + euros(ca.aEncaisser) + ') + reste à facturer sur les affaires gagnées (' + euros(ca.resteAFacturer) + '). ' +
-      'Factures et encaissements : onglet Exécution de chaque fiche affaire.</p>';
+      'Factures et encaissements : onglet Exécution de chaque fiche affaire.</p>' +
+      '<p><a class="bouton bouton--discret" href="#previsionnel">CA prévisionnel des prochaines années</a></p>';
   }
 
   function ecranParametres(el) {
