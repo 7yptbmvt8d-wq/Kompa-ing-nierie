@@ -231,10 +231,12 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
 .cal-tete { display: flex; justify-content: space-between; align-items: center; margin-top: var(--kompa-s6); }
 .cal-tete h2 { margin: 0; text-transform: capitalize; }
 .cal { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius-sm); margin-top: var(--kompa-s3); overflow: hidden; }
-.cal-entete, .cal-grille { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-entete, .cal-grille { display: grid; grid-template-columns: 2.6rem repeat(7, minmax(0, 1fr)); }
+.cal-sem, .cal-sem-tete { font-size: 11px; color: var(--kompa-gris); text-align: center; padding: var(--kompa-s1) 0; }
+.cal-sem { border-top: var(--kompa-filet-fin); background: var(--kompa-papier); font-weight: 600; }
+.semaine { font-size: 11px; font-weight: 600; color: var(--kompa-gris); background: var(--kompa-brume); border-radius: 3px; padding: 0 4px; margin-left: 4px; vertical-align: 1px; }
 .cal-entete div { background: var(--kompa-brume); color: var(--kompa-ardoise); font-weight: 600; font-size: 13px; padding: var(--kompa-s1) var(--kompa-s2); }
 .cal-jour { min-height: 92px; border-top: var(--kompa-filet-fin); border-left: var(--kompa-filet-fin); padding: var(--kompa-s1); display: flex; flex-direction: column; gap: 2px; }
-.cal-jour:nth-child(7n+1) { border-left: 0; }
 .cal-jour--hors { background: var(--kompa-papier); }
 .cal-jour--hors .cal-jour__num { color: var(--kompa-gris); }
 .cal-jour--auj { box-shadow: inset 0 0 0 2px var(--kompa-ardoise); }

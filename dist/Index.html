@@ -299,10 +299,12 @@ h3 { font-size: var(--kompa-fs-small); font-weight: 600; color: var(--kompa-ardo
 .cal-tete { display: flex; justify-content: space-between; align-items: center; margin-top: var(--kompa-s6); }
 .cal-tete h2 { margin: 0; text-transform: capitalize; }
 .cal { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius-sm); margin-top: var(--kompa-s3); overflow: hidden; }
-.cal-entete, .cal-grille { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-entete, .cal-grille { display: grid; grid-template-columns: 2.6rem repeat(7, minmax(0, 1fr)); }
+.cal-sem, .cal-sem-tete { font-size: 11px; color: var(--kompa-gris); text-align: center; padding: var(--kompa-s1) 0; }
+.cal-sem { border-top: var(--kompa-filet-fin); background: var(--kompa-papier); font-weight: 600; }
+.semaine { font-size: 11px; font-weight: 600; color: var(--kompa-gris); background: var(--kompa-brume); border-radius: 3px; padding: 0 4px; margin-left: 4px; vertical-align: 1px; }
 .cal-entete div { background: var(--kompa-brume); color: var(--kompa-ardoise); font-weight: 600; font-size: 13px; padding: var(--kompa-s1) var(--kompa-s2); }
 .cal-jour { min-height: 92px; border-top: var(--kompa-filet-fin); border-left: var(--kompa-filet-fin); padding: var(--kompa-s1); display: flex; flex-direction: column; gap: 2px; }
-.cal-jour:nth-child(7n+1) { border-left: 0; }
 .cal-jour--hors { background: var(--kompa-papier); }
 .cal-jour--hors .cal-jour__num { color: var(--kompa-gris); }
 .cal-jour--auj { box-shadow: inset 0 0 0 2px var(--kompa-ardoise); }
@@ -2772,6 +2774,19 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     }, function (e) { el.innerHTML = K.titre('Échéancier', '') + K.bandeauErreur(e); });
   }
 
+  /** Numéro de semaine ISO 8601 (semaine du lundi au dimanche ; S1 = celle qui contient le 1er jeudi de janvier). */
+  function semaine(v) {
+    var m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    var d = v instanceof Date ? v : m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+    if (!d) return '';
+    var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    var j = t.getUTCDay() || 7;
+    t.setUTCDate(t.getUTCDate() + 4 - j);
+    var debutAn = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+    return Math.ceil(((t - debutAn) / 86400000 + 1) / 7);
+  }
+  function badgeSemaine(v) { var n = semaine(v); return n ? ' <span class="semaine mono" title="Semaine ' + n + '">S' + n + '</span>' : ''; }
+
   function rendre(el, r) {
     var actions = '<div class="barre-outils">' +
       '<button type="button" class="bouton bouton--discret" data-action="apercu">Aperçu de l\'e-mail du matin</button>' +
@@ -2787,7 +2802,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       '<th scope="col">Prévue le</th><th scope="col">Relance</th><th scope="col">Affaire</th><th scope="col">Note</th><th scope="col"><span class="seul-lecteur">Actions</span></th></tr></thead><tbody>' +
       r.relances.map(function (x) {
         var n = x.jours;
-        return '<tr><td class="mono">' + jour(x.date_prevue) + ' ' + (n <= 0 ? '<span class="statut statut--alerte">' + relatif(n) + '</span>' : '<span class="legende mono">' + relatif(n) + '</span>') + '</td>' +
+        return '<tr><td class="mono">' + jour(x.date_prevue) + badgeSemaine(x.date_prevue) + ' ' + (n <= 0 ? '<span class="statut statut--alerte">' + relatif(n) + '</span>' : '<span class="legende mono">' + relatif(n) + '</span>') + '</td>' +
           '<td><strong>' + esc(x.type) + '</strong></td>' +
           '<td><a href="#affaire/' + esc(x.id_affaire) + '" class="mono">' + esc(x.id_affaire) + '</a> ' + esc(x.acheteur) + '</td>' +
           '<td class="legende">' + esc(x.commentaire) + '</td>' +
@@ -2809,6 +2824,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       var cle = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
       var dansMois = d.getMonth() === m[1] - 1;
       var items = parJour[cle] || [];
+      if (d.getDay() === 1) cases.push('<div class="cal-sem mono" title="Semaine ' + semaine(d) + '">S' + semaine(d) + '</div>');
       cases.push('<div class="cal-jour' + (dansMois ? '' : ' cal-jour--hors') + (cle === r.aujourdhui ? ' cal-jour--auj' : '') + '">' +
         '<div class="cal-jour__num mono">' + d.getDate() + '</div>' +
         items.map(function (e) {
@@ -2822,7 +2838,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       '<button type="button" class="bouton bouton--discret" data-mois="-1" aria-label="Mois précédent">‹</button>' +
       '<button type="button" class="bouton bouton--discret" data-mois="0">Aujourd\'hui</button>' +
       '<button type="button" class="bouton bouton--discret" data-mois="1" aria-label="Mois suivant">›</button></div></div>' +
-      '<div class="cal"><div class="cal-entete">' + ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'].map(function (j) { return '<div>' + j + '</div>'; }).join('') + '</div>' +
+      '<div class="cal"><div class="cal-entete"><div class="cal-sem-tete" title="Numéro de semaine">sem.</div>' + ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'].map(function (j) { return '<div>' + j + '</div>'; }).join('') + '</div>' +
       '<div class="cal-grille">' + cases.join('') + '</div></div>' +
       '<p class="legende cle-cal"><span class="ech ech--remise">Remise</span> <span class="ech ech--secondaire">Questions, visite</span> <span class="ech ech--attente">Décision attendue</span> <span class="ech ech--argent">Facturation, encaissement</span> <span class="ech ech--livrable">Livrable de mission</span></p>';
   }
@@ -2834,7 +2850,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       r.prochaines.map(function (e) {
         var badge = e.depassee ? '<span class="statut statut--ko">' + relatif(e.jours) + '</span>'
           : e.urgent || e.alerte ? '<span class="statut statut--alerte">' + relatif(e.jours) + '</span>' : '<span class="legende mono">' + relatif(e.jours) + '</span>';
-        return '<tr><td class="mono">' + jour(e.date) + ' ' + badge + '</td><td>' + esc(e.libelle) + '</td>' +
+        return '<tr><td class="mono">' + jour(e.date) + badgeSemaine(e.date) + ' ' + badge + '</td><td>' + esc(e.libelle) + '</td>' +
           '<td><a href="#affaire/' + esc(e.id_affaire) + '" class="mono">' + esc(e.id_affaire) + '</a> ' + esc(e.acheteur) + '</td><td>' + esc(e.statut || '') + '</td></tr>';
       }).join('') + '</tbody></table></div>';
   }
@@ -2921,7 +2937,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
   // Cartes de l'accueil : échéances à 7 jours et relances à faire
   K.suiviAccueil = function (elEch, elRel, donnees) {
     (donnees ? Promise.resolve(donnees) : K.appel('apiSuivi')).then(function (s) {
-      elEch.innerHTML = '<h2>À faire cette semaine</h2>' + (s.echeances.length ? '<ul class="liste-suivi">' + s.echeances.map(function (e) {
+      elEch.innerHTML = '<h2>À faire cette semaine <span class="semaine mono">S' + semaine(new Date()) + '</span></h2>' + (s.echeances.length ? '<ul class="liste-suivi">' + s.echeances.map(function (e) {
         return '<li><span class="mono">' + jour(e.date) + '</span> ' + (e.depassee ? '<span class="statut statut--ko">' + relatif(e.jours) + '</span>' : e.urgent ? '<span class="statut statut--alerte">' + relatif(e.jours) + '</span>' : '<span class="legende mono">' + relatif(e.jours) + '</span>') +
           '<br><a href="#affaire/' + esc(e.id_affaire) + '">' + esc(e.libelle) + '</a> — ' + esc(e.acheteur) + '</li>';
       }).join('') + '</ul>' : '<p class="vide">Aucune échéance dans les 7 jours.</p>');
