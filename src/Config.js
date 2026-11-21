@@ -62,7 +62,7 @@ var TABLES = {
       'pre_score', 'score_final', 'decision', 'motif_decision', 'date_decision',
       // Offre
       'groupement', 'cotraitant', 'tranches', 'jours_par_tranche', 'prix_jour',
-      'montant_ht', 'montant_pondere', 'jours_reponse', 'date_depot', 'repartition_ca',
+      'montant_ht', 'montant_pondere', 'jours_reponse', 'date_depot', 'repartition_ca', 'tranches_etat',
       // Résultat
       'statut_final', 'date_resultat', 'attributaire', 'prix_attributaire', 'rang',
       'motifs_rejet',
@@ -78,7 +78,7 @@ var TABLES = {
       'montant_pondere', 'jours_reponse', 'prix_attributaire', 'rang', 'montant_notifie'
     ],
     horodatages: ['date_statut'],
-    texteBrut: ['departement', 'reference_acheteur', 'repartition_ca']
+    texteBrut: ['departement', 'reference_acheteur', 'repartition_ca', 'tranches_etat']
   },
   HISTORIQUE: {
     onglet: 'Historique',

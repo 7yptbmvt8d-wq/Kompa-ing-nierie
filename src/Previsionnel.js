@@ -111,10 +111,15 @@ function Previsionnel_ca(quand) {
     var gagnee = STATUTS_CA_ENGAGE.indexOf(String(a.statut)) >= 0;
     var deposee = STATUTS_CA_POTENTIEL.indexOf(String(a.statut)) >= 0;
     if (!gagnee && !deposee) return;
-    var base = montant_(gagnee ? (a.montant_notifie || a.montant_ht) : a.montant_ht);
+    var baseMarche = montant_(gagnee ? (a.montant_notifie || a.montant_ht) : a.montant_ht);
+    var pl = Planning_affaire(a.id, auj);
+    // Tranches optionnelles : non encore affermies → potentiel ; non affermies → exclues du CA
+    var base = Math.max(baseMarche - pl.montantOptionnel - pl.montantNonAffermi, 0);
     var deja = encaisseAffaire[a.id] || {};
     var rep = Previsionnel_repartir_(base, deja, a.repartition_ca, anneeCourante);
-    var plan = Planning_parAnnee_(a.id, auj);
+    var plan = Planning_parAnnee_(a.id, auj, pl);
+    var potOptions = plan ? plan.potentiel : (pl.montantOptionnel > 0 ? (function () { var o = {}; o[anneeCourante] = pl.montantOptionnel; return o; })() : {});
+    Object.keys(potOptions).forEach(function (k) { potentiel[k] = (potentiel[k] || 0) + potOptions[k]; annees[k] = true; });
     if (plan) {
       // Planning de facturation (livrables) : prioritaire sur la répartition saisie, plafonné au reste à encaisser
       var resteP = Math.max(base - Object.keys(deja).reduce(function (s, k) { return s + deja[k]; }, 0), 0);
@@ -142,7 +147,7 @@ function Previsionnel_ca(quand) {
     });
     if (!base) rep.remarques.push(gagnee ? 'montant notifié manquant' : 'montant de l\'offre manquant');
     affaires.push({
-      id: a.id, acheteur: a.acheteur, objet: a.objet, statut: a.statut, base: arrondi_(base),
+      id: a.id, acheteur: a.acheteur, objet: a.objet, statut: a.statut, base: arrondi_(base), optionnel: arrondi_(pl.montantOptionnel), nonAffermi: arrondi_(pl.montantNonAffermi),
       encaisse: arrondi_(Object.keys(deja).reduce(function (s, k) { return s + deja[k]; }, 0)),
       parAnnee: Object.keys(rep.parAnnee).reduce(function (o, k) { if (rep.parAnnee[k] > 0.005) o[k] = arrondi_(rep.parAnnee[k]); return o; }, {}),
       aPreciser: rep.aPreciser && base > 0, remarques: rep.remarques, repartition: String(a.repartition_ca || ''), source: rep.source || (a.repartition_ca ? 'répartition saisie' : ''),

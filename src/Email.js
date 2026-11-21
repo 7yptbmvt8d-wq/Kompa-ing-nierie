@@ -65,7 +65,7 @@ function Email_construire(quand, depuis) {
   var avisFrance = horsPaca.filter(function (a) { return a.classement === 'à étudier'; });
   var autresFrance = horsPaca.length - avisFrance.length;
   var echeances = Echeances_calculer(auj, ajouterJours_(auj, 7), quand)
-    .filter(function (e) { return ['Remise', 'Questions', 'Visite', 'Déclaration', 'Livrable'].indexOf(e.type) >= 0; });
+    .filter(function (e) { return ['Remise', 'Questions', 'Visite', 'Déclaration', 'Livrable', 'Facturation'].indexOf(e.type) >= 0; });
   var relances = Relances_aFaire(quand);
   var ind = Indicateurs_resume(quand);
   // Remises imminentes (J-3 à J0) : encadré rouge en tête de l'e-mail et dans l'objet.

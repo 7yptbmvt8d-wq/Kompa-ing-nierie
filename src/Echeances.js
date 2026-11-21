@@ -106,6 +106,23 @@ function Echeances_calculer(debut, fin, quand) {
     });
   });
 
+  // Facturation : tranche ferme ou affermie dont le dernier livrable est prévu dans la fenêtre (ou dépassé)
+  Affaires_lister().forEach(function (a) {
+    if (String(a.statut) !== 'Gagnée') return;
+    Planning_affaire(a.id, auj).lignes.forEach(function (l) {
+      if (l.etat !== 'prévue' || l.affermissement === 'optionnelle' || l.affermissement === 'non affermie') return;
+      var d = date_(l.dateFacture);
+      var j = ecartJours_(d, auj);
+      var dans = aujourdhui_(d) >= debut && aujourdhui_(d) <= fin;
+      if (!dans && j >= 0) return;
+      out.push({
+        date: aujourdhui_(d), type: 'Facturation', libelle: 'Facturer la tranche ' + (l.tranche === PLANNING_MISSION ? 'de la mission' : l.tranche) + ' — ' + Courriers_euros_(l.montant),
+        id_affaire: a.id, acheteur: a.acheteur, objet: a.objet, statut: a.statut,
+        jours: j, urgent: j <= 3, depassee: j < 0
+      });
+    });
+  });
+
   // CFE de l'année (et de l'année précédente si impayée), à payer avant le 15 décembre
   [auj.getFullYear() - 1, auj.getFullYear()].forEach(function (an) {
     var c = Fiscal_cfe(an, auj);

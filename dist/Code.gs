@@ -750,6 +750,11 @@ function apiFactureAjouter(id, facture) {
   return repondre_(function () { Factures_ajouter(id, facture); Relances_synchroniser(); return ficheClient_(id); });
 }
 
+/** Tranche optionnelle : affermie, non affermie ou remise optionnelle. */
+function apiTrancheAffermir(id, tranche, etat, date) {
+  return repondre_(function () { Planning_affermir(id, tranche, etat, date); return ficheClient_(id); });
+}
+
 /** Facture d'une tranche, depuis la barre de planning. */
 function apiPlanningFacturer(id, tranche, facture) {
   return repondre_(function () { Planning_facturer(id, tranche, facture); Relances_synchroniser(); return ficheClient_(id); });
@@ -1178,7 +1183,7 @@ var TABLES = {
       'pre_score', 'score_final', 'decision', 'motif_decision', 'date_decision',
       // Offre
       'groupement', 'cotraitant', 'tranches', 'jours_par_tranche', 'prix_jour',
-      'montant_ht', 'montant_pondere', 'jours_reponse', 'date_depot', 'repartition_ca',
+      'montant_ht', 'montant_pondere', 'jours_reponse', 'date_depot', 'repartition_ca', 'tranches_etat',
       // Résultat
       'statut_final', 'date_resultat', 'attributaire', 'prix_attributaire', 'rang',
       'motifs_rejet',
@@ -1194,7 +1199,7 @@ var TABLES = {
       'montant_pondere', 'jours_reponse', 'prix_attributaire', 'rang', 'montant_notifie'
     ],
     horodatages: ['date_statut'],
-    texteBrut: ['departement', 'reference_acheteur', 'repartition_ca']
+    texteBrut: ['departement', 'reference_acheteur', 'repartition_ca', 'tranches_etat']
   },
   HISTORIQUE: {
     onglet: 'Historique',
@@ -1983,6 +1988,23 @@ function Echeances_calculer(debut, fin, quand) {
     });
   });
 
+  // Facturation : tranche ferme ou affermie dont le dernier livrable est prévu dans la fenêtre (ou dépassé)
+  Affaires_lister().forEach(function (a) {
+    if (String(a.statut) !== 'Gagnée') return;
+    Planning_affaire(a.id, auj).lignes.forEach(function (l) {
+      if (l.etat !== 'prévue' || l.affermissement === 'optionnelle' || l.affermissement === 'non affermie') return;
+      var d = date_(l.dateFacture);
+      var j = ecartJours_(d, auj);
+      var dans = aujourdhui_(d) >= debut && aujourdhui_(d) <= fin;
+      if (!dans && j >= 0) return;
+      out.push({
+        date: aujourdhui_(d), type: 'Facturation', libelle: 'Facturer la tranche ' + (l.tranche === PLANNING_MISSION ? 'de la mission' : l.tranche) + ' — ' + Courriers_euros_(l.montant),
+        id_affaire: a.id, acheteur: a.acheteur, objet: a.objet, statut: a.statut,
+        jours: j, urgent: j <= 3, depassee: j < 0
+      });
+    });
+  });
+
   // CFE de l'année (et de l'année précédente si impayée), à payer avant le 15 décembre
   [auj.getFullYear() - 1, auj.getFullYear()].forEach(function (an) {
     var c = Fiscal_cfe(an, auj);
@@ -2185,7 +2207,7 @@ function Email_construire(quand, depuis) {
   var avisFrance = horsPaca.filter(function (a) { return a.classement === 'à étudier'; });
   var autresFrance = horsPaca.length - avisFrance.length;
   var echeances = Echeances_calculer(auj, ajouterJours_(auj, 7), quand)
-    .filter(function (e) { return ['Remise', 'Questions', 'Visite', 'Déclaration', 'Livrable'].indexOf(e.type) >= 0; });
+    .filter(function (e) { return ['Remise', 'Questions', 'Visite', 'Déclaration', 'Livrable', 'Facturation'].indexOf(e.type) >= 0; });
   var relances = Relances_aFaire(quand);
   var ind = Indicateurs_resume(quand);
   // Remises imminentes (J-3 à J0) : encadré rouge en tête de l'e-mail et dans l'objet.
@@ -2497,6 +2519,95 @@ function supprimerAffairesTest() {
   Db_supprimerSi(TABLES.AFFAIRES, function (a) { return ids.indexOf(String(a.id)) >= 0; });
   console.log('Affaires [TEST] supprimées : ' + ids.join(', '));
   return ids.length;
+}
+
+
+// ════════ Finances.js ════════
+
+/**
+ * Écran « Finances » (réorganisation du 21/11/2026) : vue d'ensemble, prévisionnel, encaissements, URSSAF et CFE.
+ * Regroupe ce qui était dispersé entre l'accueil (CA, URSSAF), l'écran CA prévisionnel et les fiches (factures).
+ */
+
+/**
+ * Encaissements de toutes les affaires gagnées (planning de facturation + factures sans tranche non payées),
+ * sur une même ligne de temps. Renvoie { lignes: [...], debut, fin, aujourdhui }.
+ */
+function Finances_encaissements_(quand) {
+  var auj = aujourdhui_(quand);
+  var lignes = [];
+  Affaires_lister().forEach(function (a) {
+    if (['Gagnée', 'Soldée'].indexOf(String(a.statut)) < 0) return;
+    var p = Planning_affaire(a.id, auj);
+    p.lignes.forEach(function (l) {
+      if (a.statut === 'Soldée' && l.etat !== 'payée') return;
+      lignes.push(Object.assign({ id_affaire: a.id, acheteur: String(a.acheteur || ''), objet: String(a.objet || '') }, l));
+    });
+    // Factures saisies sans tranche (avant le planning) et non payées
+    Db_lire(TABLES.FACTURES).forEach(function (f) {
+      if (String(f.id_affaire) !== String(a.id) || f.tranche || date_(f.date_encaissement)) return;
+      var dE = date_(f.date_echeance), dF = date_(f.date);
+      var enRetard = dE && auj > aujourdhui_(dE);
+      lignes.push({
+        id_affaire: a.id, acheteur: String(a.acheteur || ''), objet: String(a.objet || ''),
+        tranche: '', jours: 0, montant: arrondi_(montant_(f.montant)), livrables: [],
+        etat: enRetard ? 'en retard' : 'facturée', dateFacture: dF ? jourIso_(dF) : '', dateEcheance: dE ? jourIso_(dE) : '',
+        dateEncaissement: '', montantEncaisse: 0, facture: { id: String(f.id), numero: String(f.numero || '') },
+        retard: enRetard ? Planning_interets_(montant_(f.montant), dE, auj) : null, optionnelle: false, affermissement: 'ferme'
+      });
+    });
+  });
+  var ordre = { 'en retard': 0, 'facturée': 1, 'prévue': 2, 'à planifier': 3, 'payée': 4 };
+  lignes.sort(function (x, y) {
+    return (ordre[x.etat] - ordre[y.etat]) || String(x.dateEcheance || '9999').localeCompare(String(y.dateEcheance || '9999'));
+  });
+  var dates = [];
+  lignes.forEach(function (l) {
+    l.livrables.forEach(function (x) { if (x.date) dates.push(x.date); });
+    [l.dateFacture, l.dateEcheance, l.dateEncaissement].forEach(function (d) { if (d) dates.push(d); });
+  });
+  dates.sort();
+  return { lignes: lignes, debut: dates[0] || '', fin: dates[dates.length - 1] || '', aujourdhui: jourIso_(auj) };
+}
+
+/** Paiements en retard (toutes affaires) : pour les alertes de l'accueil. */
+function Finances_retards_(quand) {
+  return Finances_encaissements_(quand).lignes.filter(function (l) { return l.etat === 'en retard'; }).map(function (l) {
+    return { id_affaire: l.id_affaire, acheteur: l.acheteur, tranche: l.tranche, numero: l.facture ? l.facture.numero : '',
+      montant: l.montant, jours: l.retard ? l.retard.jours : 0, interets: l.retard ? l.retard.interets : 0, indemnite: l.retard ? l.retard.indemnite : 0 };
+  });
+}
+
+/** Synthèse de l'écran Finances (tout en un appel). */
+function Finances_synthese(quand) {
+  var auj = aujourdhui_(quand);
+  var enc = Finances_encaissements_(auj);
+  var somme = function (filtre) { return arrondi_(enc.lignes.filter(filtre).reduce(function (s, l) { return s + l.montant; }, 0)); };
+  var fiscal = Fiscal_declarations(null, auj);
+  var prochaineDecl = fiscal.periodes.filter(function (p) { return p.etat !== 'déclarée' && p.etat !== 'non suivie'; })[0] || null;
+  var cfe = fiscal.cfe && ['non due', 'exonérée', 'payée'].indexOf(fiscal.cfe.etat) < 0 ? fiscal.cfe : fiscal.cfeProchaine;
+  return {
+    ca: Compteur_ca(auj.getFullYear()),
+    previsionnel: Previsionnel_ca(auj),
+    encaissements: enc,
+    fiscal: fiscal,
+    resume: {
+      enAttente: somme(function (l) { return l.etat === 'facturée' || l.etat === 'en retard'; }),
+      enRetard: somme(function (l) { return l.etat === 'en retard'; }),
+      nbRetard: enc.lignes.filter(function (l) { return l.etat === 'en retard'; }).length,
+      aFacturer: somme(function (l) { return (l.etat === 'prévue' || l.etat === 'à planifier') && l.affermissement !== 'non affermie' && l.affermissement !== 'optionnelle'; }),
+      optionnel: somme(function (l) { return (l.etat === 'prévue' || l.etat === 'à planifier') && l.affermissement === 'optionnelle'; }),
+      prochaineDeclaration: prochaineDecl ? { libelle: prochaineDecl.libelle, echeance: prochaineDecl.echeance, total: prochaineDecl.total } : null,
+      cfe: cfe ? { annee: cfe.annee, echeance: cfe.echeance, montant: cfe.montant, estime: cfe.estime, etat: cfe.etat } : null
+    }
+  };
+}
+
+/** Recherche rapide (Ctrl+K) : liste légère des affaires. */
+function Finances_listeRecherche_() {
+  return Affaires_lister().map(function (a) {
+    return { id: a.id, acheteur: String(a.acheteur || ''), objet: String(a.objet || ''), statut: String(a.statut || ''), departement: String(a.departement || '') };
+  });
 }
 
 
@@ -3317,6 +3428,39 @@ function PiecesOffre_resume_(pieces) {
  */
 
 var PLANNING_MISSION = 'MISSION';
+var ETATS_AFFERMISSEMENT = ['optionnelle', 'affermie', 'non affermie'];
+
+/** Tranche optionnelle ou conditionnelle d'après son code (TO1, TC2, TOP…) ; TF et Mission sont fermes. */
+function Planning_estOptionnelle_(code) {
+  return /^T(O|C)/.test(String(code || '').toUpperCase());
+}
+
+/** État des tranches optionnelles enregistré sur l'affaire : « TO1:affermie:2027-03-01;TO2:non affermie ». */
+function Planning_etatsTranches_(texte) {
+  var out = {};
+  String(texte || '').split(';').forEach(function (p) {
+    var m = p.split(':');
+    if (m.length < 2) return;
+    var code = Planning_codeTranche_(m[0]);
+    if (code && ETATS_AFFERMISSEMENT.indexOf(m[1].trim()) >= 0) out[code] = { etat: m[1].trim(), date: (m[2] || '').trim() };
+  });
+  return out;
+}
+
+/** Affermit une tranche optionnelle (ou la déclare non affermie, ou la remet optionnelle). */
+function Planning_affermir(idAffaire, tranche, etat, dateAffermissement) {
+  var a = Affaires_get_(idAffaire);
+  var code = Planning_codeTranche_(tranche);
+  if (ETATS_AFFERMISSEMENT.indexOf(etat) < 0) throw new Error('État attendu : ' + ETATS_AFFERMISSEMENT.join(', ') + '.');
+  var etats = Planning_etatsTranches_(a.tranches_etat);
+  var d = date_(dateAffermissement);
+  if (etat === 'optionnelle') delete etats[code];
+  else etats[code] = { etat: etat, date: d ? jourIso_(d) : (etat === 'affermie' ? jourIso_(aujourdhui_()) : '') };
+  var texte = Object.keys(etats).map(function (k) { return k + ':' + etats[k].etat + (etats[k].date ? ':' + etats[k].date : ''); }).join(';');
+  Db_maj(TABLES.AFFAIRES, idAffaire, { tranches_etat: texte });
+  if (etat !== 'optionnelle') Affaires_ajouterNote(idAffaire, 'Tranche ' + code + ' ' + etat + (etats[code].date ? ' le ' + etats[code].date.split('-').reverse().join('/') : ''));
+  return etats;
+}
 
 /** Code de tranche comparable à celui des livrables (majuscules, 12 caractères). */
 function Planning_codeTranche_(t) {
@@ -3365,6 +3509,7 @@ function Planning_affaire(idAffaire, quand) {
   var livrables = Livrables_lister(idAffaire);
   var factures = Db_lire(TABLES.FACTURES).filter(function (f) { return String(f.id_affaire) === String(idAffaire); });
   var codes = tranches.map(function (t) { return t.tranche; });
+  var etatsT = Planning_etatsTranches_(a.tranches_etat);
   var lignes = tranches.map(function (t) {
     var unique = tranches.length === 1;
     var liv = livrables.filter(function (l) {
@@ -3375,11 +3520,15 @@ function Planning_affaire(idAffaire, quand) {
     var ligne = {
       tranche: t.tranche, jours: t.jours, montant: montant,
       livrables: liv.map(function (l) { return { libelle: String(l.libelle), date: date_(l.date_echeance) ? jourIso_(date_(l.date_echeance)) : '', etat: String(l.etat) }; }),
-      etat: 'à planifier', dateFacture: '', dateEcheance: '', dateEncaissement: '', montantEncaisse: 0, facture: null, retard: null
+      etat: 'à planifier', dateFacture: '', dateEcheance: '', dateEncaissement: '', montantEncaisse: 0, facture: null, retard: null,
+      optionnelle: Planning_estOptionnelle_(t.tranche),
+      affermissement: Planning_estOptionnelle_(t.tranche) ? (etatsT[t.tranche] || { etat: 'optionnelle' }).etat : 'ferme',
+      dateAffermissement: etatsT[t.tranche] ? etatsT[t.tranche].date : ''
     };
     var f = factures.filter(function (x) { return Planning_codeTranche_(x.tranche) === t.tranche; })
       .sort(function (x, y) { return (date_(y.date) || 0) - (date_(x.date) || 0); })[0];
     if (f) {
+      if (ligne.affermissement === 'optionnelle') ligne.affermissement = 'affermie'; // facturée : affermie de fait
       var dF = date_(f.date), dE = date_(f.date_echeance), dP = date_(f.date_encaissement);
       ligne.facture = { id: String(f.id), numero: String(f.numero || '') };
       ligne.montant = arrondi_(montant_(f.montant)) || montant;
@@ -3415,7 +3564,9 @@ function Planning_affaire(idAffaire, quand) {
   return {
     base: arrondi_(base), delai: delai, lignes: lignes,
     debut: toutes[0] || '', fin: toutes[toutes.length - 1] || '', aujourdhui: jourIso_(auj),
-    aPlanifier: lignes.filter(function (l) { return l.etat === 'à planifier'; }).length,
+    aPlanifier: lignes.filter(function (l) { return l.etat === 'à planifier' && l.affermissement !== 'non affermie'; }).length,
+    montantOptionnel: arrondi_(lignes.filter(function (l) { return l.affermissement === 'optionnelle'; }).reduce(function (s, l) { return s + l.montant; }, 0)),
+    montantNonAffermi: arrondi_(lignes.filter(function (l) { return l.affermissement === 'non affermie'; }).reduce(function (s, l) { return s + l.montant; }, 0)),
     utilisable: lignes.some(function (l) { return l.etat !== 'à planifier'; })
   };
 }
@@ -3425,18 +3576,19 @@ function Planning_affaire(idAffaire, quand) {
  * Tranche prévue ou facturée : année de l'échéance de paiement (année en cours si elle est passée) ;
  * tranche à planifier : année en cours (signalée).
  */
-function Planning_parAnnee_(idAffaire, quand) {
-  var p = Planning_affaire(idAffaire, quand);
+function Planning_parAnnee_(idAffaire, quand, p) {
+  p = p || Planning_affaire(idAffaire, quand);
   if (!p.utilisable) return null;
   var anCourant = aujourdhui_(quand).getFullYear();
-  var parAnnee = {}, aPreciser = false;
+  var parAnnee = {}, potentiel = {}, aPreciser = false;
   p.lignes.forEach(function (l) {
-    if (l.etat === 'payée') return;
+    if (l.etat === 'payée' || l.affermissement === 'non affermie') return;
     var an = l.dateEcheance ? Math.max(Number(l.dateEcheance.slice(0, 4)), anCourant) : anCourant;
+    if (l.affermissement === 'optionnelle') { potentiel[an] = (potentiel[an] || 0) + l.montant; return; }
     if (!l.dateEcheance) aPreciser = true;
     parAnnee[an] = (parAnnee[an] || 0) + l.montant;
   });
-  return { parAnnee: parAnnee, aPreciser: aPreciser, planning: p };
+  return { parAnnee: parAnnee, potentiel: potentiel, aPreciser: aPreciser, planning: p };
 }
 
 /** Facture d'une tranche (depuis la barre de planning) : numéro, date, montant prérempli. */
@@ -3561,10 +3713,15 @@ function Previsionnel_ca(quand) {
     var gagnee = STATUTS_CA_ENGAGE.indexOf(String(a.statut)) >= 0;
     var deposee = STATUTS_CA_POTENTIEL.indexOf(String(a.statut)) >= 0;
     if (!gagnee && !deposee) return;
-    var base = montant_(gagnee ? (a.montant_notifie || a.montant_ht) : a.montant_ht);
+    var baseMarche = montant_(gagnee ? (a.montant_notifie || a.montant_ht) : a.montant_ht);
+    var pl = Planning_affaire(a.id, auj);
+    // Tranches optionnelles : non encore affermies → potentiel ; non affermies → exclues du CA
+    var base = Math.max(baseMarche - pl.montantOptionnel - pl.montantNonAffermi, 0);
     var deja = encaisseAffaire[a.id] || {};
     var rep = Previsionnel_repartir_(base, deja, a.repartition_ca, anneeCourante);
-    var plan = Planning_parAnnee_(a.id, auj);
+    var plan = Planning_parAnnee_(a.id, auj, pl);
+    var potOptions = plan ? plan.potentiel : (pl.montantOptionnel > 0 ? (function () { var o = {}; o[anneeCourante] = pl.montantOptionnel; return o; })() : {});
+    Object.keys(potOptions).forEach(function (k) { potentiel[k] = (potentiel[k] || 0) + potOptions[k]; annees[k] = true; });
     if (plan) {
       // Planning de facturation (livrables) : prioritaire sur la répartition saisie, plafonné au reste à encaisser
       var resteP = Math.max(base - Object.keys(deja).reduce(function (s, k) { return s + deja[k]; }, 0), 0);
@@ -3592,7 +3749,7 @@ function Previsionnel_ca(quand) {
     });
     if (!base) rep.remarques.push(gagnee ? 'montant notifié manquant' : 'montant de l\'offre manquant');
     affaires.push({
-      id: a.id, acheteur: a.acheteur, objet: a.objet, statut: a.statut, base: arrondi_(base),
+      id: a.id, acheteur: a.acheteur, objet: a.objet, statut: a.statut, base: arrondi_(base), optionnel: arrondi_(pl.montantOptionnel), nonAffermi: arrondi_(pl.montantNonAffermi),
       encaisse: arrondi_(Object.keys(deja).reduce(function (s, k) { return s + deja[k]; }, 0)),
       parAnnee: Object.keys(rep.parAnnee).reduce(function (o, k) { if (rep.parAnnee[k] > 0.005) o[k] = arrondi_(rep.parAnnee[k]); return o; }, {}),
       aPreciser: rep.aPreciser && base > 0, remarques: rep.remarques, repartition: String(a.repartition_ca || ''), source: rep.source || (a.repartition_ca ? 'répartition saisie' : ''),
@@ -4201,9 +4358,29 @@ function apiAccueil() {
       fiscal: Fiscal_declarations(),
       suivi: Suivi_accueil_(),
       etat: Etat_socle_(),
-      previsionnel: Previsionnel_ca()
+      previsionnel: Previsionnel_ca(),
+      alertes: { retards: Finances_retards_(), seuils: Previsionnel_alertes_() }
     };
   });
+}
+
+/** Écran Finances : vue d'ensemble, prévisionnel, encaissements (toutes affaires), URSSAF et CFE. */
+function apiFinances() {
+  return repondre_(function () { return Finances_synthese(); });
+}
+
+/** Recherche rapide d'une affaire (Ctrl+K). */
+function apiRecherche() {
+  return repondre_(Finances_listeRecherche_);
+}
+
+/** Facturer ou confirmer un paiement depuis l'écran Finances : renvoie la synthèse à jour. */
+function apiFinancesFacturer(idAffaire, tranche, facture) {
+  return repondre_(function () { Planning_facturer(idAffaire, tranche, facture); Relances_synchroniser(); return Finances_synthese(); });
+}
+
+function apiFinancesPaiement(idFacture, champs) {
+  return repondre_(function () { Factures_maj(idFacture, champs); Relances_synchroniser(); return Finances_synthese(); });
 }
 
 /** CA prévisionnel par année d'encaissement (écran « CA prévisionnel »). */

@@ -262,7 +262,10 @@ test('CA prévisionnel : encaissé, prévu (gagnées, répartition par année, r
   const pj = brut(A.Previsionnel_ca(quand));
   const afj = pj.affaires.find((x) => x.id === g);
   assert.deepStrictEqual([afj.jours, afj.prixJour, afj.joursSource], [110, 400, 'jours par tranche']);
-  assert.deepStrictEqual(afj.joursParAnnee, { 2027: 25, 2028: 75 });
+  // TO1 optionnelle (24 000 €) : hors CA certain tant qu'elle n'est pas affermie → 2028 = 6 000 € (15 j)
+  assert.deepStrictEqual(afj.joursParAnnee, { 2027: 25, 2028: 15 });
+  A.Planning_affermir(g, 'TO1', 'affermie', '2027-03-01');
+  assert.deepStrictEqual(brut(A.Previsionnel_ca(quand)).affaires.find((x) => x.id === g).joursParAnnee, { 2027: 25, 2028: 75 });
   assert.strictEqual(pj.annees.find((x) => x.annee === 2027).joursPrevu, 25);
   assert.strictEqual(af(g2).aPreciser, true);
   assert.strictEqual(af(g).aPreciser, false);
@@ -333,7 +336,18 @@ test('planning de facturation : tranches au prorata des jours, facture au dernie
   // CA prévisionnel : 20 000 € en 2027, 24 000 € en 2028 (paiement à 30 jours), répartition saisie ignorée
   A.Affaires_maj(g, { repartition_ca: '2027 : reste' });
   const prev = brut(A.Previsionnel_ca(quand));
-  assert.deepStrictEqual(prev.affaires.find((x) => x.id === g).parAnnee, { 2027: 20000, 2028: 24000 });
+  // TO1 optionnelle : en potentiel (2028) tant qu'elle n'est pas affermie
+  assert.deepStrictEqual(prev.affaires.find((x) => x.id === g).parAnnee, { 2027: 20000 });
+  assert.strictEqual(prev.annees.find((x) => x.annee === 2028).potentiel, 24000);
+  assert.deepStrictEqual(brut(A.Planning_affaire(g, quand)).lignes.map((l) => l.affermissement), ['ferme', 'optionnelle']);
+  const fa = ok(A.apiTrancheAffermir(g, 'TO1', 'affermie', '2027-01-15'));
+  assert.deepStrictEqual([fa.planning.lignes[1].affermissement, fa.planning.lignes[1].dateAffermissement], ['affermie', '2027-01-15']);
+  assert.deepStrictEqual(brut(A.Previsionnel_ca(quand)).affaires.find((x) => x.id === g).parAnnee, { 2027: 20000, 2028: 24000 });
+  // Non affermie : exclue du CA (ni certain ni potentiel)
+  A.Planning_affermir(g, 'TO1', 'non affermie');
+  const pna = brut(A.Previsionnel_ca(quand));
+  assert.deepStrictEqual([pna.affaires.find((x) => x.id === g).parAnnee, pna.annees.find((x) => x.annee === 2028).potentiel], [{ 2027: 20000 }, 0]);
+  A.Planning_affermir(g, 'TO1', 'affermie', '2027-01-15');
   assert.strictEqual(prev.affaires.find((x) => x.id === g).source, 'planning');
   // Facturer TF depuis le planning, puis paiement en retard : intérêts moratoires + 40 €
   const fiche = ok(A.apiPlanningFacturer(g, 'TF', { numero: 'F-2027-01', date: '2027-06-30', montant: '20000' }));
@@ -349,6 +363,37 @@ test('planning de facturation : tranches au prorata des jours, facture au dernie
   assert.deepStrictEqual([p.lignes[0].etat, p.lignes[0].retard.jours], ['payée', 10]);
   const prev2 = brut(A.Previsionnel_ca(new Date(2027, 8, 28)));
   assert.deepStrictEqual(prev2.affaires.find((x) => x.id === g).parAnnee, { 2028: 24000 });
+});
+
+test('Finances : synthèse, encaissements toutes affaires sur une même ligne de temps, retards, facturation dans l\'échéancier', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const ok = (r) => { assert.ok(r.ok, r.erreur); return brut(r.data); };
+  const g = A.Affaires_creer({ acheteur: 'Ville de Marseille', objet: 'AMO' }).id;
+  A.Affaires_maj(g, { jours_par_tranche: 'TF : 50 j\nTO1 : 60 j', prix_jour: '400', montant_ht: '' });
+  A.Affaires_changerStatut(g, 'Go', {});
+  A.Affaires_changerStatut(g, 'Déposée', { montant_ht: 44000, jours_reponse: 2, date_depot: '2026-06-01' });
+  A.Affaires_changerStatut(g, 'Gagnée', { date_notification: '2026-07-01', montant_notifie: 44000 });
+  A.Livrables_ajouter(g, { tranche: 'TF', libelle: 'Rapport', date_echeance: '2026-09-01' });
+  A.Livrables_ajouter(g, { tranche: 'TO1', libelle: 'Programme', date_echeance: '2027-03-01' });
+  const quand = new Date(2026, 10, 21);
+  // Facturation de TF à faire (livrable passé) : dans l'échéancier, pas TO1 (optionnelle)
+  const ech = brut(A.Echeances_calculer(quand, new Date(2026, 10, 28), quand));
+  assert.ok(ech.some((e) => e.type === 'Facturation' && /^Facturer la tranche TF/.test(e.libelle) && e.depassee));
+  assert.ok(!ech.some((e) => /TO1/.test(e.libelle)));
+  // Facture TF émise le 01/09, non payée → en retard
+  A.Planning_facturer(g, 'TF', { numero: 'F1', date: '2026-09-01', montant: '20000' });
+  const s = brut(A.Finances_synthese(quand));
+  assert.deepStrictEqual([s.resume.enAttente, s.resume.enRetard, s.resume.nbRetard, s.resume.optionnel], [20000, 20000, 1, 24000]);
+  assert.strictEqual(s.encaissements.lignes[0].etat, 'en retard');
+  assert.ok(s.encaissements.debut <= '2026-09-01' && s.encaissements.fin >= '2027-03-31');
+  assert.strictEqual(brut(A.Finances_retards_(quand))[0].numero, 'F1');
+  // API : paiement depuis Finances
+  const apres = ok(A.apiFinancesPaiement(s.encaissements.lignes[0].facture.id, { date_encaissement: '2026-11-20', montant_encaisse: '20000' }));
+  assert.strictEqual(apres.resume.nbRetard, 0);
+  assert.ok(ok(A.apiRecherche()).some((x) => x.id === g));
+  assert.ok(ok(A.apiAccueil()).alertes);
 });
 
 test('pièces de l\'offre : liste collée depuis l\'analyse du DCE (titres, préfixes, puces, doublons)', () => {
@@ -1498,8 +1543,8 @@ test('e-mail du matin : rubriques, objet, pas d\'envoi le week-end, récap du lu
   A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'x4', acheteur: 'Ville de Lille', objet: 'AMO', zone: 'France — présentiel à vérifier', departement: '59', pre_score: 50, classement: 'possible', statut: 'nouveau', lien: 'https://www.boamp.fr/x4' });
   A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'x3', acheteur: 'Ignoré', objet: 'AMO', zone: 'PACA-Corse', pre_score: 70, statut: 'ignoré', lien: 'https://www.boamp.fr/x3' });
   const m = brut(A.Email_construire(new Date()));
-  assert.deepStrictEqual(m.nombres, { remises: 1, avisPaca: 1, avisFrance: 2, echeances: 3, relances: 1 }); // relance « motifs » créée au passage en Perdue
-  assert.match(m.sujet, /^Kompa Affaires — \d{2}\/\d{2}\/\d{4} — ⚠ Remise J-3 · 3 nouveaux avis · 3 échéances$/);
+  assert.deepStrictEqual(m.nombres, { remises: 1, avisPaca: 1, avisFrance: 2, echeances: 4, relances: 1 }); // relance « motifs » créée au passage en Perdue ; facture prévue à émettre (Facturation)
+  assert.match(m.sujet, /^Kompa Affaires — \d{2}\/\d{2}\/\d{4} — ⚠ Remise J-3 · 3 nouveaux avis · 4 échéances$/);
   assert.match(m.html, /\+ 1 autre avis « possible » hors PACA-Corse/);
   assert.doesNotMatch(m.html, /Ville de Lille/);
   assert.match(m.html, /Nouveaux avis PACA-Corse/);
@@ -1801,7 +1846,7 @@ test('fluidité : l\'accueil en un seul appel', () => {
   env.ctx.installer();
   const r = brut(env.ctx.apiAccueil());
   assert.ok(r.ok, r.erreur);
-  assert.deepStrictEqual(Object.keys(r.data).sort(), ['ca', 'etat', 'fiscal', 'previsionnel', 'suivi', 'tableau']);
+  assert.deepStrictEqual(Object.keys(r.data).sort(), ['alertes', 'ca', 'etat', 'fiscal', 'previsionnel', 'suivi', 'tableau']);
   assert.strictEqual(r.data.etat.onglets.length, 25); // 13 onglets du suivi + 12 du module Estimation
 });
 

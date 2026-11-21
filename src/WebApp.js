@@ -59,9 +59,29 @@ function apiAccueil() {
       fiscal: Fiscal_declarations(),
       suivi: Suivi_accueil_(),
       etat: Etat_socle_(),
-      previsionnel: Previsionnel_ca()
+      previsionnel: Previsionnel_ca(),
+      alertes: { retards: Finances_retards_(), seuils: Previsionnel_alertes_() }
     };
   });
+}
+
+/** Écran Finances : vue d'ensemble, prévisionnel, encaissements (toutes affaires), URSSAF et CFE. */
+function apiFinances() {
+  return repondre_(function () { return Finances_synthese(); });
+}
+
+/** Recherche rapide d'une affaire (Ctrl+K). */
+function apiRecherche() {
+  return repondre_(Finances_listeRecherche_);
+}
+
+/** Facturer ou confirmer un paiement depuis l'écran Finances : renvoie la synthèse à jour. */
+function apiFinancesFacturer(idAffaire, tranche, facture) {
+  return repondre_(function () { Planning_facturer(idAffaire, tranche, facture); Relances_synchroniser(); return Finances_synthese(); });
+}
+
+function apiFinancesPaiement(idFacture, champs) {
+  return repondre_(function () { Factures_maj(idFacture, champs); Relances_synchroniser(); return Finances_synthese(); });
 }
 
 /** CA prévisionnel par année d'encaissement (écran « CA prévisionnel »). */

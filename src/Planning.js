@@ -12,6 +12,39 @@
  */
 
 var PLANNING_MISSION = 'MISSION';
+var ETATS_AFFERMISSEMENT = ['optionnelle', 'affermie', 'non affermie'];
+
+/** Tranche optionnelle ou conditionnelle d'après son code (TO1, TC2, TOP…) ; TF et Mission sont fermes. */
+function Planning_estOptionnelle_(code) {
+  return /^T(O|C)/.test(String(code || '').toUpperCase());
+}
+
+/** État des tranches optionnelles enregistré sur l'affaire : « TO1:affermie:2027-03-01;TO2:non affermie ». */
+function Planning_etatsTranches_(texte) {
+  var out = {};
+  String(texte || '').split(';').forEach(function (p) {
+    var m = p.split(':');
+    if (m.length < 2) return;
+    var code = Planning_codeTranche_(m[0]);
+    if (code && ETATS_AFFERMISSEMENT.indexOf(m[1].trim()) >= 0) out[code] = { etat: m[1].trim(), date: (m[2] || '').trim() };
+  });
+  return out;
+}
+
+/** Affermit une tranche optionnelle (ou la déclare non affermie, ou la remet optionnelle). */
+function Planning_affermir(idAffaire, tranche, etat, dateAffermissement) {
+  var a = Affaires_get_(idAffaire);
+  var code = Planning_codeTranche_(tranche);
+  if (ETATS_AFFERMISSEMENT.indexOf(etat) < 0) throw new Error('État attendu : ' + ETATS_AFFERMISSEMENT.join(', ') + '.');
+  var etats = Planning_etatsTranches_(a.tranches_etat);
+  var d = date_(dateAffermissement);
+  if (etat === 'optionnelle') delete etats[code];
+  else etats[code] = { etat: etat, date: d ? jourIso_(d) : (etat === 'affermie' ? jourIso_(aujourdhui_()) : '') };
+  var texte = Object.keys(etats).map(function (k) { return k + ':' + etats[k].etat + (etats[k].date ? ':' + etats[k].date : ''); }).join(';');
+  Db_maj(TABLES.AFFAIRES, idAffaire, { tranches_etat: texte });
+  if (etat !== 'optionnelle') Affaires_ajouterNote(idAffaire, 'Tranche ' + code + ' ' + etat + (etats[code].date ? ' le ' + etats[code].date.split('-').reverse().join('/') : ''));
+  return etats;
+}
 
 /** Code de tranche comparable à celui des livrables (majuscules, 12 caractères). */
 function Planning_codeTranche_(t) {
@@ -60,6 +93,7 @@ function Planning_affaire(idAffaire, quand) {
   var livrables = Livrables_lister(idAffaire);
   var factures = Db_lire(TABLES.FACTURES).filter(function (f) { return String(f.id_affaire) === String(idAffaire); });
   var codes = tranches.map(function (t) { return t.tranche; });
+  var etatsT = Planning_etatsTranches_(a.tranches_etat);
   var lignes = tranches.map(function (t) {
     var unique = tranches.length === 1;
     var liv = livrables.filter(function (l) {
@@ -70,11 +104,15 @@ function Planning_affaire(idAffaire, quand) {
     var ligne = {
       tranche: t.tranche, jours: t.jours, montant: montant,
       livrables: liv.map(function (l) { return { libelle: String(l.libelle), date: date_(l.date_echeance) ? jourIso_(date_(l.date_echeance)) : '', etat: String(l.etat) }; }),
-      etat: 'à planifier', dateFacture: '', dateEcheance: '', dateEncaissement: '', montantEncaisse: 0, facture: null, retard: null
+      etat: 'à planifier', dateFacture: '', dateEcheance: '', dateEncaissement: '', montantEncaisse: 0, facture: null, retard: null,
+      optionnelle: Planning_estOptionnelle_(t.tranche),
+      affermissement: Planning_estOptionnelle_(t.tranche) ? (etatsT[t.tranche] || { etat: 'optionnelle' }).etat : 'ferme',
+      dateAffermissement: etatsT[t.tranche] ? etatsT[t.tranche].date : ''
     };
     var f = factures.filter(function (x) { return Planning_codeTranche_(x.tranche) === t.tranche; })
       .sort(function (x, y) { return (date_(y.date) || 0) - (date_(x.date) || 0); })[0];
     if (f) {
+      if (ligne.affermissement === 'optionnelle') ligne.affermissement = 'affermie'; // facturée : affermie de fait
       var dF = date_(f.date), dE = date_(f.date_echeance), dP = date_(f.date_encaissement);
       ligne.facture = { id: String(f.id), numero: String(f.numero || '') };
       ligne.montant = arrondi_(montant_(f.montant)) || montant;
@@ -110,7 +148,9 @@ function Planning_affaire(idAffaire, quand) {
   return {
     base: arrondi_(base), delai: delai, lignes: lignes,
     debut: toutes[0] || '', fin: toutes[toutes.length - 1] || '', aujourdhui: jourIso_(auj),
-    aPlanifier: lignes.filter(function (l) { return l.etat === 'à planifier'; }).length,
+    aPlanifier: lignes.filter(function (l) { return l.etat === 'à planifier' && l.affermissement !== 'non affermie'; }).length,
+    montantOptionnel: arrondi_(lignes.filter(function (l) { return l.affermissement === 'optionnelle'; }).reduce(function (s, l) { return s + l.montant; }, 0)),
+    montantNonAffermi: arrondi_(lignes.filter(function (l) { return l.affermissement === 'non affermie'; }).reduce(function (s, l) { return s + l.montant; }, 0)),
     utilisable: lignes.some(function (l) { return l.etat !== 'à planifier'; })
   };
 }
@@ -120,18 +160,19 @@ function Planning_affaire(idAffaire, quand) {
  * Tranche prévue ou facturée : année de l'échéance de paiement (année en cours si elle est passée) ;
  * tranche à planifier : année en cours (signalée).
  */
-function Planning_parAnnee_(idAffaire, quand) {
-  var p = Planning_affaire(idAffaire, quand);
+function Planning_parAnnee_(idAffaire, quand, p) {
+  p = p || Planning_affaire(idAffaire, quand);
   if (!p.utilisable) return null;
   var anCourant = aujourdhui_(quand).getFullYear();
-  var parAnnee = {}, aPreciser = false;
+  var parAnnee = {}, potentiel = {}, aPreciser = false;
   p.lignes.forEach(function (l) {
-    if (l.etat === 'payée') return;
+    if (l.etat === 'payée' || l.affermissement === 'non affermie') return;
     var an = l.dateEcheance ? Math.max(Number(l.dateEcheance.slice(0, 4)), anCourant) : anCourant;
+    if (l.affermissement === 'optionnelle') { potentiel[an] = (potentiel[an] || 0) + l.montant; return; }
     if (!l.dateEcheance) aPreciser = true;
     parAnnee[an] = (parAnnee[an] || 0) + l.montant;
   });
-  return { parAnnee: parAnnee, aPreciser: aPreciser, planning: p };
+  return { parAnnee: parAnnee, potentiel: potentiel, aPreciser: aPreciser, planning: p };
 }
 
 /** Facture d'une tranche (depuis la barre de planning) : numéro, date, montant prérempli. */

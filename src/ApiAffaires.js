@@ -101,6 +101,11 @@ function apiFactureAjouter(id, facture) {
   return repondre_(function () { Factures_ajouter(id, facture); Relances_synchroniser(); return ficheClient_(id); });
 }
 
+/** Tranche optionnelle : affermie, non affermie ou remise optionnelle. */
+function apiTrancheAffermir(id, tranche, etat, date) {
+  return repondre_(function () { Planning_affermir(id, tranche, etat, date); return ficheClient_(id); });
+}
+
 /** Facture d'une tranche, depuis la barre de planning. */
 function apiPlanningFacturer(id, tranche, facture) {
   return repondre_(function () { Planning_facturer(id, tranche, facture); Relances_synchroniser(); return ficheClient_(id); });
