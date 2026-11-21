@@ -1,0 +1,65 @@
+# Déploiement automatique de Kompa Affaires dans Apps Script (plus de copier-coller).
+# Mise en place unique : docs/deploiement-automatique.md (3 secrets GitHub).
+# Tant que les secrets ne sont pas renseignés, ce workflow ne fait rien (il s'arrête sans erreur).
+#
+# À chaque push sur la branche de travail qui modifie dist/ (après tests), ou à la demande (onglet Actions) :
+# 1. vérifie les tests ; 2. envoie dist/ (Code.gs, Estimation.gs, Index.html, appsscript.json) dans le projet Apps Script ;
+# 3. crée une nouvelle version et met à jour le déploiement existant : l'adresse /exec de l'app ne change pas.
+# Le classeur se complète tout seul au premier lancement (mise à jour automatique, ajouts seulement).
+
+name: Déployer dans Apps Script
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/amazing-cray-l4l2w9]
+    paths: ['dist/**']
+
+concurrency:
+  group: deploiement-apps-script
+  cancel-in-progress: false
+
+jobs:
+  deployer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Secrets présents ?
+        id: secrets
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          if [ -n "$CLASPRC_JSON" ] && [ -n "$SCRIPT_ID" ] && [ -n "$DEPLOYMENT_ID" ]; then
+            echo "ok=oui" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=non" >> "$GITHUB_OUTPUT"
+            echo "::notice::Déploiement automatique non configuré (secrets CLASPRC_JSON, SCRIPT_ID, DEPLOYMENT_ID) : voir docs/deploiement-automatique.md"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ok == 'oui'
+
+      - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.ok == 'oui'
+        with:
+          node-version: '20'
+
+      - name: Tests (aucun envoi si un test échoue)
+        if: steps.secrets.outputs.ok == 'oui'
+        run: node tools/test-socle.js
+
+      - name: Envoi du code et mise à jour du déploiement
+        if: steps.secrets.outputs.ok == 'oui'
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          printf '{"scriptId":"%s","rootDir":"dist"}' "$SCRIPT_ID" > .clasp.json
+          VERSION=$(node -e "console.log(require('./package.json').version)")
+          npx --yes @google/clasp@2.4.2 push --force
+          npx --yes @google/clasp@2.4.2 deploy --deploymentId "$DEPLOYMENT_ID" --description "Kompa Affaires $VERSION — ${GITHUB_SHA::7}"
+          rm -f "$HOME/.clasprc.json" .clasp.json
