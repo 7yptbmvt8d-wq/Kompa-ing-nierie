@@ -63,7 +63,8 @@ jobs:
             echo "::error::Le secret CLASPRC_JSON n'est pas un JSON lisible : recopier tout le texte de cat ~/.clasprc.json (de { à })."; exit 1; }
           # Identifiants copiés à la main : espaces et retours à la ligne retirés, format contrôlé (valeurs jamais affichées)
           SID=$(printf '%s' "$SCRIPT_ID" | tr -d '[:space:]')
-          DID=$(printf '%s' "$DEPLOYMENT_ID" | tr -d '[:space:]')
+          # ID de déploiement : seule la partie AKfyc… est gardée (copie avec « /s/ », « /exec » ou l'adresse entière acceptée)
+          DID=$(printf '%s' "$DEPLOYMENT_ID" | tr -d '[:space:]' | grep -oE 'AKfyc[A-Za-z0-9_-]+' | head -n 1 || true)
           [[ "$SID" =~ ^[A-Za-z0-9_-]{40,}$ ]] || { echo "::error::SCRIPT_ID ne ressemble pas à un ID de script (${#SID} caractères) : éditeur Apps Script › Paramètres du projet › ID du script."; exit 1; }
           [[ "$DID" =~ ^AKfyc[A-Za-z0-9_-]{40,}$ ]] || { echo "::error::DEPLOYMENT_ID ne ressemble pas à un ID de déploiement (${#DID} caractères, doit commencer par AKfyc)."; exit 1; }
           [[ "$SID" != "$DID" ]] || { echo "::error::SCRIPT_ID et DEPLOYMENT_ID sont identiques : l'ID du script se trouve dans Paramètres du projet."; exit 1; }
