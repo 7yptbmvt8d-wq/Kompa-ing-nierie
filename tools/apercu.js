@@ -200,6 +200,15 @@ function assembler() {
   assert.strictEqual(await p.locator('#pieces-offre tr[data-piece]').count(), 9);
   await p.locator('#pieces-offre tr[data-piece]').nth(5).locator('select').selectOption('prête');
   await p.waitForSelector('.synthese:has-text("1 sur 9 prêtes")');
+  // Montant HT calculé : jours par tranche × prix par jour
+  await p.fill('form[data-bloc="offre"] [data-champ="jours_par_tranche"]', 'TF : 50 j\nTO1 : 60 j');
+  await p.fill('form[data-bloc="offre"] [data-champ="prix_jour"]', '400');
+  assert.strictEqual(await p.inputValue('form[data-bloc="offre"] [data-champ="montant_ht"]'), '44000');
+  assert.match(await p.textContent('.calcul-offre'), /110 j × 400\s€ HT = 44\s000\s€ HT/);
+  await p.locator('form[data-bloc="offre"]').screenshot({ path: path.join(sortie, 'pc-offre-montant.png') });
+  await p.click('form[data-bloc="offre"] button[type=submit]');
+  await p.waitForSelector('#toast:has-text("enregistré")');
+  assert.strictEqual(A.Affaires_get_(g1).montant_ht, 44000);
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-offre-pieces.png'), fullPage: true });
   await p.click('[data-passer="Déposée"]');
   await p.fill('#p-montant_ht', '21000');

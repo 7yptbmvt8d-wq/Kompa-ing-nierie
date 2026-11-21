@@ -165,8 +165,8 @@ var AIDES_CHAMPS = {
   tranches: ['Découpage de la mission prévu par le marché (acte d\'engagement, CCAP) : tranche ferme, tranches optionnelles ou phases. Une ligne par tranche.',
     'TF : étude de faisabilité\nTO1 : programme\nTO2 : suivi des études de maîtrise d\'œuvre'],
   jours_par_tranche: ['Jours que vous prévoyez pour chaque tranche, dans le même ordre. Une ligne par tranche.', 'TF : 6 j\nTO1 : 8 j\nTO2 : 10 j'],
-  prix_jour: ['Votre prix de journée HT, utilisé pour chiffrer l\'offre.', '550'],
-  montant_ht: ['Prix total HT inscrit à l\'acte d\'engagement (toutes tranches demandées).', '13200'],
+  prix_jour: ['Votre prix de journée HT. Le montant HT se calcule tout seul avec les jours par tranche.', '400'],
+  montant_ht: ['Calculé automatiquement : total des jours par tranche × prix par jour. Vous pouvez le corriger (prix arrondi, frais en sus) : c\'est le prix inscrit à l\'acte d\'engagement.', '13200'],
   montant_pondere: ['Seulement si l\'acheteur compare les prix sur une simulation (détail quantitatif estimatif, DQE, ou bordereau pondéré) : montant de cette simulation. Sinon, laisser vide.'],
   jours_reponse: ['Temps passé à préparer l\'offre, en jours (une demi-journée = 0,5). Mesure le coût de vos réponses.', '2,5'],
   date_depot: ['Date du dépôt sur la plateforme, sur l\'accusé de réception.'],
@@ -260,9 +260,34 @@ function Affaires_creer(donnees, options) {
 }
 
 /** Modifie les champs d'une affaire. Le statut ne change que par Affaires_changerStatut. */
+/**
+ * Total des jours d'un texte « Jours par tranche » : une ligne par tranche, nombre suivi de « j » ou « jours »
+ * (« TF : 6 j », « TO1 : 2,5 jours »), à défaut dernier nombre de la ligne (« TF 6 »). 0 si rien n'est lu.
+ */
+function Affaires_joursTotal_(texte) {
+  return String(texte || '').split(/\r?\n|;/).reduce(function (s, ligne) {
+    var m = ligne.match(/(\d+(?:[.,]\d+)?)\s*j(?:ours?|\b|$)/i) || ligne.match(/(\d+(?:[.,]\d+)?)\s*$/);
+    return s + (m ? Number(m[1].replace(',', '.')) : 0);
+  }, 0);
+}
+
+/** Montant HT calculé = total des jours × prix par jour (arrondi au centime) ; null si l'un des deux manque. */
+function Affaires_montantCalcule_(a) {
+  var j = Affaires_joursTotal_(a.jours_par_tranche), p = Number(a.prix_jour);
+  return j > 0 && p > 0 ? Math.round(j * p * 100) / 100 : null;
+}
+
 function Affaires_maj(id, donnees) {
-  Affaires_get_(id);
+  var avant = Affaires_get_(id);
   var champs = depuisClient_(TABLES.AFFAIRES, donnees);
+  // Montant HT laissé vide : calculé à partir des jours par tranche et du prix par jour (décision du 21/11/2026)
+  if ('montant_ht' in champs && (champs.montant_ht === '' || champs.montant_ht === null)) {
+    var calc = Affaires_montantCalcule_({
+      jours_par_tranche: 'jours_par_tranche' in champs ? champs.jours_par_tranche : avant.jours_par_tranche,
+      prix_jour: 'prix_jour' in champs ? champs.prix_jour : avant.prix_jour
+    });
+    if (calc !== null) champs.montant_ht = calc;
+  }
   ['id', 'statut', 'date_statut', 'decision', 'statut_final', 'notes', 'cree_le', 'modifie_le']
     .forEach(function (k) { delete champs[k]; });
   if ('acheteur' in champs && !champs.acheteur) throw new Error('L\'acheteur est obligatoire.');

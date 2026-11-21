@@ -77,6 +77,13 @@
     input = input.replace('data-champ="', attrs + 'data-champ="');
     return '<div class="champ-bloc' + (t === 'long' ? ' champ-bloc--large' : '') + '">' + lab + aide + input + '</div>';
   }
+  /** Total des jours de « Jours par tranche » (même règle que Affaires_joursTotal_ côté serveur). */
+  function joursTotal(texte) {
+    return String(texte || '').split(/\r?\n|;/).reduce(function (s, ligne) {
+    var m = ligne.match(/(\d+(?:[.,]\d+)?)\s*j(?:ours?|\b|$)/i) || ligne.match(/(\d+(?:[.,]\d+)?)\s*$/);
+    return s + (m ? Number(m[1].replace(',', '.')) : 0);
+  }, 0);
+  }
   function lireChamps(racine) {
     var out = {};
     $$('[data-champ]', racine).forEach(function (el) { out[el.getAttribute('data-champ')] = el.value; });
@@ -804,6 +811,29 @@
     $('[data-journal]', el).addEventListener('click', function () { basculerJournal(tiroir.hidden); });
     $('[data-fermer-journal]', el).addEventListener('click', function () { basculerJournal(false); });
     tiroir.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') basculerJournal(false); });
+    // Offre : montant HT = total des jours par tranche × prix par jour, recalculé à la saisie
+    var fo = $('form[data-bloc="offre"]', el);
+    if (fo) {
+      var cJours = $('[data-champ="jours_par_tranche"]', fo), cPrix = $('[data-champ="prix_jour"]', fo), cMontant = $('[data-champ="montant_ht"]', fo);
+      var nb = function (v) { return Number(String(v || '').replace(/[\s  €]/g, '').replace(',', '.')); };
+      var ligneCalc = document.createElement('p');
+      ligneCalc.className = 'calcul-offre';
+      ligneCalc.setAttribute('aria-live', 'polite');
+      $('.form-grille', fo).insertAdjacentElement('afterend', ligneCalc);
+      var calculer = function (remplir) {
+        var j = joursTotal(cJours.value), p = nb(cPrix.value);
+        if (!(j > 0) || !(p > 0)) { ligneCalc.textContent = j > 0 ? j.toLocaleString('fr-FR') + ' j au total : indiquez le prix par jour pour calculer le montant.' : ''; return; }
+        var total = Math.round(j * p * 100) / 100;
+        if (remplir) { cMontant.value = String(total).replace('.', ','); cMontant.dispatchEvent(new Event('input', { bubbles: true })); }
+        ligneCalc.innerHTML = '<strong class="mono">' + j.toLocaleString('fr-FR') + ' j × ' + K.euros(p) + ' HT = ' + K.euros(total) + ' HT</strong>' +
+          (nb(cMontant.value) === total ? '' : ' <span class="legende">(montant saisi différent, conservé)</span>');
+      };
+      if (cJours && cPrix && cMontant) {
+        [cJours, cPrix].forEach(function (c) { c.addEventListener('input', function () { calculer(true); }); });
+        cMontant.addEventListener('input', function (ev) { if (ev.isTrusted) calculer(false); });
+        calculer(!cMontant.value);
+      }
+    }
     // Blocs : bouton actif dès qu'un champ change
     $$('form[data-bloc]', el).forEach(function (form) {
       var bouton = $('button[type=submit]', form);

@@ -202,6 +202,26 @@ test('dist/ est à jour et le Code.gs assemblé fonctionne', () => {
 
 // ——— Fiche : pièces de l'offre ———
 
+test('offre : montant HT = total des jours par tranche × prix par jour (montant vide), montant saisi conservé', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  assert.strictEqual(A.Affaires_joursTotal_('TF : 6 j\nTO1 : 8 j\nTO2 : 10 jours'), 24);
+  assert.strictEqual(A.Affaires_joursTotal_('TF 60\nTO1 : 2,5 j\n\nTO2 : 47,5'), 110);
+  assert.strictEqual(A.Affaires_joursTotal_('110'), 110);
+  assert.strictEqual(A.Affaires_joursTotal_('à définir'), 0);
+  const id = A.Affaires_creer({ acheteur: 'Ville de Marseille', objet: 'AMO programmation' }).id;
+  const ok = (r) => { assert.ok(r.ok, r.erreur); return brut(r.data); };
+  let f = ok(A.apiAffaireMaj(id, { jours_par_tranche: 'TF : 50 j\nTO1 : 60 j', prix_jour: '400', montant_ht: '' }));
+  assert.strictEqual(f.affaire.montant_ht, 44000);
+  // Montant saisi : conservé
+  f = ok(A.apiAffaireMaj(id, { montant_ht: '43500' }));
+  assert.strictEqual(f.affaire.montant_ht, 43500);
+  // Prix modifié, montant vidé : recalculé avec les jours déjà enregistrés
+  f = ok(A.apiAffaireMaj(id, { prix_jour: '450', montant_ht: '' }));
+  assert.strictEqual(f.affaire.montant_ht, 49500);
+});
+
 test('pièces de l\'offre : liste collée depuis l\'analyse du DCE (titres, préfixes, puces, doublons)', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });
