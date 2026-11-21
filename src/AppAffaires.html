@@ -333,7 +333,7 @@
 
   function ecranFiche(el, id) {
     el.innerHTML = '<p><a href="#affaires">← Affaires</a></p><div class="chargement">Lecture de l\'affaire…</div>';
-    if (choixFiche.id !== id) tiroirOuvert = '';
+    if (choixFiche.id !== id) { tiroirOuvert = ''; piecesLues = { id: '', p: null }; }
     K.charger('affaire:' + id, 'apiAffaire', [id], function (f) {
       etat.meta = f.meta;
       rendreFiche(el, f);
@@ -790,13 +790,17 @@
     return noms.indexOf(p.parDefaut) >= 0 ? p.parDefaut : (noms[0] !== undefined ? noms[0] : p.parDefaut);
   }
 
-  function chargerPieces(el, a) {
+  /** Dossier Drive lu une fois par fiche ouverte (changer d'onglet ne le relit pas) ; relu à l'ouverture du panneau. */
+  var piecesLues = { id: '', p: null };
+  function chargerPieces(el, a, forcer) {
     if (!$('[data-pieces]', el)) return;
+    if (!forcer && piecesLues.id === a.id && piecesLues.p) { rendreToutesPieces(el, a, piecesLues.p); return; }
     K.charger('pieces:' + a.id, 'apiPieces', [a.id], function (p) { rendreToutesPieces(el, a, p); },
       function (e) { $$('[data-pieces]', el).forEach(function (z) { z.innerHTML = K.bandeauErreur(e); }); });
   }
 
   function rendreToutesPieces(el, a, p) {
+    piecesLues = { id: a.id, p: p };
     var nb = p.dossiers.reduce(function (s, d) { return s + d.fichiers.length; }, 0);
     var b = $('[data-nb-docs]', el);
     if (b) b.textContent = '(' + nb + ')';
@@ -1063,6 +1067,7 @@
         $('[data-tiroir="' + k + '"]', el).setAttribute('aria-expanded', String(k === nom));
       });
       if (nom === 'journal') { var t = $('#note-texte', tiroirs.journal); if (t) t.focus(); }
+      if (nom === 'docs') chargerPieces(el, a, true);
     };
     $$('[data-tiroir]', el).forEach(function (b) {
       b.addEventListener('click', function () { var n = b.getAttribute('data-tiroir'); basculer(tiroirOuvert === n ? '' : n); });

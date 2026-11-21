@@ -16,7 +16,7 @@
       var runner = google.script.run
         .withSuccessHandler(function (r) {
           if (r && r.ok) {
-            if (LECTURES.indexOf(nom) < 0) { viderMemoire(); try { document.dispatchEvent(new Event('ka:modif')); } catch (e) { /* ancien navigateur */ } }
+            if (LECTURES.indexOf(nom) < 0) { apresEcriture(r.data); try { document.dispatchEvent(new Event('ka:modif')); } catch (e) { /* ancien navigateur */ } }
             resoudre(r.data);
           } else rejeter(new Error((r && r.erreur) || 'Réponse vide du serveur.'));
         })
@@ -37,6 +37,35 @@
     memoire[cle] = donnees;
     try { localStorage.setItem('ka.m.' + cle, JSON.stringify(donnees)); } catch (e) { /* plein ou indisponible */ }
   }
+  /**
+   * Après une modification : la mémoire d'affichage est gardée (chaque écran se recharge de toute façon
+   * au serveur, la version fraîche remplace l'ancienne dès son arrivée) ; la fiche renvoyée est mémorisée.
+   */
+  function apresEcriture(donnees) {
+    if (donnees && donnees.affaire && donnees.affaire.id && donnees.planning !== undefined) {
+      var cle = 'affaire:' + donnees.affaire.id, ancien = lireMemoire(cle);
+      if (ancien && ancien.meta) ecrireMemoire(cle, Object.assign({}, donnees, { meta: donnees.meta || ancien.meta }));
+    }
+  }
+  /** Préchargement discret des écrans principaux après l'ouverture (un appel à la fois). */
+  var PRECHARGES = [['accueil', 'apiAccueil', []], ['affaires', 'apiAffaires', []], ['finances', 'apiFinances', []],
+    ['echeancier:courant', 'apiEcheancier', ['']], ['veille', 'apiVeille', []]];
+  var prechargeFait = false;
+  function precharger() {
+    if (prechargeFait) return;
+    prechargeFait = true;
+    var file = PRECHARGES.slice();
+    var suivant = function () {
+      var x = file.shift();
+      if (!x) return;
+      if (memoire[x[0]]) { suivant(); return; } // déjà chargé pendant cette visite
+      appel.apply(null, [x[1]].concat(x[2])).then(function (d) { if (!memoire[x[0]]) ecrireMemoire(x[0], d); })
+        .catch(function () { /* sans effet : l'écran se chargera à l'ouverture */ })
+        .then(function () { setTimeout(suivant, 300); });
+    };
+    setTimeout(suivant, 2500);
+  }
+
   function viderMemoire() {
     memoire = {};
     try {
@@ -429,6 +458,7 @@
     } else {
       afficher((location.hash || '').slice(1) || 'accueil', false);
     }
+    precharger();
   }
 
   $('#pied').textContent = 'Kompa Affaires';

@@ -7,6 +7,7 @@
 const assert = require('assert');
 const { creerEnvironnement } = require('./gas-mock');
 
+const journal = console.log;
 const tests = [];
 const test = (nom, fn) => tests.push({ nom, fn });
 // Les objets créés dans le contexte vm n'ont pas les mêmes prototypes : on compare des copies JSON.
@@ -21,6 +22,41 @@ test('installer() crée le classeur, les 11 onglets et supprime la feuille par d
   assert.deepStrictEqual(noms, ['Avis', 'Affaires', 'Historique', 'Pièces de l\'offre', 'Livrables', 'Critères', 'Factures', 'Relances', 'Acheteurs', 'Paramètres', 'Déclarations', 'Journal moteur', 'Avis archivés']);
   assert.ok(rapport.parametresAjoutes > 40);
   assert.deepStrictEqual(brut(rapport.declencheurs), ['sauvegardeHebdo', 'collecteQuotidienne', 'envoyerEmailMatin', 'estIndicesMensuel']);
+});
+
+test('mémoire partagée des onglets : relue sans le classeur, effacée par une écriture ou une modification manuelle', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  console.log = () => {};
+  A.installer({ exercice: false });
+  const id = A.Affaires_creer({ acheteur: 'Commune de Lurs', objet: 'Étude', date_limite_remise: '2026-12-04' }).id;
+  A.Db_viderCache_();
+  const lu = A.Db_lire(A.TABLES.AFFAIRES); // lecture du classeur, mise en mémoire
+  assert.ok(Object.keys(env.cache._valeurs).some((k) => /Affaires/.test(k)));
+  // Nouvel appel : la mémoire suffit, le classeur n'est pas ouvert ; les dates restent des dates
+  A.Db_viderCache_();
+  const ouvrir = A.SpreadsheetApp.openById;
+  let ouvertures = 0;
+  A.SpreadsheetApp.openById = (x) => { ouvertures++; return ouvrir(x); };
+  A.Db_cache_.classeurs = {};
+  const relu = A.Db_lire(A.TABLES.AFFAIRES);
+  assert.strictEqual(ouvertures, 0);
+  assert.strictEqual(Object.prototype.toString.call(relu[0].date_limite_remise), '[object Date]');
+  assert.strictEqual(relu[0].date_limite_remise.getTime(), lu[0].date_limite_remise.getTime());
+  A.SpreadsheetApp.openById = ouvrir;
+  // Écriture par l'app : la mémoire de l'onglet est effacée, l'appel suivant relit la valeur à jour
+  A.Affaires_maj(id, { objet: 'Étude modifiée' });
+  A.Db_viderCache_();
+  assert.strictEqual(A.Affaires_get_(id).objet, 'Étude modifiée');
+  // Modification à la main dans le classeur : la date du classeur change, la mémoire est ignorée
+  A.Db_viderCache_();
+  const ss = Object.values(env.classeurs).find((x) => x.getSheetByName('Affaires'));
+  const f = ss.getSheetByName('Affaires');
+  const col = f.lignes[0].indexOf('objet');
+  f.getRange(2, col + 1).setValues([['Saisie manuelle']]);
+  A.Db_viderCache_();
+  assert.strictEqual(A.Affaires_get_(id).objet, 'Saisie manuelle');
+  console.log = journal;
 });
 
 test('chaque onglet a id/clé en 1re colonne et cree_le, modifie_le en fin', () => {

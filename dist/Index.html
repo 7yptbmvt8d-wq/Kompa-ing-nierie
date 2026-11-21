@@ -835,7 +835,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       var runner = google.script.run
         .withSuccessHandler(function (r) {
           if (r && r.ok) {
-            if (LECTURES.indexOf(nom) < 0) { viderMemoire(); try { document.dispatchEvent(new Event('ka:modif')); } catch (e) { /* ancien navigateur */ } }
+            if (LECTURES.indexOf(nom) < 0) { apresEcriture(r.data); try { document.dispatchEvent(new Event('ka:modif')); } catch (e) { /* ancien navigateur */ } }
             resoudre(r.data);
           } else rejeter(new Error((r && r.erreur) || 'Réponse vide du serveur.'));
         })
@@ -856,6 +856,35 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     memoire[cle] = donnees;
     try { localStorage.setItem('ka.m.' + cle, JSON.stringify(donnees)); } catch (e) { /* plein ou indisponible */ }
   }
+  /**
+   * Après une modification : la mémoire d'affichage est gardée (chaque écran se recharge de toute façon
+   * au serveur, la version fraîche remplace l'ancienne dès son arrivée) ; la fiche renvoyée est mémorisée.
+   */
+  function apresEcriture(donnees) {
+    if (donnees && donnees.affaire && donnees.affaire.id && donnees.planning !== undefined) {
+      var cle = 'affaire:' + donnees.affaire.id, ancien = lireMemoire(cle);
+      if (ancien && ancien.meta) ecrireMemoire(cle, Object.assign({}, donnees, { meta: donnees.meta || ancien.meta }));
+    }
+  }
+  /** Préchargement discret des écrans principaux après l'ouverture (un appel à la fois). */
+  var PRECHARGES = [['accueil', 'apiAccueil', []], ['affaires', 'apiAffaires', []], ['finances', 'apiFinances', []],
+    ['echeancier:courant', 'apiEcheancier', ['']], ['veille', 'apiVeille', []]];
+  var prechargeFait = false;
+  function precharger() {
+    if (prechargeFait) return;
+    prechargeFait = true;
+    var file = PRECHARGES.slice();
+    var suivant = function () {
+      var x = file.shift();
+      if (!x) return;
+      if (memoire[x[0]]) { suivant(); return; } // déjà chargé pendant cette visite
+      appel.apply(null, [x[1]].concat(x[2])).then(function (d) { if (!memoire[x[0]]) ecrireMemoire(x[0], d); })
+        .catch(function () { /* sans effet : l'écran se chargera à l'ouverture */ })
+        .then(function () { setTimeout(suivant, 300); });
+    };
+    setTimeout(suivant, 2500);
+  }
+
   function viderMemoire() {
     memoire = {};
     try {
@@ -1248,6 +1277,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     } else {
       afficher((location.hash || '').slice(1) || 'accueil', false);
     }
+    precharger();
   }
 
   $('#pied').textContent = 'Kompa Affaires';
@@ -1648,7 +1678,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
 
   function ecranFiche(el, id) {
     el.innerHTML = '<p><a href="#affaires">← Affaires</a></p><div class="chargement">Lecture de l\'affaire…</div>';
-    if (choixFiche.id !== id) tiroirOuvert = '';
+    if (choixFiche.id !== id) { tiroirOuvert = ''; piecesLues = { id: '', p: null }; }
     K.charger('affaire:' + id, 'apiAffaire', [id], function (f) {
       etat.meta = f.meta;
       rendreFiche(el, f);
@@ -2105,13 +2135,17 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     return noms.indexOf(p.parDefaut) >= 0 ? p.parDefaut : (noms[0] !== undefined ? noms[0] : p.parDefaut);
   }
 
-  function chargerPieces(el, a) {
+  /** Dossier Drive lu une fois par fiche ouverte (changer d'onglet ne le relit pas) ; relu à l'ouverture du panneau. */
+  var piecesLues = { id: '', p: null };
+  function chargerPieces(el, a, forcer) {
     if (!$('[data-pieces]', el)) return;
+    if (!forcer && piecesLues.id === a.id && piecesLues.p) { rendreToutesPieces(el, a, piecesLues.p); return; }
     K.charger('pieces:' + a.id, 'apiPieces', [a.id], function (p) { rendreToutesPieces(el, a, p); },
       function (e) { $$('[data-pieces]', el).forEach(function (z) { z.innerHTML = K.bandeauErreur(e); }); });
   }
 
   function rendreToutesPieces(el, a, p) {
+    piecesLues = { id: a.id, p: p };
     var nb = p.dossiers.reduce(function (s, d) { return s + d.fichiers.length; }, 0);
     var b = $('[data-nb-docs]', el);
     if (b) b.textContent = '(' + nb + ')';
@@ -2378,6 +2412,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
         $('[data-tiroir="' + k + '"]', el).setAttribute('aria-expanded', String(k === nom));
       });
       if (nom === 'journal') { var t = $('#note-texte', tiroirs.journal); if (t) t.focus(); }
+      if (nom === 'docs') chargerPieces(el, a, true);
     };
     $$('[data-tiroir]', el).forEach(function (b) {
       b.addEventListener('click', function () { var n = b.getAttribute('data-tiroir'); basculer(tiroirOuvert === n ? '' : n); });

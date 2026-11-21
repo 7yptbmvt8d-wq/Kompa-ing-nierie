@@ -1473,7 +1473,92 @@ function Courriers_euros_(n) {
  * Mémoire de l'exécution en cours : chaque onglet n'est lu qu'une fois par appel
  * (google.script.run, déclencheur). Toute écriture dans un onglet vide sa mémoire.
  */
-var Db_cache_ = { classeurs: {}, lignes: {}, entetes: {} };
+var Db_cache_ = { classeurs: {}, lignes: {}, entetes: {}, versions: {}, ecrits: {} };
+
+/**
+ * Mémoire partagée entre les appels (accélération du 21/11/2026) : chaque onglet lu est gardé dans le cache
+ * du script (CacheService, 6 h au plus), avec la date de dernière modification du classeur (Drive).
+ * - Une écriture par l'app (Db_inserer, Db_maj, Db_supprimerSi…) efface aussitôt la mémoire de l'onglet ;
+ * - une modification faite à la main dans le classeur change sa date : toute la mémoire du classeur est ignorée.
+ * En cas de souci (cache indisponible, onglet trop gros), lecture directe du classeur, comme avant.
+ */
+var DB_MEMOIRE_TTL = 21600;
+var DB_MEMOIRE_MORCEAU = 30000; // caractères par entrée (limite de 100 Ko par valeur)
+var DB_MEMOIRE_MORCEAUX_MAX = 40;
+
+function Db_memoire_() {
+  try { return typeof CacheService !== 'undefined' ? CacheService.getScriptCache() : null; } catch (e) { return null; }
+}
+
+/** Date de dernière modification du classeur (une lecture Drive par appel et par classeur), ou null. */
+function Db_versionClasseur_(cleClasseur) {
+  var cle = cleClasseur || 'SUIVI';
+  if (cle in Db_cache_.versions) return Db_cache_.versions[cle];
+  var v = null;
+  try {
+    var id = PropertiesService.getScriptProperties().getProperty(CLASSEURS[cle].prop);
+    if (id) v = String(DriveApp.getFileById(id).getLastUpdated().getTime());
+  } catch (e) { v = null; }
+  Db_cache_.versions[cle] = v;
+  return v;
+}
+
+function Db_cleMemoire_(table) {
+  return 'db|' + Db_cle_(table);
+}
+
+/** Lignes d'un onglet depuis la mémoire partagée, ou null (absente, périmée, illisible). */
+function Db_lireMemoire_(table) {
+  var c = Db_memoire_();
+  var version = c && Db_versionClasseur_(table.classeur);
+  if (!version) return null;
+  try {
+    var cle = Db_cleMemoire_(table);
+    var tete = c.get(cle);
+    if (!tete) return null;
+    var t = JSON.parse(tete);
+    if (t.v !== version || !(t.n >= 1)) return null;
+    var cles = [];
+    for (var i = 0; i < t.n; i++) cles.push(cle + '|' + i);
+    var morceaux = c.getAll(cles);
+    var texte = '';
+    for (var j = 0; j < t.n; j++) {
+      if (typeof morceaux[cles[j]] !== 'string') return null;
+      texte += morceaux[cles[j]];
+    }
+    return JSON.parse(texte, function (k, val) {
+      return val && typeof val === 'object' && typeof val.$d === 'number' ? new Date(val.$d) : val;
+    });
+  } catch (e) { return null; }
+}
+
+/** Garde les lignes d'un onglet dans la mémoire partagée (sauf si l'appel a déjà écrit dans ce classeur). */
+function Db_ecrireMemoire_(table, lignes) {
+  var c = Db_memoire_();
+  if (!c || Db_cache_.ecrits[table.classeur || 'SUIVI']) return;
+  var version = Db_versionClasseur_(table.classeur);
+  if (!version) return;
+  try {
+    var texte = JSON.stringify(lignes, function (k, val) {
+      var brut = this[k];
+      return brut instanceof Date ? { $d: brut.getTime() } : val;
+    });
+    var n = Math.max(1, Math.ceil(texte.length / DB_MEMOIRE_MORCEAU));
+    if (n > DB_MEMOIRE_MORCEAUX_MAX) return;
+    var cle = Db_cleMemoire_(table), valeurs = {};
+    for (var i = 0; i < n; i++) valeurs[cle + '|' + i] = texte.slice(i * DB_MEMOIRE_MORCEAU, (i + 1) * DB_MEMOIRE_MORCEAU);
+    c.putAll(valeurs, DB_MEMOIRE_TTL);
+    c.put(cle, JSON.stringify({ v: version, n: n }), DB_MEMOIRE_TTL);
+  } catch (e) { /* mémoire non disponible : sans effet */ }
+}
+
+/** Oublie la mémoire partagée d'un onglet (après une écriture par l'app). */
+function Db_oublierMemoire_(table) {
+  Db_cache_.ecrits[table.classeur || 'SUIVI'] = true;
+  var c = Db_memoire_();
+  if (!c) return;
+  try { c.remove(Db_cleMemoire_(table)); } catch (e) { /* sans effet */ }
+}
 
 /** Clé de mémoire d'une table : classeur + onglet (deux classeurs peuvent avoir un onglet de même nom). */
 function Db_cle_(table) {
@@ -1482,7 +1567,7 @@ function Db_cle_(table) {
 
 function Db_viderCache_(table) {
   if (table) { delete Db_cache_.lignes[Db_cle_(table)]; delete Db_cache_.entetes[Db_cle_(table)]; }
-  else { Db_cache_.lignes = {}; Db_cache_.entetes = {}; }
+  else { Db_cache_.lignes = {}; Db_cache_.entetes = {}; Db_cache_.versions = {}; Db_cache_.ecrits = {}; }
 }
 
 /** En-têtes d'une table (mémorisés pour l'exécution). */
@@ -1527,6 +1612,7 @@ function Db_entetes_(onglet) {
 /** Toutes les lignes d'une table, en objets (copies : modifiables sans effet sur la mémoire). */
 function Db_lire(table) {
   var cle = Db_cle_(table);
+  if (!Db_cache_.lignes[cle]) Db_cache_.lignes[cle] = Db_lireMemoire_(table);
   if (!Db_cache_.lignes[cle]) {
     var onglet = Db_onglet_(table);
     var entetes = Db_entetesTable_(table, onglet);
@@ -1542,6 +1628,7 @@ function Db_lire(table) {
         });
     }
     Db_cache_.lignes[cle] = lignes;
+    Db_ecrireMemoire_(table, lignes);
   }
   return Db_cache_.lignes[cle].map(function (o) { return Object.assign({}, o); });
 }
@@ -1675,6 +1762,7 @@ function Db_remplacerValeur_(table, colonne, ancienne, nouvelle) {
 
 function Db_viderCache_lignes_(table) {
   delete Db_cache_.lignes[Db_cle_(table)];
+  Db_oublierMemoire_(table);
 }
 
 

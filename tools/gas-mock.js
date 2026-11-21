@@ -9,6 +9,9 @@ const path = require('path');
 const vm = require('vm');
 const crypto = require('crypto');
 
+/** Horloge des modifications de classeur : date « Drive » de dernière modification (mémoire partagée de Db.js). */
+const horloge = { n: 0 };
+
 function creerFeuille(nom) {
   const f = {
     nom,
@@ -35,7 +38,7 @@ function creerFeuille(nom) {
     getMaxRows: () => f.maxLignes,
     getMaxColumns: () => f.maxColonnes,
     insertColumnsAfter: (_apres, n) => { f.maxColonnes += n; },
-    deleteRow: (r) => { f.lignes.splice(r - 1, 1); },
+    deleteRow: (r) => { horloge.n++; f.lignes.splice(r - 1, 1); },
     setFrozenRows: () => f,
     formules: {},
     getRange: (r, c, nr = 1, nc = 1) => creerPlage(f, r, c, nr, nc)
@@ -67,6 +70,7 @@ function creerPlage(f, r, c, nr, nc) {
       if (vals.length !== nr || vals.some((l) => l.length !== nc)) {
         throw new Error(`Dimensions incohérentes : ${vals.length}x${vals[0] && vals[0].length} pour ${nr}x${nc}`);
       }
+      horloge.n++;
       for (let i = 0; i < nr; i++) {
         f.lignes[r - 1 + i] = f.lignes[r - 1 + i] || [];
         for (let j = 0; j < nc; j++) {
@@ -156,6 +160,21 @@ function creerEnvironnement(options = {}) {
         getProperty: (k) => (k in proprietes ? proprietes[k] : null),
         setProperty: (k, v) => { proprietes[k] = String(v); }
       })
+    },
+    // Cache du script simulé (valeurs texte, sans expiration) ; options.sansCache : service absent
+    CacheService: options.sansCache ? undefined : {
+      _valeurs: {},
+      getScriptCache: () => {
+        const v = gas.CacheService._valeurs;
+        return {
+          get: (k) => (k in v ? v[k] : null),
+          getAll: (cles) => { const o = {}; cles.forEach((k) => { if (k in v) o[k] = v[k]; }); return o; },
+          put: (k, val) => { if (String(val).length > 100000) throw new Error('Argument too large'); v[k] = String(val); },
+          putAll: (o) => { Object.keys(o).forEach((k) => { if (String(o[k]).length > 100000) throw new Error('Argument too large'); v[k] = String(o[k]); }); },
+          remove: (k) => { delete v[k]; },
+          removeAll: (cles) => { cles.forEach((k) => { delete v[k]; }); }
+        };
+      }
     },
     LockService: { getScriptLock: () => ({ waitLock: () => {}, tryLock: () => true, releaseLock: () => {} }) },
     Session: {
@@ -257,6 +276,7 @@ function creerEnvironnement(options = {}) {
       getFolderById: (id) => { const d = gas.DriveApp._dossiers[id]; if (!d) throw new Error('introuvable'); return d; },
       corbeille: [],
       getFileById: (id) => ({
+        getLastUpdated: () => new Date(1e12 + horloge.n),
         setTrashed: (v) => { if (v) gas.DriveApp.corbeille.push(id); },
         makeCopy: (nom, dossier) => {
           const f = {
@@ -303,7 +323,7 @@ function creerEnvironnement(options = {}) {
       .forEach((f) => vm.runInContext(fs.readFileSync(path.join(dossierSrc, f), 'utf8'), contexte, { filename: f }));
   }
 
-  return { ctx: contexte, classeurs, proprietes, declencheurs, fichiersDrive };
+  return { ctx: contexte, classeurs, proprietes, declencheurs, fichiersDrive, cache: gas.CacheService, horloge };
 }
 
 module.exports = { creerEnvironnement, inseeSimule };
