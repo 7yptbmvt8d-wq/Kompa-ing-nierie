@@ -315,7 +315,12 @@ test('planning de facturation : tranches au prorata des jours, facture au dernie
   const A = env.ctx;
   const ok = (r) => { assert.ok(r.ok, r.erreur); return brut(r.data); };
   const quand = new Date(2027, 1, 1);
-  assert.deepStrictEqual(brut(A.Planning_tranches_('TF : 50 j\nTO1 : 60 j')), [{ tranche: 'TF', jours: 50 }, { tranche: 'TO1', jours: 60 }]);
+  assert.deepStrictEqual(brut(A.Planning_tranches_('TF : 50 j\nTO1 : 60 j')).map((t) => ({ tranche: t.tranche, jours: t.jours })), [{ tranche: 'TF', jours: 50 }, { tranche: 'TO1', jours: 60 }]);
+  // Nature d'une tranche : mention « optionnelle » sur la ligne, ou choix enregistré (Mission › Marché)
+  assert.strictEqual(A.Planning_estOptionnelle_('T2', 'T2 : 30 j (optionnelle)'), true);
+  assert.strictEqual(A.Planning_estOptionnelle_('T2', 'T2 : 30 j'), false);
+  assert.strictEqual(A.Planning_trancheOptionnelle_({ tranche: 'T2', texte: 'T2 : 30 j' }, { T2: { etat: 'optionnelle' } }), true);
+  assert.strictEqual(A.Planning_trancheOptionnelle_({ tranche: 'TO1', texte: 'TO1 : 30 j' }, { TO1: { etat: 'ferme' } }), false);
   const g = A.Affaires_creer({ acheteur: 'Ville de Marseille', objet: 'AMO programmation' }).id;
   A.Affaires_maj(g, { jours_par_tranche: 'TF : 50 j\nTO1 : 60 j', prix_jour: '400', montant_ht: '' });
   A.Affaires_changerStatut(g, 'Go', {});

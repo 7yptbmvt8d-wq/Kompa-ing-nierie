@@ -144,26 +144,38 @@ function assembler() {
   // Affaire perdue : la fiche s'ouvre sur Appel d'offres › Résultat
   await p.waitForSelector('[data-sous="resultat"][aria-selected="true"]');
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-mouthe-resultat.png'), fullPage: true });
-  await p.click('[data-journal]');
+  // Étapes de l'appel d'offres : Consultation et Offre faites, Résultat sélectionné ; blocs en lecture
+  assert.strictEqual(await p.locator('.etape-ao--faite').count(), 3);
+  assert.ok(await p.$('[data-bloc-lect="resultat"] dl.lect'));
+  assert.ok(await p.$('form[data-bloc="resultat"][hidden]'));
+  await p.click('[data-tiroir="journal"]');
   await p.waitForSelector('#tiroir-journal:not([hidden])');
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-mouthe-journal.png') });
-  await p.click('[data-fermer-journal]');
-  // Sous-onglet Offre : aides sous les champs
+  await p.click('#tiroir-journal [data-fermer-tiroir]');
+  // Étape Offre : Chiffrage et Dépôt en lecture, « Modifier » ouvre le formulaire avec ses aides
   await p.click('[data-sous="offre"]');
+  await p.waitForSelector('[data-sous="offre"][aria-selected="true"]');
+  await p.click('[data-modifier="offre"]');
+  await p.waitForSelector('form[data-bloc="offre"]:not([hidden])');
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-aides-offre.png'), fullPage: true });
+  await p.click('form[data-bloc="offre"] [data-annuler-bloc]');
+  await p.waitForSelector('form[data-bloc="offre"][hidden]', { state: 'attached' });
   // Volet Mission en aperçu (affaire non gagnée)
   await p.click('[data-volet="mission"]');
-  await p.waitForSelector('[data-sous="livrables"][aria-selected="true"]');
+  await p.waitForSelector('[data-sous="marche"][aria-selected="true"]');
   await p.click('[data-volet="ao"]');
   await p.waitForSelector('[data-sous="resultat"][aria-selected="true"]');
-  // Pièces du sous-onglet Résultat : dépôt de deux fichiers dans « 06 Résultat »
-  await p.waitForSelector('[data-pieces="resultat"] [data-depot]');
-  await p.setInputFiles('#piece-fichiers-resultat', [
+  // Documents : panneau latéral, dépôt de deux fichiers dans le dossier proposé (« 06 Résultat » sur l'étape Résultat)
+  await p.click('[data-tiroir="docs"]');
+  await p.waitForSelector('#tiroir-docs:not([hidden]) [data-depot]');
+  assert.strictEqual(await p.inputValue('#tiroir-docs [data-dossier]'), '06 Résultat');
+  await p.setInputFiles('#piece-fichiers-tous', [
     { name: 'Rapport de programmation.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(184000, 1) },
     { name: 'Notes de visite.docx', mimeType: 'application/octet-stream', buffer: Buffer.alloc(23000, 1) }
   ]);
-  await p.waitForSelector('[data-pieces="resultat"] .pieces__liste li >> text=Notes de visite.docx');
-  await p.screenshot({ path: path.join(sortie, 'pc-fiche-pieces.png'), fullPage: true });
+  await p.waitForSelector('#tiroir-docs .pieces__liste li >> text=Notes de visite.docx');
+  await p.screenshot({ path: path.join(sortie, 'pc-fiche-pieces.png') });
+  await p.click('#tiroir-docs [data-fermer-tiroir]');
   // Nouvelle affaire → fiche → No-go avec motif obligatoire
   await p.click('a[href="#affaires"]');
   await p.click('[data-action="nouvelle"]');
@@ -172,6 +184,7 @@ function assembler() {
   await p.fill('#n-departement', '05');
   await p.click('dialog.dialogue button[type=submit]');
   await p.waitForSelector('.fiche-tete h1:has-text("Commune de Briançon")');
+  await p.click('.menu-statut > summary');
   await p.click('[data-passer="No-go"]');
   await p.click('dialog.dialogue button[type=submit]');
   await p.waitForSelector('.dialogue__erreur:not([hidden])'); // motif manquant
@@ -180,9 +193,10 @@ function assembler() {
   await p.waitForSelector('.fiche-tete .statut:has-text("No-go")');
   // Bloc Offre : enregistrement
   await p.click('[data-sous="offre"]');
+  await p.click('[data-modifier="offre"]');
   await p.fill('#offre-prix_jour', '600');
   await p.click('form[data-bloc="offre"] button[type=submit]');
-  await p.waitForFunction(() => document.querySelector('#offre-prix_jour') && document.querySelector('#offre-prix_jour').value === '600' && document.querySelector('form[data-bloc="offre"] button[type=submit]').disabled);
+  await p.waitForSelector('[data-bloc-lect="offre"] dd:has-text("600")');
   const nouvelle = A.Affaires_lister().filter((x) => x.acheteur === 'Commune de Briançon')[0];
   assert.strictEqual(nouvelle.prix_jour, 600);
   assert.strictEqual(nouvelle.departement, '05');
@@ -206,6 +220,7 @@ function assembler() {
   await p.locator('#pieces-offre tr[data-piece]').nth(5).locator('select').selectOption('prête');
   await p.waitForSelector('.synthese:has-text("1 sur 9 prêtes")');
   // Montant HT calculé : jours par tranche × prix par jour
+  await p.click('[data-modifier="offre"]');
   await p.fill('form[data-bloc="offre"] [data-champ="jours_par_tranche"]', 'TF : 50 j\nTO1 : 60 j');
   await p.fill('form[data-bloc="offre"] [data-champ="prix_jour"]', '400');
   assert.strictEqual(await p.inputValue('form[data-bloc="offre"] [data-champ="montant_ht"]'), '44000');
@@ -214,11 +229,12 @@ function assembler() {
   await p.click('form[data-bloc="offre"] button[type=submit]');
   await p.waitForSelector('#toast:has-text("enregistré")');
   assert.strictEqual(A.Affaires_get_(g1).montant_ht, 44000);
+  await p.waitForSelector('[data-bloc-lect="offre"] .calcul-lecture');
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-offre-pieces.png'), fullPage: true });
   // Bloc Dépôt séparé du Chiffrage ; plus de champ « Encaissements prévus par année »
   assert.ok(await p.$('form[data-bloc="depot"] [data-champ="date_depot"]'));
   assert.ok(!(await p.$('[data-champ="repartition_ca"]')));
-  assert.match(await p.textContent('.calcul-offre'), /TF 20\s000\s€ · TO1 24\s000\s€ \(optionnelle\)/);
+  assert.match(await p.textContent('.calcul-lecture'), /TF 20\s000\s€ · TO1 24\s000\s€ \(optionnelle\)/);
   // Recherche rapide (Ctrl+K)
   await p.keyboard.press('Control+k');
   await p.keyboard.type('manosque');
@@ -232,54 +248,62 @@ function assembler() {
   await p.screenshot({ path: path.join(sortie, 'pc-previsionnel.png'), fullPage: true });
   await p.evaluate((id) => window.KA.afficher('affaire/' + id, true), g1);
   await p.waitForSelector('[data-passer="Déposée"]');
+  assert.match(await p.textContent('[data-passer="Déposée"]'), /Déposer l'offre/);
   await p.click('[data-passer="Déposée"]');
   await p.fill('#p-montant_ht', '21000');
   await p.fill('#p-jours_reponse', '3');
   await p.click('dialog.dialogue button[type=submit]');
   await p.waitForSelector('.fiche-tete .statut:has-text("Déposée")');
-  await p.click('[data-journal]');
+  await p.click('[data-tiroir="journal"]');
   await p.fill('#note-texte', 'Offre déposée sur la plateforme.');
   await p.click('form[data-note] button[type=submit]');
   await p.waitForSelector('.notes:has-text("Offre déposée sur la plateforme.")');
 
-  // Affaire gagnée : la fiche s'ouvre sur Mission › Livrables
+  // Affaire déposée : « Saisir le résultat » propose Gagnée, Perdue ou Sans suite
+  await p.click('#tiroir-journal [data-fermer-tiroir]');
+  await p.click('[data-resultat]');
+  await p.waitForSelector('dialog.dialogue[open] input[name=cloture][value="Gagnée"]');
+  await p.click('dialog.dialogue [data-annuler]');
+
+  // Affaire gagnée : la fiche s'ouvre sur Mission › Planning
   await p.click('a[href="#affaires"]');
   await p.click('[data-vue="liste"]');
   await p.click(`[data-ouvrir="${w1}"]`);
-  await p.waitForSelector('[data-sous="livrables"][aria-selected="true"]');
-  await p.fill('#ajout-liv-tranche', 'TF');
-  await p.fill('#ajout-liv-lib', 'Rapport de faisabilité');
-  await p.fill('#ajout-liv-date', '2026-12-04');
-  await p.click('[data-ajout-livrable] button[type=submit]');
-  await p.waitForSelector('#livrables tr[data-livrable]');
-  await p.fill('#ajout-liv-tranche', 'TF');
-  await p.fill('#ajout-liv-lib', 'Note de présentation aux élus');
-  await p.click('[data-ajout-livrable] button[type=submit]');
-  await p.waitForFunction(() => document.querySelectorAll('#livrables tr[data-livrable]').length === 2);
+  await p.waitForSelector('[data-sous="planning"][aria-selected="true"]');
+  await p.click('.tranche-carte [data-ajout-livrable]');
+  await p.fill('#al-libelle', 'Rapport de faisabilité');
+  await p.fill('#al-date_echeance', '2026-12-04');
+  await p.fill('#al-tranche', 'TF');
+  await p.click('dialog.dialogue button[type=submit]');
+  await p.waitForSelector('#planning-mission li[data-livrable]');
+  await p.click('.tranche-carte [data-ajout-livrable]');
+  await p.fill('#al-libelle', 'Note de présentation aux élus');
+  await p.fill('#al-tranche', 'TF');
+  await p.click('dialog.dialogue button[type=submit]');
+  await p.waitForFunction(() => document.querySelectorAll('#planning-mission li[data-livrable]').length === 2);
   await p.waitForSelector('.synthese:has-text("Remettre : Rapport de faisabilité")');
-  await p.screenshot({ path: path.join(sortie, 'pc-fiche-mission-livrables.png'), fullPage: true });
-  // Planning de facturation : barre livrable → facture → paiement
-  await p.waitForSelector('.planning-fact .frise-piste');
-  await p.click('[data-sous="facturation"]');
-  await p.waitForSelector('#p-facturation .planning-fact');
-  await p.locator('#p-facturation .planning-fact').screenshot({ path: path.join(sortie, 'pc-planning-facturation.png') });
-  // Tranche optionnelle : affermissement depuis Facturation, toutes les tranches sur une même frise
-  A.Affaires_maj(w1, { jours_par_tranche: 'TF : 10 j\nTO1 : 30 j' });
+  await p.waitForSelector('#planning-mission .frise-piste');
+  await p.screenshot({ path: path.join(sortie, 'pc-fiche-mission-planning.png'), fullPage: true });
+  // Tranches : T2 déclarée optionnelle depuis Mission › Marché, TO1 affermie ; une seule frise pour toutes les tranches
+  A.Affaires_maj(w1, { jours_par_tranche: 'TF : 10 j\nTO1 : 30 j\nT2 : 10 j' });
   A.Livrables_ajouter(w1, { tranche: 'TO1', libelle: 'Programme', date_echeance: '2027-04-15' });
   await p.evaluate((id) => { window.KA.viderMemoire(); window.KA.afficher('affaire/' + id, true); }, w1);
   await p.waitForSelector('.fiche-tete');
-  await p.click('[data-sous="facturation"]');
-  await p.waitForSelector('#p-facturation [data-plan-affermir]');
-  assert.strictEqual(await p.locator('#p-facturation .planning-fact .frise-piste').count(), 1, 'une seule frise pour toutes les tranches');
-  await p.locator('#p-facturation .planning-fact').screenshot({ path: path.join(sortie, 'pc-planning-options.png') });
-  await p.click('#p-facturation [data-plan-affermir]');
+  await p.click('[data-sous="marche"]');
+  await p.waitForSelector('#tranches [data-nature]');
+  await p.locator('#tranches tr', { hasText: 'T2' }).locator('[data-nature]').selectOption('optionnelle');
+  await p.waitForSelector('#toast:has-text("T2 : optionnelle")');
+  assert.match(A.Affaires_get_(w1).tranches_etat, /T2:optionnelle/);
+  await p.screenshot({ path: path.join(sortie, 'pc-fiche-mission-marche.png'), fullPage: true });
+  await p.locator('#tranches tr', { hasText: 'TO1' }).locator('[data-plan-affermir]').click();
   await p.click('dialog.dialogue button[type=submit]');
   await p.waitForSelector('#toast:has-text("affermie")');
-  assert.match(A.Affaires_get_(w1).tranches_etat, /^TO1:affermie:/);
-  await p.click('[data-sous="facturation"]').catch(() => {});
-  await p.click('[data-sous="livrables"]');
-  await p.click('[data-sous="facturation"]');
-  await p.waitForSelector('#p-facturation:not([hidden])');
+  assert.match(A.Affaires_get_(w1).tranches_etat, /TO1:affermie:/);
+  await p.click('[data-sous="planning"]');
+  await p.waitForSelector('#planning-mission .tranche-carte');
+  assert.strictEqual(await p.locator('#planning-mission .frise-piste').count(), 1, 'une seule frise pour toutes les tranches');
+  assert.strictEqual(await p.locator('#planning-mission .tranche-carte[data-tranche]').count(), 3);
+  await p.screenshot({ path: path.join(sortie, 'pc-planning-options.png'), fullPage: true });
 
   // ——— Lot 3 : Veille ———
   await p.click('nav a[href="#veille"]');
@@ -414,6 +438,22 @@ function assembler() {
   assert.strictEqual(A.Db_lire(A.EST_TABLES.OBSERVATIONS).length, 8);
   await p.screenshot({ path: path.join(sortie, 'pc-estimation-bibliotheque.png'), fullPage: true });
 
+  // ——— Chiffrage rapide : la surface suffit pour avoir le montant de chaque lot ———
+  await p.click('.sous-nav a[href="#estimation"]');
+  await p.waitForSelector('[data-rapide-form] #r-surface');
+  await p.selectOption('#r-typo', 'MIL');
+  await p.selectOption('#r-nature', 'Réhabilitation lourde');
+  await p.fill('#r-dep', '04');
+  await p.fill('#r-surface', '500');
+  await p.waitForSelector('[data-rapide-resultat] .table-est');
+  assert.match(await p.textContent('[data-rapide-resultat]'), /Gros œuvre/);
+  await p.locator('[data-rapide]').screenshot({ path: path.join(sortie, 'pc-estimation-rapide.png') });
+  await p.click('[data-rapide-garder]');
+  await p.waitForSelector('[data-assistant]');
+  assert.strictEqual(await p.inputValue('#e-surface'), '500');
+  await p.waitForSelector('.lot-est__montant:not(:empty)');
+  assert.match(await p.textContent('[data-total-lots]'), /Total des lots cochés/);
+
   // ——— Étape 5 : nouvelle estimation au ratio ———
   await p.click('.sous-nav a[href="#estimation"]');
   await p.click('a[href="#estimation/nouvelle"]');
@@ -435,6 +475,12 @@ function assembler() {
   await p.fill('tr[data-ligne] [data-pu] >> nth=0', '180');
   await p.press('tr[data-ligne] [data-pu] >> nth=0', 'Tab');
   await p.waitForSelector('#toast:has-text("PU enregistré")');
+  // Surface modifiable sur un brouillon : quantités au m² et totaux recalculés
+  await p.fill('[data-surface-est]', '600');
+  await p.press('[data-surface-est]', 'Tab');
+  await p.waitForSelector('#toast:has-text("Surface enregistrée")');
+  assert.strictEqual(A.Db_lire(A.EST_TABLES.ESTIMATIONS)[0].surface_sdp, 600);
+  assert.strictEqual(A.Db_lire(A.EST_TABLES.LIGNES).find((l) => l.num_article === '01').total_ht, 108000);
   assert.strictEqual(A.Db_lire(A.EST_TABLES.LIGNES).find((l) => l.num_article === '01').pu_ht, 180);
   // ——— Étape 6 : export .xlsx vers « 09 Estimations » ———
   await p.click('[data-exporter]');

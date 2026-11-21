@@ -292,38 +292,40 @@
     return (etat.meta.transitions[a.statut] || []).filter(function (s) { return etat.meta.actifs.indexOf(s) < 0; });
   }
 
-  function choisirCloture(a, choix, apres) {
+  function choisirCloture(a, choix, apres, titreDialogue) {
     var corps = '<p class="legende">' + esc(a.id) + ' · ' + esc(a.acheteur) + '</p><div class="choix-statut">' +
       choix.map(function (s, i) {
         return '<label class="case"><input type="radio" name="cloture" value="' + esc(s) + '"' + (i === 0 ? ' checked' : '') + '> ' + pastille(s) + '</label>';
       }).join('') + '</div>';
-    dialogue('Clôturer l\'affaire', corps, 'Continuer', function (form) {
+    dialogue(titreDialogue || 'Clôturer l\'affaire', corps, 'Continuer', function (form) {
       var s = $('input[name=cloture]:checked', form).value;
       setTimeout(function () { passerStatut(a, s, apres); }, 0);
     });
   }
 
-  // ——— Fiche affaire : deux volets (Appel d'offres, Mission) et leurs sous-onglets ———
-  // Organisation validée le 18/11/2026 (maquette). Chaque sous-onglet montre ses champs et ses dossiers Drive.
-  var VOLETS = [
-    { id: 'ao', titre: 'Appel d\'offres', etapes: 'En étude → Go → Déposée → Résultat', sous: [
-      { id: 'consultation', titre: 'Consultation', blocs: ['identification', 'echeances', 'decision'], dossiers: { etape: 'etude' }, codes: '01-02' },
-      { id: 'offre', titre: 'Offre', blocs: ['offre', 'depot'], dossiers: { etape: 'go' }, codes: '03-05' },
-      { id: 'resultat', titre: 'Résultat', blocs: ['resultat', 'enseignements'], dossiers: { etape: 'resultat' }, codes: '06' }
-    ] },
-    { id: 'mission', titre: 'Mission', etapes: 'Gagnée → Soldée', sous: [
-      { id: 'livrables', titre: 'Livrables', blocs: [], dossiers: { etape: 'gagnee', rang: 0 }, codes: '07' },
-      { id: 'estimations', titre: 'Estimations', blocs: [], dossiers: { etape: 'gagnee', rang: 2 }, codes: '09' },
-      { id: 'facturation', titre: 'Facturation', blocs: ['execution'], dossiers: { etape: 'gagnee', rang: 1 }, codes: '08' }
-    ] }
+  // ——— Fiche affaire (réorganisation du 21/11/2026, maquette validée) ———
+  // Appel d'offres : parcours en 3 étapes (Consultation → Offre → Résultat), blocs en lecture avec « Modifier ».
+  // Mission (après « Gagnée ») : Marché, Planning (livrables + facturation), Estimations.
+  // Documents Drive et Journal : panneaux latéraux ouverts depuis l'en-tête.
+  var ETAPES_AO = [
+    { id: 'consultation', titre: 'Consultation', etape: 'etude' },
+    { id: 'offre', titre: 'Offre', etape: 'go' },
+    { id: 'resultat', titre: 'Résultat', etape: 'resultat' }
+  ];
+  var SOUS_MISSION = [
+    { id: 'marche', titre: 'Marché', etape: 'gagnee', rang: 0 },
+    { id: 'planning', titre: 'Planning', etape: 'gagnee', rang: 1 },
+    { id: 'estimations', titre: 'Estimations', etape: 'gagnee', rang: 2 }
   ];
   var EN_MISSION = ['Gagnée', 'Soldée'];
+  var RESULTATS = ['Gagnée', 'Perdue', 'Sans suite'];
+  var TITRES_BLOCS = { execution: 'Notification', offre: 'Chiffrage' };
   var choixFiche = { id: '', volet: '', sous: '' };
-  var journalOuvert = false;
+  var tiroirOuvert = ''; // '' | 'journal' | 'docs'
 
-  /** Volet et sous-onglet de l'étape en cours. */
+  /** Volet et onglet de l'étape en cours. */
   function ongletParDefaut(statut) {
-    if (EN_MISSION.indexOf(statut) >= 0) return { volet: 'mission', sous: 'livrables' };
+    if (EN_MISSION.indexOf(statut) >= 0) return { volet: 'mission', sous: 'planning' };
     if (['Go', 'Abandonnée'].indexOf(statut) >= 0) return { volet: 'ao', sous: 'offre' };
     if (['Déposée', 'Perdue', 'Sans suite'].indexOf(statut) >= 0) return { volet: 'ao', sous: 'resultat' };
     return { volet: 'ao', sous: 'consultation' };
@@ -331,7 +333,7 @@
 
   function ecranFiche(el, id) {
     el.innerHTML = '<p><a href="#affaires">← Affaires</a></p><div class="chargement">Lecture de l\'affaire…</div>';
-    if (choixFiche.id !== id) journalOuvert = false;
+    if (choixFiche.id !== id) tiroirOuvert = '';
     K.charger('affaire:' + id, 'apiAffaire', [id], function (f) {
       etat.meta = f.meta;
       rendreFiche(el, f);
@@ -369,22 +371,112 @@
       action = 'Remettre : ' + esc(lr.prochain.libelle) + (lr.prochain.tranche ? ' <span class="jours">' + esc(lr.prochain.tranche) + '</span>' : '');
       if (lr.prochain.date) ech = ['Livrable', lr.prochain.date];
     }
-    if (EN_MISSION.indexOf(s) >= 0 && lr.total) avancement = ['Livrables', lr.valides + ' validé' + (lr.valides > 1 ? 's' : '') + ' sur ' + lr.total + ' <span class="jours">· ' + lr.remis + ' remis</span>'];
-    else if (EN_MISSION.indexOf(s) >= 0) avancement = ['Facturé', K.euros(f.totaux.facture) + (a.montant_notifie ? ' <span class="jours">/ ' + K.euros(a.montant_notifie) + '</span>' : '')];
+    var p = f.planning;
+    if (EN_MISSION.indexOf(s) >= 0) avancement = ['Encaissé', K.euros(f.totaux.encaisse) + ' <span class="jours">/ ' + K.euros(a.montant_notifie || a.montant_ht || 0) + '</span>' +
+      (p && p.montantOptionnel ? ' <span class="jours">dont ' + K.euros(p.montantOptionnel) + ' en option</span>' : '')];
     else if (s === 'Déposée' || s === 'Perdue' || s === 'Sans suite') avancement = ['Offre', a.montant_ht ? K.euros(a.montant_ht) + ' HT' : '—'];
     else if ((s === 'Go' || s === 'Abandonnée') && f.piecesResume && f.piecesResume.total) avancement = ['Pièces de l\'offre', f.piecesResume.pretes + ' sur ' + f.piecesResume.total + ' prêtes'];
     else if (s === 'Go' || s === 'Abandonnée') avancement = ['Offre en préparation', a.montant_ht ? K.euros(a.montant_ht) + ' HT' : (a.prix_jour ? K.euros(a.prix_jour) + ' / jour' : 'montant à chiffrer')];
     else avancement = ['Décision', a.decision ? esc(a.decision) + (a.motif_decision ? ' <span class="jours">' + esc(a.motif_decision) + '</span>' : '') : 'à prendre'];
-    var score = (a.score_final !== '' && a.score_final !== undefined && a.score_final !== null)
-      ? '<span class="mono">' + esc(a.score_final) + '</span> <span class="jours">/ 100 · pré-score ' + esc(a.pre_score === '' ? '—' : a.pre_score) + '</span>'
-      : '<span class="mono">' + esc(a.pre_score === '' ? '—' : a.pre_score) + '</span> <span class="jours">pré-score</span>';
+    var troisieme = EN_MISSION.indexOf(s) >= 0 && lr.total
+      ? ['Livrables', lr.valides + ' validé' + (lr.valides > 1 ? 's' : '') + ' sur ' + lr.total + ' <span class="jours">· ' + lr.remis + ' remis</span>']
+      : ['Score', (a.score_final !== '' && a.score_final !== undefined && a.score_final !== null)
+        ? '<span class="mono">' + esc(a.score_final) + '</span> <span class="jours">/ 100 · pré-score ' + esc(a.pre_score === '' ? '—' : a.pre_score) + '</span>'
+        : '<span class="mono">' + esc(a.pre_score === '' ? '—' : a.pre_score) + '</span> <span class="jours">pré-score</span>'];
     var jn = ech ? joursAvant(ech[1]) : null;
     return '<section class="synthese" aria-label="Synthèse de l\'affaire">' +
       '<div class="synthese__action"><div class="synthese__etiq">Prochaine action</div><div class="synthese__val">' + action + '</div></div>' +
-      '<div><div class="synthese__etiq">Échéance</div><div class="synthese__val">' + (ech ? esc(ech[0]) + ' <span class="mono">' + jour(ech[1]) + '</span> <span class="jours">' + (jn === 0 ? 'aujourd\'hui' : 'J-' + jn) + '</span>' : '<span class="vide">—</span>') + '</div></div>' +
+      '<div><div class="synthese__etiq">Échéance</div><div class="synthese__val">' + (ech ? esc(ech[0]) + ' <span class="mono">' + jour(ech[1]) + '</span> <span class="jours">' + (jn === 0 ? 'aujourd\'hui' : jn < 0 ? 'retard ' + (-jn) + ' j' : 'J-' + jn) + '</span>' : '<span class="vide">—</span>') + '</div></div>' +
       '<div><div class="synthese__etiq">' + avancement[0] + '</div><div class="synthese__val">' + avancement[1] + '</div></div>' +
-      '<div><div class="synthese__etiq">Score</div><div class="synthese__val">' + score + '</div></div>' +
+      '<div><div class="synthese__etiq">' + troisieme[0] + '</div><div class="synthese__val">' + troisieme[1] + '</div></div>' +
     '</section>';
+  }
+
+  // ——— Lecture d'un bloc : valeurs mises en forme, formulaire ouvert par « Modifier » ———
+  function valeurLecture(c, v) {
+    if (v === '' || v === null || v === undefined) return '<span class="vide">—</span>';
+    var t = c.type;
+    if (t === 'date') return '<span class="mono">' + jour(v) + '</span>';
+    if (t === 'euros') return '<span class="mono">' + K.euros(Number(v)) + '</span>';
+    if (t === 'nombre') return '<span class="mono">' + esc(String(v).replace('.', ',')) + '</span>';
+    if (t === 'lien') return '<a href="' + esc(v) + '" target="_blank" rel="noopener" data-externe>Ouvrir ↗</a>';
+    if (t === 'long') return '<div class="pre">' + esc(v) + '</div>';
+    if (t === 'lecture') return '<span class="mono">' + esc(v) + '</span>';
+    return esc(v);
+  }
+
+  /** Tranches optionnelles : code TO… / TC… ou mention « optionnelle » sur la ligne (même règle que le serveur). */
+  function ligneOptionnelle(code, ligne) { return /^T(O|C)/i.test(code) || /option|condition/i.test(ligne || ''); }
+
+  /** « 110 j × 400 € = 44 000 € · TF 20 000 € · TO1 24 000 € (optionnelle) » ou ''. */
+  function calculOffre(joursTexte, prix) {
+    var j = joursTotal(joursTexte), p = Number(String(prix || '').replace(/[\s  €]/g, '').replace(',', '.'));
+    if (!(j > 0)) return '';
+    if (!(p > 0)) return j.toLocaleString('fr-FR') + ' j au total : indiquez le prix par jour pour calculer le montant.';
+    var total = Math.round(j * p * 100) / 100;
+    var parT = String(joursTexte || '').split(/\r?\n|;/).map(function (l) {
+      var m = l.trim().match(/^([^:=]+?)\s*[:=]/), jt = joursTotal(l);
+      return m && jt > 0 ? esc(m[1].trim().toUpperCase()) + ' ' + K.euros(Math.round(total * jt / j)) + (ligneOptionnelle(m[1].trim(), l) ? ' (optionnelle)' : '') : '';
+    }).filter(String);
+    return '<strong class="mono">' + j.toLocaleString('fr-FR') + ' j × ' + K.euros(p) + ' HT = ' + K.euros(total) + ' HT</strong>' +
+      (parT.length > 1 ? ' <span class="legende">· ' + parT.join(' · ') + '</span>' : '');
+  }
+
+  function blocFiche(b, a, options) {
+    options = options || {};
+    var titreB = TITRES_BLOCS[b.id] || b.titre;
+    var extra = b.id === 'offre' && calculOffre(a.jours_par_tranche, a.prix_jour) ? '<p class="calcul-lecture">' + calculOffre(a.jours_par_tranche, a.prix_jour) + '</p>' : '';
+    return '<section class="fiche-bloc bloc-lect" data-bloc-lect="' + b.id + '">' +
+      '<div class="bloc-lect__tete"><h2 class="fiche-bloc__titre">' + esc(titreB) + '</h2>' +
+        (options.lectureSeule ? '' : '<button type="button" class="bouton bouton--petit bouton--discret" data-modifier="' + b.id + '">Modifier</button>') + '</div>' +
+      '<dl class="lect">' + b.champs.map(function (c) {
+        return '<div' + (c.type === 'long' ? ' class="lect--large"' : '') + '><dt>' + esc(c.libelle) + '</dt><dd>' + valeurLecture(c, a[c.nom]) + '</dd></div>';
+      }).join('') + '</dl>' + extra +
+      '<form class="bloc-form" data-bloc="' + b.id + '" novalidate hidden><div class="form-grille">' +
+        b.champs.map(function (c) { return champHtml(c, a[c.nom], etat.meta.listes, b.id); }).join('') + '</div>' +
+        '<div class="bloc-form__actions"><button type="button" class="bouton bouton--discret" data-annuler-bloc>Annuler</button><button type="submit" class="bouton" disabled>Enregistrer</button></div></form>' +
+    '</section>';
+  }
+
+  // ——— En-tête : étape suivante + autres statuts ———
+  var SUIVANT = { 'En étude': ['Go', 'Go →'], 'Go': ['Déposée', 'Déposer l\'offre →'], 'Gagnée': ['Soldée', 'Solder la mission →'] };
+
+  function actionsStatut(f) {
+    var a = f.affaire, tr = f.transitions.slice(), principal = '';
+    var s = SUIVANT[a.statut];
+    if (s && tr.indexOf(s[0]) >= 0) {
+      principal = '<button type="button" class="bouton" data-passer="' + esc(s[0]) + '">' + esc(s[1]) + '</button>';
+      tr.splice(tr.indexOf(s[0]), 1);
+    } else if (a.statut === 'Déposée') {
+      var res = tr.filter(function (x) { return RESULTATS.indexOf(x) >= 0; });
+      if (res.length) principal = '<button type="button" class="bouton" data-resultat="' + esc(res.join('|')) + '">Saisir le résultat →</button>';
+    }
+    var autres = tr.length ? '<details class="menu-statut"><summary class="bouton bouton--discret">Autre statut ▾</summary><div class="menu-statut__liste" role="group" aria-label="Changer de statut">' +
+      tr.map(function (x) { return '<button type="button" class="bouton bouton--discret" data-passer="' + esc(x) + '">' + pastille(x) + '</button>'; }).join('') + '</div></details>' : '';
+    return autres + principal;
+  }
+
+  function etatEtape(i, statut) {
+    var rang = { 'En étude': 0, 'No-go': 0, 'Go': 1, 'Abandonnée': 1, 'Déposée': 2 }[statut];
+    if (rang === undefined) return 'faite'; // résultat connu
+    if (i < rang) return 'faite';
+    return i === rang ? (statut === 'No-go' || statut === 'Abandonnée' ? 'arretee' : 'ici') : 'avenir';
+  }
+
+  function sousTitreEtape(id, et, a) {
+    if (id === 'consultation') {
+      if (et === 'faite') return a.decision ? esc(a.decision) + (a.date_decision ? ' le ' + jour(a.date_decision).slice(0, 5) : '') : 'DCE analysé';
+      if (et === 'arretee') return 'No-go' + (a.motif_decision ? ' · ' + esc(a.motif_decision) : '');
+      return 'en cours' + (a.date_limite_remise ? ' · remise ' + jour(a.date_limite_remise).slice(0, 5) : '');
+    }
+    if (id === 'offre') {
+      if (et === 'faite') return a.date_depot ? 'déposée le ' + jour(a.date_depot).slice(0, 5) : 'déposée';
+      if (et === 'arretee') return 'abandonnée';
+      if (et === 'ici') { var n = a.date_limite_remise ? joursAvant(a.date_limite_remise) : null; return 'en cours' + (n !== null && n >= 0 ? ' · remise J-' + n : ''); }
+      return 'à venir';
+    }
+    if (et === 'faite') return esc(a.statut) + (a.date_resultat ? ' le ' + jour(a.date_resultat).slice(0, 5) : '');
+    return et === 'ici' ? 'en attente de la décision' : 'à venir';
   }
 
   function rendreFiche(el, f) {
@@ -394,121 +486,201 @@
       choixFiche = { id: a.id, volet: d.volet, sous: d.sous };
     }
     var enMission = EN_MISSION.indexOf(a.statut) >= 0;
-    var liens = (a.lien_avis ? '<a class="bouton bouton--discret" href="' + esc(a.lien_avis) + '" target="_blank" rel="noopener" data-externe>Avis</a>' : '') +
-      (a.lien_dce ? '<a class="bouton bouton--discret" href="' + esc(a.lien_dce) + '" target="_blank" rel="noopener" data-externe>Dossier Drive</a>' : '');
-    var actions = f.transitions.map(function (s) {
-      return '<button type="button" class="bouton" data-passer="' + esc(s) + '">' + esc(s) + '</button>';
-    }).join('');
     var tete = '<p><a href="#affaires">← Affaires</a></p>' +
       '<header class="fiche-tete">' +
         '<div><div class="fiche-tete__ref mono">' + esc(a.id) + ' · ' + pastille(a.statut) + ' <span class="legende">depuis le ' + esc(K.dateHeure(a.date_statut).slice(0, 10)) + '</span></div>' +
         '<h1>' + esc(a.acheteur) + '</h1><p class="fiche-tete__objet">' + esc(a.objet) + '</p></div>' +
-        '<div class="fiche-tete__actions">' + liens +
-          (actions ? '<div class="fiche-tete__passages" role="group" aria-label="Changer de statut"><span class="legende">Passer en :</span>' + actions + '</div>' : '') +
+        '<div class="fiche-tete__actions">' +
+          (a.lien_avis ? '<a class="bouton bouton--discret" href="' + esc(a.lien_avis) + '" target="_blank" rel="noopener" data-externe>Avis ↗</a>' : '') +
+          '<button type="button" class="bouton bouton--discret" data-tiroir="docs" aria-expanded="' + (tiroirOuvert === 'docs') + '">Documents <span class="mono" data-nb-docs></span></button>' +
+          '<button type="button" class="bouton bouton--discret" data-tiroir="journal" aria-expanded="' + (tiroirOuvert === 'journal') + '">Journal</button>' +
+          actionsStatut(f) +
         '</div>' +
       '</header>' + synthese(f);
 
     var blocsParId = {};
     meta.blocs.forEach(function (b) { blocsParId[b.id] = b; });
-    var formBloc = function (id) {
-      var b = blocsParId[id];
-      if (!b) return '';
-      return '<section class="fiche-bloc"><h2 class="fiche-bloc__titre">' + esc(b.titre) + '</h2>' +
-        '<form class="bloc-form" data-bloc="' + b.id + '" novalidate><div class="form-grille">' +
-        b.champs.map(function (c) { return champHtml(c, a[c.nom], meta.listes, b.id); }).join('') + '</div>' +
-        '<div class="bloc-form__actions"><button type="submit" class="bouton" disabled>Enregistrer</button></div></form></section>';
-    };
+    var bloc = function (id, o) { return blocsParId[id] ? blocFiche(blocsParId[id], a, o) : ''; };
     var contenu = {
-      consultation: function () { return formBloc('identification') + formBloc('echeances') + formBloc('decision'); },
-      offre: function () { return blocPiecesOffre(f) + formBloc('offre') + formBloc('depot'); },
-      resultat: function () { return formBloc('resultat') + '<section class="fiche-bloc">' + tableCriteres(f.criteres) + '</section>' + formBloc('enseignements'); },
-      livrables: function () { return blocLivrables(f) + planningHtml(f, false); },
-      estimations: function () { return '<section class="fiche-bloc"><h2 class="fiche-bloc__titre">Estimations des travaux</h2><div data-estimations><div class="chargement">Lecture des estimations…</div></div></section>'; },
-      facturation: function () { return planningHtml(f, true) + formBloc('execution') + '<section class="fiche-bloc">' + tableFactures(f) + '</section>'; }
+      consultation: function () { return '<div class="fiche-deux">' + '<div>' + bloc('identification') + '</div><div>' + bloc('echeances') + bloc('decision') + '</div></div>'; },
+      offre: function () { return '<div class="fiche-deux"><div>' + bloc('offre') + bloc('depot') + '</div><div>' + blocPiecesOffre(f) + '</div></div>'; },
+      resultat: function () { return bloc('resultat') + '<section class="fiche-bloc">' + tableCriteres(f.criteres) + '</section>' + bloc('enseignements'); },
+      marche: function () { return bloc('execution') + blocTranches(f); },
+      planning: function () { return planningMission(f); },
+      estimations: function () { return '<section class="fiche-bloc"><h2 class="fiche-bloc__titre">Estimations des travaux</h2><div data-estimations><div class="chargement">Lecture des estimations…</div></div></section>'; }
     };
 
-    var volet = VOLETS.filter(function (v) { return v.id === choixFiche.volet; })[0] || VOLETS[0];
-    var voletEnCours = enMission ? 'mission' : 'ao';
-    var onglets = '<div class="volets" role="tablist" aria-label="Volets de l\'affaire">' + VOLETS.map(function (v) {
-      var inactif = v.id === 'mission' && !enMission;
-      return '<button type="button" role="tab" class="volet' + (inactif ? ' est-inactif' : '') + '" data-volet="' + v.id + '" aria-selected="' + (v.id === volet.id) + '">' +
-        '<span class="volet__nom">' + esc(v.titre) + (v.id === voletEnCours ? '<span class="volet__ici">● étape en cours</span>' : '') + '</span>' +
-        '<span class="volet__etapes">' + esc(v.etapes) + '</span></button>';
-    }).join('') + '<button type="button" class="bouton bouton--discret volets__journal" data-journal aria-expanded="' + journalOuvert + '">Journal</button></div>';
-    var sous = '<div class="sous-onglets" role="tablist" aria-label="' + esc(volet.titre) + '">' + volet.sous.map(function (x) {
-      return '<button type="button" role="tab" data-sous="' + x.id + '" aria-selected="' + (x.id === choixFiche.sous) + '">' + esc(x.titre) + ' <span class="sous-onglets__codes">' + x.codes + '</span></button>';
-    }).join('') + '</div>';
-    var apercu = volet.id === 'mission' && !enMission
-      ? '<p class="bandeau">Aperçu : le volet Mission s\'active au passage en Gagnée (notification, livrables, estimations, facturation).</p>' : '';
-    var panneaux = volet.sous.map(function (x) {
-      return '<section class="panneau" role="tabpanel" id="p-' + x.id + '"' + (x.id === choixFiche.sous ? '' : ' hidden') + '>' +
-        contenu[x.id]() +
-        '<section class="fiche-bloc"><h2 class="fiche-bloc__titre">Pièces</h2><div data-pieces="' + x.id + '"><div class="chargement">Lecture du dossier Drive…</div></div></section>' +
-        '</section>';
-    }).join('');
-    var tiroir = '<aside class="tiroir-journal" id="tiroir-journal" aria-label="Journal de l\'affaire"' + (journalOuvert ? '' : ' hidden') + '>' +
-      '<div class="tiroir-journal__tete"><h2>Journal</h2><button type="button" class="bouton bouton--discret" data-fermer-journal>Fermer</button></div>' + blocJournal(f) + '</aside>';
-    el.innerHTML = tete + onglets + sous + apercu + panneaux + tiroir;
+    var volets = '<nav class="volets-fiche" role="tablist" aria-label="Volets de l\'affaire">' +
+      '<button type="button" role="tab" data-volet="ao" aria-selected="' + (choixFiche.volet === 'ao') + '">Appel d\'offres' + (enMission ? ' <span aria-hidden="true">✓</span>' : '') + '</button>' +
+      '<button type="button" role="tab" data-volet="mission" aria-selected="' + (choixFiche.volet === 'mission') + '"' + (enMission ? '' : ' class="est-inactif"') + '>Mission' + (enMission ? '' : ' <span class="legende">— après « Gagnée »</span>') + '</button></nav>';
+    var nav, panneau;
+    if (choixFiche.volet === 'mission') {
+      if (SOUS_MISSION.map(function (x) { return x.id; }).indexOf(choixFiche.sous) < 0) choixFiche.sous = 'planning';
+      nav = '<nav class="sous-nav sous-nav--fiche" role="tablist" aria-label="Mission">' + SOUS_MISSION.map(function (x) {
+        return '<button type="button" role="tab" data-sous="' + x.id + '" aria-selected="' + (x.id === choixFiche.sous) + '">' + esc(x.titre) + '</button>';
+      }).join('') + '</nav>' +
+        (enMission ? '' : '<p class="bandeau">Aperçu : la mission s\'ouvre au passage en Gagnée (notification, planning des livrables et de la facturation, estimations).</p>');
+    } else {
+      if (ETAPES_AO.map(function (x) { return x.id; }).indexOf(choixFiche.sous) < 0) choixFiche.sous = ongletParDefaut(a.statut).volet === 'ao' ? ongletParDefaut(a.statut).sous : 'consultation';
+      nav = '<ol class="etapes-ao" role="tablist" aria-label="Étapes de l\'appel d\'offres">' + ETAPES_AO.map(function (x, i) {
+        var et = etatEtape(i, a.statut);
+        return '<li><button type="button" role="tab" class="etape-ao etape-ao--' + et + '" data-sous="' + x.id + '" aria-selected="' + (x.id === choixFiche.sous) + '">' +
+          '<span class="etape-ao__num" aria-hidden="true">' + (et === 'faite' ? '✓' : et === 'arretee' ? '✕' : i + 1) + '</span>' +
+          '<span><b>' + esc(x.titre) + '</b><span class="etape-ao__sous">' + sousTitreEtape(x.id, et, a) + '</span></span></button></li>';
+      }).join('') + '</ol>';
+    }
+    panneau = '<section class="panneau" role="tabpanel" id="p-' + choixFiche.sous + '">' + contenu[choixFiche.sous]() + '</section>';
+    var tiroirs = '<aside class="tiroir-journal" id="tiroir-journal" aria-label="Journal de l\'affaire"' + (tiroirOuvert === 'journal' ? '' : ' hidden') + '>' +
+        '<div class="tiroir-journal__tete"><h2>Journal</h2><button type="button" class="bouton bouton--discret" data-fermer-tiroir>Fermer</button></div>' + blocJournal(f) + '</aside>' +
+      '<aside class="tiroir-journal tiroir-docs" id="tiroir-docs" aria-label="Documents de l\'affaire"' + (tiroirOuvert === 'docs' ? '' : ' hidden') + '>' +
+        '<div class="tiroir-journal__tete"><h2>Documents</h2><button type="button" class="bouton bouton--discret" data-fermer-tiroir>Fermer</button></div>' +
+        '<p class="legende">Dossier Drive de l\'affaire, rangé par étape.' + (a.lien_dce ? ' <a href="' + esc(a.lien_dce) + '" target="_blank" rel="noopener" data-externe>Ouvrir dans Drive ↗</a>' : '') + '</p>' +
+        '<div data-pieces="tous"><div class="chargement">Lecture du dossier Drive…</div></div></aside>';
+    el.innerHTML = tete + volets + nav + panneau + tiroirs;
     brancherFiche(el, f);
     chargerPieces(el, a);
     var zoneEst = $('[data-estimations]', el);
     if (zoneEst && K.estimationsAffaire) K.estimationsAffaire(zoneEst, a.id);
   }
 
-  // ——— Livrables de la mission ———
+  // ——— Mission › Marché : tranches, nature (ferme / optionnelle) et affermissement ———
+  function blocTranches(f) {
+    var p = f.planning;
+    var titre = '<h2 class="fiche-bloc__titre">Tranches</h2>';
+    if (!p || !p.base) return '<section class="fiche-bloc">' + titre + '<p class="vide">Montant du marché inconnu : renseignez les jours par tranche et le prix par jour (Appel d\'offres › Offre › Chiffrage).</p></section>';
+    if (p.lignes.length === 1 && p.lignes[0].tranche === 'MISSION') {
+      return '<section class="fiche-bloc">' + titre + '<p class="vide">Marché non découpé. Pour des tranches fermes et optionnelles, indiquez les jours par tranche (Appel d\'offres › Offre › Chiffrage), une ligne par tranche : « TF : 50 j », « TO1 : 60 j ».</p></section>';
+    }
+    var lignes = p.lignes.map(function (l, i) {
+      var opt = l.optionnelle;
+      var verrou = !!l.facture;
+      var nature = '<select class="champ champ--compact" data-nature="' + i + '" aria-label="Nature de la tranche ' + esc(l.tranche) + '"' + (verrou ? ' disabled' : '') + '>' +
+        '<option value="ferme"' + (opt ? '' : ' selected') + '>Ferme</option><option value="optionnelle"' + (opt ? ' selected' : '') + '>Optionnelle</option></select>';
+      var et = '';
+      if (opt) {
+        if (l.affermissement === 'optionnelle') et = '<span class="statut statut--alerte">à affermir</span> <button type="button" class="bouton bouton--petit" data-plan-affermir="' + i + '">Affermir</button> <button type="button" class="bouton bouton--petit bouton--discret" data-plan-nonaffermie="' + i + '">Non affermie</button>';
+        else if (l.affermissement === 'affermie') et = '<span class="statut statut--ok">affermie</span>' + (l.dateAffermissement ? ' <span class="legende mono">' + jour(l.dateAffermissement) + '</span>' : '') + (verrou ? '' : ' <button type="button" class="bouton bouton--petit bouton--discret" data-plan-optionnelle="' + i + '">Annuler</button>');
+        else et = '<span class="statut statut--neutre">non affermie</span> <button type="button" class="bouton bouton--petit bouton--discret" data-plan-optionnelle="' + i + '">Annuler</button>';
+      } else et = '<span class="legende">—</span>';
+      return '<tr' + (l.affermissement === 'non affermie' ? ' class="est-arretee"' : '') + '><td class="mono"><strong>' + esc(l.tranche) + '</strong></td><td class="num mono">' + (l.jours ? String(l.jours).replace('.', ',') + ' j' : '') + '</td>' +
+        '<td class="num mono">' + K.euros(l.etat === 'couverte' ? l.dejaFacture : l.montant + (l.dejaFacture || 0)) + '</td><td>' + nature + '</td><td class="plan-actions">' + et + '</td></tr>';
+    }).join('');
+    return '<section class="fiche-bloc" id="tranches">' + titre +
+      '<div class="tableau-conteneur"><table class="table-tranches"><thead><tr><th scope="col">Tranche</th><th scope="col" class="num">Jours</th><th scope="col" class="num">Montant HT</th><th scope="col">Nature</th><th scope="col">Affermissement</th></tr></thead><tbody>' + lignes + '</tbody></table></div>' +
+      '<p class="legende">Montant de chaque tranche au prorata des jours, sur ' + K.euros(p.base) + ' HT. Une tranche optionnelle compte en CA potentiel jusqu\'à son affermissement, puis dans le CA certain.</p></section>';
+  }
+
+  // ——— Mission › Planning : une frise, puis une carte par tranche (livrables → facture → paiement) ———
   var ETATS_LIVRABLE = ['à faire', 'en cours', 'remis', 'validé'];
   var CLASSES_LIVRABLE = { 'à faire': 'etat-afaire', 'en cours': 'etat-encours', 'remis': 'etat-deposee', 'validé': 'etat-prete' };
+  var ETATS_PLAN = { 'couverte': 'statut--neutre', 'à planifier': 'statut--neutre', 'prévue': 'statut--encours', 'facturée': 'statut--alerte', 'en retard': 'statut--ko', 'payée': 'statut--ok' };
 
-  function blocLivrables(f) {
-    var lignes = (f.livrables || []).map(function (l) {
-      var j = l.date_echeance && (l.etat === 'à faire' || l.etat === 'en cours') ? joursAvant(l.date_echeance) : null;
-      return '<tr data-livrable="' + esc(l.id) + '">' +
-        '<td><input class="champ mono" data-lc="tranche" value="' + esc(l.tranche) + '" aria-label="Tranche" size="5"></td>' +
-        '<td><input class="champ" data-lc="libelle" value="' + esc(l.libelle) + '" aria-label="Livrable"></td>' +
-        '<td><input class="champ mono" type="date" data-lc="date_echeance" value="' + esc(String(l.date_echeance || '').slice(0, 10)) + '" aria-label="Échéance">' +
-          (j !== null ? '<span class="jours' + (j < 0 ? ' est-retard' : '') + '">' + (j < 0 ? 'retard ' + (-j) + ' j' : j === 0 ? 'aujourd\'hui' : 'J-' + j) + '</span>' : '') + '</td>' +
-        '<td><select class="champ etat-piece ' + (CLASSES_LIVRABLE[l.etat] || '') + '" data-lc="etat" aria-label="État">' +
-          ETATS_LIVRABLE.map(function (e) { return '<option' + (e === l.etat ? ' selected' : '') + '>' + e + '</option>'; }).join('') + '</select></td>' +
-        '<td><input class="champ mono" data-lc="indice" value="' + esc(l.indice) + '" aria-label="Indice" size="2" placeholder="A"></td>' +
-        '<td><div class="cellule-lien"><input class="champ" type="url" data-lc="lien" value="' + esc(l.lien) + '" aria-label="Lien vers le fichier" placeholder="https://drive…">' +
-          (l.lien ? '<a href="' + esc(l.lien) + '" target="_blank" rel="noopener" data-externe>Ouvrir</a>' : '') + '</div></td>' +
-        '<td><button type="button" class="bouton bouton--discret bouton--petit" data-suppr-livrable aria-label="Retirer « ' + esc(l.libelle) + ' »">Retirer</button></td></tr>';
+  function ligneLivrable(l) {
+    var j = l.date_echeance && (l.etat === 'à faire' || l.etat === 'en cours') ? joursAvant(l.date_echeance) : null;
+    return '<li class="liv" data-livrable="' + esc(l.id) + '">' +
+      '<span class="liv__losange" aria-hidden="true">◇</span>' +
+      '<input class="champ champ--compact liv__lib" data-lc="libelle" value="' + esc(l.libelle) + '" aria-label="Livrable">' +
+      '<input class="champ champ--compact mono" type="date" data-lc="date_echeance" value="' + esc(String(l.date_echeance || '').slice(0, 10)) + '" aria-label="Échéance de « ' + esc(l.libelle) + ' »">' +
+      '<select class="champ champ--compact etat-piece ' + (CLASSES_LIVRABLE[l.etat] || '') + '" data-lc="etat" aria-label="État de « ' + esc(l.libelle) + ' »">' +
+        ETATS_LIVRABLE.map(function (e) { return '<option' + (e === l.etat ? ' selected' : '') + '>' + e + '</option>'; }).join('') + '</select>' +
+      (j !== null ? '<span class="jours' + (j < 0 ? ' est-retard' : '') + '">' + (j < 0 ? 'retard ' + (-j) + ' j' : j === 0 ? 'aujourd\'hui' : 'J-' + j) + '</span>' : '') +
+      (l.lien ? '<a href="' + esc(l.lien) + '" target="_blank" rel="noopener" data-externe>fichier ↗</a>' : '') +
+      '<button type="button" class="bouton bouton--discret bouton--petit" data-suppr-livrable aria-label="Retirer « ' + esc(l.libelle) + ' »">Retirer</button></li>';
+  }
+
+  function planningMission(f) {
+    var p = f.planning, a = f.affaire;
+    if (!p) return '';
+    if (!p.base) return '<section class="fiche-bloc"><h2 class="fiche-bloc__titre">Planning</h2><p class="vide">Montant du marché inconnu : renseignez les jours par tranche et le prix par jour (Appel d\'offres › Offre › Chiffrage).</p></section>';
+    var actions = a.statut === 'Gagnée';
+    var nomT = function (l) { return l.tranche === 'MISSION' ? 'Mission' : l.tranche; };
+    var unique = p.lignes.length === 1;
+    var codes = p.lignes.map(function (l) { return l.tranche; });
+    var code = function (x) { return String(x || '').trim().toUpperCase().replace(/\s+/g, ' ').slice(0, 12); };
+    var livDe = function (l) {
+      return (f.livrables || []).filter(function (x) { var c = code(x.tranche); return c === l.tranche || (unique && (!c || codes.indexOf(c) < 0)); })
+        .sort(function (x, y) { return String(x.date_echeance || '9').localeCompare(String(y.date_echeance || '9')); });
+    };
+    var piste = { marques: [], traits: [] };
+    p.lignes.forEach(function (l) {
+      if (l.affermissement === 'non affermie' || l.etat === 'couverte') return;
+      var x = K.friseTranche(l, nomT(l));
+      piste.marques = piste.marques.concat(x.marques);
+      piste.traits = piste.traits.concat(x.traits);
+    });
+    var cartes = p.lignes.map(function (l, i) {
+      var opt = l.optionnelle;
+      var nature = !opt ? '<span class="legende">ferme</span>' : l.affermissement === 'affermie' ? '<span class="statut statut--ok">affermie</span>'
+        : l.affermissement === 'non affermie' ? '<span class="statut statut--neutre">non affermie</span>' : '<span class="statut statut--alerte">optionnelle</span>';
+      var act = '<button type="button" class="bouton bouton--petit bouton--discret" data-ajout-livrable="' + esc(l.tranche === 'MISSION' ? '' : l.tranche) + '">+ Livrable</button>';
+      if (actions) {
+        if (opt && l.affermissement === 'optionnelle') act += '<button type="button" class="bouton bouton--petit" data-plan-affermir="' + i + '">Affermir</button><button type="button" class="bouton bouton--petit bouton--discret" data-plan-nonaffermie="' + i + '">Non affermie</button>';
+        if (l.affermissement !== 'optionnelle' && l.affermissement !== 'non affermie') {
+          if (l.etat === 'prévue' || l.etat === 'à planifier') act += '<button type="button" class="bouton bouton--petit" data-plan-facturer="' + i + '">Facturer</button>';
+          else if (l.etat === 'facturée' || l.etat === 'en retard') act += '<button type="button" class="bouton bouton--petit" data-plan-payer="' + i + '">Paiement reçu</button>';
+        }
+      }
+      var liv = livDe(l);
+      var facture = l.facture ? esc(l.facture.numero) + ' du <span class="mono">' + jour(l.dateFacture) + '</span>'
+        : l.etat === 'couverte' ? 'facturée hors planning (' + K.euros(l.dejaFacture) + ')'
+        : l.dateFacture ? 'prévue le <span class="mono">' + jour(l.dateFacture) + '</span><span class="legende">à la remise du dernier livrable</span>' : '<span class="legende">date à fixer : datez les livrables</span>';
+      var paiement = l.etat === 'payée' ? 'payée le <span class="mono">' + jour(l.dateEncaissement) + '</span>'
+        : l.dateEcheance ? (l.facture ? 'due le ' : 'attendu le ') + '<span class="mono">' + jour(l.dateEcheance) + '</span><span class="legende">' + (opt && l.affermissement === 'optionnelle' ? 'compté en potentiel tant que non affermie' : 'délai public ' + p.delai + ' j') + '</span>' : '<span class="vide">—</span>';
+      if (l.retard) paiement += '<div class="plan-retard">' + l.retard.jours + ' j de retard : intérêts ≈ ' + K.euros(l.retard.interets) + ' (' + String(l.retard.taux).replace('.', ',') + ' %) + ' + K.euros(l.retard.indemnite) + '</div>';
+      return '<article class="tranche-carte' + (l.affermissement === 'non affermie' ? ' est-arretee' : '') + '" data-tranche="' + esc(l.tranche) + '">' +
+        '<div class="tranche-carte__tete"><strong class="mono">' + esc(nomT(l)) + '</strong> ' + nature +
+          ' <span class="mono">' + (l.jours ? String(l.jours).replace('.', ',') + ' j · ' : '') + K.euros(l.etat === 'couverte' ? l.dejaFacture : l.montant) + '</span>' +
+          ' <span class="statut ' + (ETATS_PLAN[l.etat] || 'statut--neutre') + '">' + esc(l.etat === 'couverte' ? 'facturée hors planning' : l.etat) + '</span>' +
+          (l.dejaFacture && l.etat !== 'couverte' ? ' <span class="legende">+ ' + K.euros(l.dejaFacture) + ' déjà facturés hors planning</span>' : '') +
+          '<div class="tranche-carte__act">' + act + '</div></div>' +
+        '<div class="tranche-carte__corps"><div><div class="k">Livrables</div>' +
+          (liv.length ? '<ul class="livs">' + liv.map(ligneLivrable).join('') + '</ul>' : '<p class="vide">Aucun livrable : ajoutez ceux du CCTP avec leur date de remise.</p>') + '</div>' +
+          '<div><div class="k">Facture</div>' + facture + '</div><div><div class="k">Paiement</div>' + paiement + '</div></div></article>';
     }).join('');
-    return '<section class="fiche-bloc" id="livrables"><h2 class="fiche-bloc__titre">Livrables par tranche</h2>' +
-      ((f.livrables || []).length
-        ? '<div class="tableau-conteneur"><table class="table-livrables"><thead><tr><th scope="col">Tranche</th><th scope="col">Livrable</th><th scope="col">Échéance</th><th scope="col">État</th><th scope="col">Indice</th><th scope="col">Fichier</th><th scope="col"><span class="seul-lecteur">Action</span></th></tr></thead><tbody>' + lignes + '</tbody></table></div>'
-        : '<p class="vide">Aucun livrable. Ajoutez ceux du CCTP (article « Livrables »), avec leur date de remise contractuelle.</p>') +
-      '<p class="legende">Les échéances des livrables à faire ou en cours apparaissent dans l\'Échéancier et l\'e-mail du matin. Modification enregistrée dès que vous quittez le champ.</p>' +
-      '<form class="ajout-piece" data-ajout-livrable novalidate>' +
-        '<input class="champ mono" id="ajout-liv-tranche" placeholder="TF" aria-label="Tranche" size="5">' +
-        '<input class="champ" id="ajout-liv-lib" placeholder="ex. Rapport de diagnostic" aria-label="Intitulé du livrable">' +
-        '<input class="champ mono" type="date" id="ajout-liv-date" aria-label="Échéance">' +
-        '<button type="submit" class="bouton bouton--discret">Ajouter</button></form></section>';
+    var orphelins = unique ? [] : (f.livrables || []).filter(function (x) { return codes.indexOf(code(x.tranche)) < 0; });
+    var t = f.totaux;
+    return '<section class="planning-mission" id="planning-mission">' +
+      K.friseCle() + K.frise({ debut: p.debut, fin: p.fin, aujourdhui: p.aujourdhui, pistes: [piste] }) +
+      (p.aPlanifier ? '<p class="bandeau">' + p.aPlanifier + ' tranche(s) sans livrable daté : la facture se cale sur la date du dernier livrable de la tranche.</p>' : '') +
+      cartes +
+      (orphelins.length ? '<article class="tranche-carte"><div class="tranche-carte__tete"><strong>Livrables sans tranche reconnue</strong> <span class="legende">code de tranche absent de « Jours par tranche »</span></div>' +
+        '<ul class="livs">' + orphelins.map(ligneLivrable).join('') + '</ul></article>' : '') +
+      '<details class="fiche-bloc factures-repli"' + (f.factures.length && !p.utilisable ? ' open' : '') + '><summary><strong>Toutes les factures (' + f.factures.length + ')</strong> <span class="legende">— facturé ' + K.euros(t.facture) + ' · encaissé ' + K.euros(t.encaisse) + ' · saisie d\'une facture hors planning</span></summary>' +
+        tableFactures(f) + '</details>' +
+      '<p class="legende">Facture à la remise du dernier livrable de la tranche, paiement à ' + p.delai + ' jours ; repris dans <a href="#finances/encaissements">Finances</a>. Modification d\'un livrable enregistrée dès que vous quittez le champ.</p>' +
+    '</section>';
   }
 
   function brancherLivrables(el, f, recharger) {
-    var a = f.affaire, zone = $('#livrables', el);
+    var a = f.affaire, zone = $('#planning-mission', el);
     if (!zone) return;
     var appel = function (nom, args, message) {
       return K.appel.apply(null, [nom, a.id].concat(args)).then(function (fiche) { if (message) K.toast(message); recharger(fiche); })
         .catch(function (e) { K.toast(e.message, true); recharger(f); });
     };
-    $$('[data-livrable]', zone).forEach(function (tr) {
-      $$('[data-lc]', tr).forEach(function (champ) {
+    $$('[data-livrable]', zone).forEach(function (li) {
+      $$('[data-lc]', li).forEach(function (champ) {
         var initial = champ.value;
         champ.addEventListener('change', function () {
           if (champ.value === initial) return;
           var o = {}; o[champ.getAttribute('data-lc')] = champ.value;
-          appel('apiLivrableMaj', [tr.getAttribute('data-livrable'), o], 'Livrable enregistré.');
+          appel('apiLivrableMaj', [li.getAttribute('data-livrable'), o], 'Livrable enregistré.');
         });
       });
-      $('[data-suppr-livrable]', tr).addEventListener('click', function () { appel('apiLivrableSupprimer', [tr.getAttribute('data-livrable')], 'Livrable retiré.'); });
+      $('[data-suppr-livrable]', li).addEventListener('click', function () { appel('apiLivrableSupprimer', [li.getAttribute('data-livrable')], 'Livrable retiré.'); });
     });
-    $('[data-ajout-livrable]', zone).addEventListener('submit', function (ev) {
-      ev.preventDefault();
-      var lib = $('#ajout-liv-lib', zone).value.trim();
-      if (!lib) { K.toast('Intitulé du livrable obligatoire.', true); return; }
-      appel('apiLivrableAjouter', [{ tranche: $('#ajout-liv-tranche', zone).value, libelle: lib, date_echeance: $('#ajout-liv-date', zone).value }], 'Livrable ajouté.');
+    $$('[data-ajout-livrable]', zone).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var t = b.getAttribute('data-ajout-livrable');
+        var corps = '<div class="form-grille">' +
+          champHtml({ nom: 'libelle', libelle: 'Livrable', type: 'texte', obligatoire: true, exemple: 'Rapport de diagnostic' }, '', {}, 'al') +
+          champHtml({ nom: 'date_echeance', libelle: 'Date de remise contractuelle', type: 'date' }, '', {}, 'al') +
+          champHtml({ nom: 'tranche', libelle: 'Tranche', type: 'texte' }, t, {}, 'al') + '</div>' +
+          '<p class="legende">La facture de la tranche est prévue à la remise de son dernier livrable.</p>';
+        dialogue('Ajouter un livrable' + (t ? ' (' + t + ')' : ''), corps, 'Ajouter', function (form) {
+          return K.appel('apiLivrableAjouter', a.id, lireChamps(form)).then(function (fiche) { K.toast('Livrable ajouté.'); recharger(fiche); });
+        });
+      });
     });
   }
 
@@ -597,25 +769,25 @@
     d.querySelector('#coller-liste').focus();
   }
 
-  // ——— Pièces : dossiers Drive de l'affaire, rangés par sous-onglet ———
+  // ——— Documents : dossier Drive de l'affaire dans un panneau, rangé par étape ———
   function taille(o) {
     o = Number(o) || 0;
     return o >= 1048576 ? (o / 1048576).toFixed(1).replace('.', ',') + ' Mo' : Math.max(1, Math.round(o / 1024)) + ' Ko';
   }
 
-  function sousOnglet(id) {
-    var r = null;
-    VOLETS.forEach(function (v) { v.sous.forEach(function (x) { if (x.id === id) r = x; }); });
-    return r;
-  }
+  var GROUPES_DOCS = [
+    { titre: 'Consultation', etape: 'etude' }, { titre: 'Offre', etape: 'go' },
+    { titre: 'Résultat', etape: 'resultat' }, { titre: 'Mission', etape: 'gagnee' }
+  ];
+  var CREATION_DOCS = { etude: 'à la création de l\'affaire', go: 'au passage en Go', resultat: 'au résultat', gagnee: 'au passage en Gagnée' };
 
-  /** Dossiers d'un sous-onglet ; les dossiers sans étape connue (et les fichiers à la racine) vont dans Consultation. */
-  function dossiersDe(id, p) {
-    var x = sousOnglet(id);
-    return p.dossiers.filter(function (d) {
-      if (!d.etape) return id === 'consultation';
-      return d.etape === x.dossiers.etape && (x.dossiers.rang === undefined || d.rang === x.dossiers.rang);
-    });
+  /** Dossier proposé pour un dépôt : celui de l'onglet affiché (ex. « 04 Offre » sur l'étape Offre). */
+  function dossierPropose(p) {
+    var x = ETAPES_AO.concat(SOUS_MISSION).filter(function (o) { return o.id === choixFiche.sous; })[0];
+    if (!x) return p.parDefaut;
+    var cands = p.dossiers.filter(function (d) { return (d.etape || 'etude') === x.etape && (x.rang === undefined || d.rang === undefined || d.rang === x.rang); });
+    var noms = cands.map(function (d) { return d.nom; });
+    return noms.indexOf(p.parDefaut) >= 0 ? p.parDefaut : (noms[0] !== undefined ? noms[0] : p.parDefaut);
   }
 
   function chargerPieces(el, a) {
@@ -625,27 +797,31 @@
   }
 
   function rendreToutesPieces(el, a, p) {
+    var nb = p.dossiers.reduce(function (s, d) { return s + d.fichiers.length; }, 0);
+    var b = $('[data-nb-docs]', el);
+    if (b) b.textContent = '(' + nb + ')';
     $$('[data-pieces]', el).forEach(function (zone) { rendrePieces(zone, a, p, el); });
   }
 
   function rendrePieces(zone, a, p, el) {
-    var id = zone.getAttribute('data-pieces');
-    var dossiers = dossiersDe(id, p);
     var choixActuel = ($('[data-dossier]', zone) || {}).value;
-    if (!dossiers.length) {
-      var etapes = { etude: 'à la création de l\'affaire', go: 'au passage en Go', resultat: 'au résultat (Gagnée, Perdue ou Sans suite)', gagnee: 'au passage en Gagnée' };
-      zone.innerHTML = '<p class="vide">' + (p.url ? 'Ces dossiers seront créés ' + etapes[sousOnglet(id).dossiers.etape] + '.' : 'Pas encore de dossier Drive pour cette affaire.') + '</p>';
+    if (!p.dossiers.length) {
+      zone.innerHTML = '<p class="vide">' + (p.url ? 'Dossier Drive vide.' : 'Pas encore de dossier Drive pour cette affaire.') + '</p>';
       return;
     }
-    var listes = dossiers.map(function (d) {
-      return '<section class="pieces__dossier"><h3><a href="' + esc(d.url) + '" target="_blank" rel="noopener" data-externe>' +
-        esc(d.nom || 'Dossier de l\'affaire') + '</a> <span class="legende">' + d.fichiers.length + ' fichier' + (d.fichiers.length > 1 ? 's' : '') + '</span></h3>' +
-        (d.fichiers.length ? '<ul class="pieces__liste">' + d.fichiers.map(function (x) {
-          return '<li><a href="' + esc(x.url) + '" target="_blank" rel="noopener" data-externe>' + esc(x.nom) + '</a>' +
-            ' <span class="legende mono">' + esc(x.date) + ' · ' + taille(x.taille) + '</span></li>';
-        }).join('') + '</ul>' : '') + '</section>';
+    var groupes = GROUPES_DOCS.map(function (g) {
+      var ds = p.dossiers.filter(function (d) { return (d.etape || 'etude') === g.etape; });
+      if (!ds.length) return '<section class="docs-groupe est-vide"><h3>' + esc(g.titre) + '</h3><p class="legende">Dossiers créés ' + CREATION_DOCS[g.etape] + '.</p></section>';
+      return '<section class="docs-groupe"><h3>' + esc(g.titre) + '</h3>' + ds.map(function (d) {
+        return '<details class="pieces__dossier"' + (d.fichiers.length && d.fichiers.length <= 6 ? ' open' : '') + '><summary><a href="' + esc(d.url) + '" target="_blank" rel="noopener" data-externe>' +
+          esc(d.nom || 'Dossier de l\'affaire') + '</a> <span class="legende">' + d.fichiers.length + ' fichier' + (d.fichiers.length > 1 ? 's' : '') + '</span></summary>' +
+          (d.fichiers.length ? '<ul class="pieces__liste">' + d.fichiers.map(function (x) {
+            return '<li><a href="' + esc(x.url) + '" target="_blank" rel="noopener" data-externe>' + esc(x.nom) + '</a>' +
+              ' <span class="legende mono">' + esc(x.date) + ' · ' + taille(x.taille) + '</span></li>';
+          }).join('') + '</ul>' : '') + '</details>';
+      }).join('') + '</section>';
     }).join('');
-    zone.innerHTML = formDepot(id, dossiers, p, choixActuel) + '<div class="pieces">' + listes + '</div>';
+    zone.innerHTML = formDepot('tous', p.dossiers, p, choixActuel || dossierPropose(p)) + '<div class="pieces">' + groupes + '</div>';
     brancherDepot(zone, a, p, el);
   }
 
@@ -659,7 +835,7 @@
       (dossiers.length > 1 ? '<div class="depot__ligne"><label for="piece-dossier-' + id + '">Ranger dans</label> <select class="champ" id="piece-dossier-' + id + '" data-dossier>' + options + '</select></div>'
         : '<input type="hidden" data-dossier value="' + esc(choisi) + '">') +
       '<label class="depot__zone" for="piece-fichiers-' + id + '"><input type="file" id="piece-fichiers-' + id + '" multiple class="depot__input">' +
-        '<span><strong>Glissez vos fichiers ici</strong> ou <span class="lien">cliquez pour les choisir</span>' + (dossiers.length === 1 ? ' — rangés dans « ' + esc(choisi || 'Dossier de l\'affaire') + ' »' : '') + '</span>' +
+        '<span><strong>Glissez vos fichiers ici</strong> ou <span class="lien">cliquez pour les choisir</span></span>' +
         '<span class="legende">' + Math.round(p.tailleMax / 1048576) + ' Mo maximum par fichier' + (p.url ? ' · au-delà, <a href="' + esc(p.url) + '" target="_blank" rel="noopener" data-externe>ouvrez le dossier Drive</a>' : '') + '</span></label>' +
       '<p class="depot__etat legende" aria-live="polite"></p></div>';
   }
@@ -751,64 +927,7 @@
       '<div class="bloc-form__actions"><button type="submit" class="bouton">Enregistrer les critères</button></div></form>';
   }
 
-  // ——— Planning de facturation : livrables → facture → paiement (barre chronologique) ———
-  var ETATS_PLAN = { 'couverte': 'statut--neutre', 'à planifier': 'statut--neutre', 'prévue': 'statut--encours', 'facturée': 'statut--alerte', 'en retard': 'statut--ko', 'payée': 'statut--ok' };
-
-  function planningHtml(f, actions) {
-    var p = f.planning;
-    if (!p) return '';
-    var titre = '<h2 class="fiche-bloc__titre">Planning de facturation</h2>';
-    if (!p.base) return '<section class="fiche-bloc">' + titre + '<p class="vide">Montant du marché inconnu : renseignez les jours par tranche et le prix par jour (Appel d\'offres › Offre).</p></section>';
-    var nomT = function (l) { return l.tranche === 'MISSION' ? 'Mission' : l.tranche; };
-    var piste = { marques: [], traits: [] };
-    p.lignes.forEach(function (l) {
-      if (l.affermissement === 'non affermie' || l.etat === 'couverte') return;
-      var x = K.friseTranche(l, nomT(l));
-      piste.marques = piste.marques.concat(x.marques);
-      piste.traits = piste.traits.concat(x.traits);
-    });
-    var parAnnee = {};
-    p.lignes.forEach(function (l) {
-      if (l.affermissement === 'non affermie' || l.etat === 'couverte') return;
-      var an = (l.etat === 'payée' ? l.dateEncaissement : l.dateEcheance || p.aujourdhui).slice(0, 4) + (l.affermissement === 'optionnelle' ? ' (option)' : '');
-      parAnnee[an] = (parAnnee[an] || 0) + (l.etat === 'payée' ? l.montantEncaisse || l.montant : l.montant);
-    });
-    var lignes = p.lignes.map(function (l, i) {
-      var opt = l.optionnelle;
-      var statutT = !opt ? '<span class="legende">ferme</span>' : l.affermissement === 'affermie'
-        ? '<span class="statut statut--ok">affermie</span>' + (l.dateAffermissement ? ' <span class="legende mono">' + jour(l.dateAffermissement) + '</span>' : '')
-        : l.affermissement === 'non affermie' ? '<span class="statut statut--neutre">non affermie</span>' : '<span class="statut statut--alerte">optionnelle</span>';
-      var act = '';
-      if (actions) {
-        if (opt && l.affermissement === 'optionnelle') act += '<button type="button" class="bouton bouton--petit" data-plan-affermir="' + i + '">Affermir</button> <button type="button" class="bouton bouton--petit bouton--discret" data-plan-nonaffermie="' + i + '">Non affermie</button>';
-        else if (opt && !l.facture && l.affermissement !== 'optionnelle') act += '<button type="button" class="bouton bouton--petit bouton--discret" data-plan-optionnelle="' + i + '">Annuler</button> ';
-        if (l.affermissement !== 'optionnelle' && l.affermissement !== 'non affermie') {
-          if (l.etat === 'prévue' || l.etat === 'à planifier') act += '<button type="button" class="bouton bouton--petit" data-plan-facturer="' + i + '">Facturer</button>';
-          else if (l.etat === 'facturée' || l.etat === 'en retard') act += '<button type="button" class="bouton bouton--petit" data-plan-payer="' + i + '">Paiement reçu</button>';
-        }
-      }
-      var livD = l.livrables.filter(function (x) { return x.date; });
-      return '<tr' + (l.affermissement === 'non affermie' ? ' class="est-arretee"' : '') + '><td><strong class="mono">' + esc(nomT(l)) + '</strong> ' + statutT + '</td>' +
-        '<td class="num mono">' + (l.jours ? String(l.jours).replace('.', ',') + ' j' : '') + '</td><td class="num mono">' +
-          (l.etat === 'couverte' ? K.euros(l.dejaFacture) : K.euros(l.montant) + (l.dejaFacture ? '<div class="legende">+ ' + K.euros(l.dejaFacture) + ' déjà facturés hors planning</div>' : '')) + '</td>' +
-        '<td class="legende">' + (livD.length ? livD.map(function (x) { return jour(x.date); }).join(', ') : (l.livrables.length ? 'sans date' : 'aucun livrable ' + esc(nomT(l)))) + '</td>' +
-        '<td class="legende">' + (l.dateFacture ? (l.facture ? esc(l.facture.numero) + ' du ' : 'prévue le ') + jour(l.dateFacture) : '—') + '</td>' +
-        '<td class="legende">' + (l.etat === 'payée' ? 'payée le ' + jour(l.dateEncaissement) : l.dateEcheance ? (l.facture ? 'due le ' : 'prévu le ') + jour(l.dateEcheance) : '—') +
-          (l.retard ? '<div class="plan-retard">' + l.retard.jours + ' j de retard : intérêts ≈ ' + K.euros(l.retard.interets) + ' (' + String(l.retard.taux).replace('.', ',') + ' %) + ' + K.euros(l.retard.indemnite) + '</div>' : '') + '</td>' +
-        '<td><span class="statut ' + (ETATS_PLAN[l.etat] || 'statut--neutre') + '">' + esc(l.etat === 'couverte' ? 'facturée hors planning' : l.etat) + '</span></td>' + (actions ? '<td class="plan-actions">' + act + '</td>' : '') + '</tr>';
-    }).join('');
-    var repartition = Object.keys(parAnnee).sort().map(function (an) { return an + ' : <strong class="mono">' + K.euros(parAnnee[an]) + '</strong>'; }).join(' · ');
-    return '<section class="fiche-bloc planning-fact">' + titre +
-      '<p class="legende">Marché <strong class="mono">' + K.euros(p.base) + '</strong> HT réparti par tranche au prorata des jours ; facture à la remise du dernier livrable de la tranche, paiement à ' + p.delai + ' jours. ' +
-        'Encaissements : ' + repartition + ' — repris dans <a href="#finances/previsionnel">Finances › Prévisionnel</a>.</p>' +
-      (p.aPlanifier ? '<p class="bandeau">' + p.aPlanifier + ' tranche(s) sans livrable daté : ajoutez dans Mission › Livrables des livrables portant le code de la tranche et leur échéance.</p>' : '') +
-      K.friseCle() + K.frise({ debut: p.debut, fin: p.fin, aujourdhui: p.aujourdhui, pistes: [piste] }) +
-      '<div class="tableau-conteneur"><table class="table-planning"><thead><tr><th scope="col">Tranche</th><th scope="col" class="num">Jours</th><th scope="col" class="num">Montant HT</th>' +
-        '<th scope="col">Livrables</th><th scope="col">Facture</th><th scope="col">Paiement</th><th scope="col">État</th>' + (actions ? '<th scope="col"><span class="seul-lecteur">Actions</span></th>' : '') + '</tr></thead><tbody>' +
-        lignes + '</tbody></table></div>' +
-      (actions ? '' : '<p class="legende">Facturation, paiements et affermissement : sous-onglet Facturation.</p>') + '</section>';
-  }
-
+  // ——— Actions du planning et des tranches (Mission › Planning et Marché) ———
   function brancherPlanning(el, f, recharger) {
     var p = f.planning;
     if (!p) return;
@@ -833,6 +952,14 @@
     affermir('data-plan-affermir', 'affermie', true);
     affermir('data-plan-nonaffermie', 'non affermie', false);
     affermir('data-plan-optionnelle', 'optionnelle', false);
+    $$('[data-nature]', el).forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        var l = p.lignes[Number(sel.getAttribute('data-nature'))];
+        sel.disabled = true;
+        K.appel('apiTrancheAffermir', a.id, l.tranche, sel.value, '').then(function (fiche) { K.toast('Tranche ' + l.tranche + ' : ' + sel.value + '.'); recharger(fiche); })
+          .catch(function (e) { sel.disabled = false; K.toast(e.message, true); });
+      });
+    });
     $$('[data-plan-facturer]', el).forEach(function (b) {
       b.addEventListener('click', function () {
         var l = p.lignes[Number(b.getAttribute('data-plan-facturer'))];
@@ -840,7 +967,7 @@
           champHtml({ nom: 'numero', libelle: 'N° de facture', type: 'texte', obligatoire: true }, '', {}, 'pf') +
           champHtml({ nom: 'date', libelle: 'Date de la facture', type: 'date', obligatoire: true }, l.dateFacture && l.dateFacture <= p.aujourdhui ? l.dateFacture : aujourdhuiIso(), {}, 'pf') +
           champHtml({ nom: 'montant', libelle: 'Montant HT (' + l.tranche + ')', type: 'euros', obligatoire: true }, String(l.montant).replace('.', ','), {}, 'pf') + '</div>' +
-          '<p class="legende">Échéance de paiement calculée à ' + p.delai + ' jours. La facture apparaît dans Mission › Facturation.</p>';
+          '<p class="legende">Échéance de paiement calculée à ' + p.delai + ' jours. La facture apparaît dans Mission › Planning (Toutes les factures).</p>';
         dialogue('Facturer la tranche ' + l.tranche, corps, 'Enregistrer la facture', function (form) {
           return K.appel('apiPlanningFacturer', a.id, l.tranche, lireChamps(form)).then(function (fiche) { K.toast('Facture de la tranche ' + l.tranche + ' enregistrée.'); recharger(fiche); });
         });
@@ -888,38 +1015,62 @@
     $$('[data-passer]', el).forEach(function (b) {
       b.addEventListener('click', function () { passerStatut(a, b.getAttribute('data-passer'), recharger); });
     });
+    var br = $('[data-resultat]', el);
+    if (br) br.addEventListener('click', function () {
+      var choix = br.getAttribute('data-resultat').split('|');
+      if (choix.length === 1) passerStatut(a, choix[0], recharger);
+      else choisirCloture(a, choix, recharger, 'Résultat de la consultation');
+    });
+    // Lecture / modification des blocs
+    $$('[data-modifier]', el).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var sec = b.closest('[data-bloc-lect]'), form = $('form[data-bloc]', sec);
+        $('dl.lect', sec).hidden = true; b.hidden = true; form.hidden = false;
+        var x = $('.calcul-lecture', sec); if (x) x.hidden = true;
+        var premier = $('input:not([type=hidden]), select, textarea', form); if (premier) premier.focus();
+      });
+    });
+    $$('[data-annuler-bloc]', el).forEach(function (b) {
+      b.addEventListener('click', function () { rendreFiche(el, f); });
+    });
     brancherPiecesOffre(el, f, recharger);
     brancherLivrables(el, f, recharger);
     brancherPlanning(el, f, recharger);
-    // Volets : on rouvre le sous-onglet de l'étape en cours si c'est le volet en cours, sinon le premier
+    // Volets et onglets : l'onglet de l'étape en cours si c'est le volet en cours, sinon le premier
     $$('[data-volet]', el).forEach(function (b) {
       b.addEventListener('click', function () {
         var v = b.getAttribute('data-volet');
         if (v === choixFiche.volet) return;
         var d = ongletParDefaut(a.statut);
         choixFiche.volet = v;
-        choixFiche.sous = d.volet === v ? d.sous : VOLETS.filter(function (x) { return x.id === v; })[0].sous[0].id;
+        choixFiche.sous = d.volet === v ? d.sous : (v === 'mission' ? 'marche' : 'consultation');
         rendreFiche(el, f);
       });
     });
     $$('[data-sous]', el).forEach(function (b) {
       b.addEventListener('click', function () {
+        if (b.getAttribute('data-sous') === choixFiche.sous) return;
         choixFiche.sous = b.getAttribute('data-sous');
-        $$('[data-sous]', el).forEach(function (x) { x.setAttribute('aria-selected', String(x === b)); });
-        $$('.panneau', el).forEach(function (p) { p.hidden = p.id !== 'p-' + choixFiche.sous; });
+        rendreFiche(el, f);
       });
     });
-    // Journal : tiroir latéral, ouvert depuis n'importe quel onglet
-    var tiroir = $('#tiroir-journal', el);
-    var basculerJournal = function (ouvrir) {
-      journalOuvert = ouvrir;
-      tiroir.hidden = !ouvrir;
-      $('[data-journal]', el).setAttribute('aria-expanded', String(ouvrir));
-      if (ouvrir) { var t = $('#note-texte', tiroir); if (t) t.focus(); } else $('[data-journal]', el).focus();
+    // Panneaux latéraux : Journal et Documents (un seul ouvert à la fois)
+    var tiroirs = { journal: $('#tiroir-journal', el), docs: $('#tiroir-docs', el) };
+    var basculer = function (nom) {
+      tiroirOuvert = nom;
+      Object.keys(tiroirs).forEach(function (k) {
+        tiroirs[k].hidden = k !== nom;
+        $('[data-tiroir="' + k + '"]', el).setAttribute('aria-expanded', String(k === nom));
+      });
+      if (nom === 'journal') { var t = $('#note-texte', tiroirs.journal); if (t) t.focus(); }
     };
-    $('[data-journal]', el).addEventListener('click', function () { basculerJournal(tiroir.hidden); });
-    $('[data-fermer-journal]', el).addEventListener('click', function () { basculerJournal(false); });
-    tiroir.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') basculerJournal(false); });
+    $$('[data-tiroir]', el).forEach(function (b) {
+      b.addEventListener('click', function () { var n = b.getAttribute('data-tiroir'); basculer(tiroirOuvert === n ? '' : n); });
+    });
+    $$('[data-fermer-tiroir]', el).forEach(function (b) { b.addEventListener('click', function () { basculer(''); }); });
+    Object.keys(tiroirs).forEach(function (k) {
+      tiroirs[k].addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { basculer(''); $('[data-tiroir="' + k + '"]', el).focus(); } });
+    });
     // Offre : montant HT = total des jours par tranche × prix par jour, recalculé à la saisie
     var fo = $('form[data-bloc="offre"]', el);
     if (fo) {
@@ -936,7 +1087,7 @@
         if (remplir) { cMontant.value = String(total).replace('.', ','); cMontant.dispatchEvent(new Event('input', { bubbles: true })); }
         var parT = String(cJours.value || '').split(/\r?\n|;/).map(function (l) {
           var m = l.trim().match(/^([^:=]+?)\s*[:=]/), jt = joursTotal(l);
-          return m && jt > 0 ? esc(m[1].trim().toUpperCase()) + ' ' + K.euros(Math.round(total * jt / j)) + (/^T(O|C)/i.test(m[1].trim()) ? ' (optionnelle)' : '') : '';
+          return m && jt > 0 ? esc(m[1].trim().toUpperCase()) + ' ' + K.euros(Math.round(total * jt / j)) + (ligneOptionnelle(m[1].trim(), l) ? ' (optionnelle)' : '') : '';
         }).filter(String);
         ligneCalc.innerHTML = '<strong class="mono">' + j.toLocaleString('fr-FR') + ' j × ' + K.euros(p) + ' HT = ' + K.euros(total) + ' HT</strong>' +
           (parT.length > 1 ? ' <span class="legende">· ' + parT.join(' · ') + '</span>' : '') +

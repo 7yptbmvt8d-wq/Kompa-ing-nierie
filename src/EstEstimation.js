@@ -102,12 +102,21 @@ function Est_actualiserBrouillons_() {
  *       date_travaux (MM/AAAA ou ''), lots: [codes], tva (facultatif) }.
  */
 function Est_calculer_(d) {
-  var a = Affaires_get_(d.id_affaire);
-  if (Est_paramListe_('est.phases').indexOf(d.phase) < 0) throw new Error('Phase attendue parmi : ' + Est_paramListe_('est.phases').join(', ') + '.');
+  // Chiffrage rapide (accueil Estimation) : sans affaire, phase par défaut, kdép déduit du département.
+  var a = d.id_affaire ? Affaires_get_(d.id_affaire) : { id: '' };
+  var phases = Est_paramListe_('est.phases');
+  if (!d.phase && !d.id_affaire) d.phase = phases[1] || phases[0];
+  if (phases.indexOf(d.phase) < 0) throw new Error('Phase attendue parmi : ' + phases.join(', ') + '.');
   var m = Est_validerMarche_({ typologie: d.typologie, nature: d.nature, departement: d.departement, m0: '01/2000', surface: d.surface });
   var lotsChoisis = (d.lots || []).map(function (x) { return String(x).toUpperCase(); });
+  if (!lotsChoisis.length && !d.id_affaire) {
+    lotsChoisis = Est_ratios_(m.typologie, m.nature, null).filter(function (r) { return r.utilisable; }).map(function (r) { return r.lot; });
+    if (!lotsChoisis.length) throw new Error('Aucun ratio pour cette typologie et cette nature : importez des marchés dans la bibliothèque.');
+  }
   if (!lotsChoisis.length) throw new Error('Choisissez au moins un lot.');
-  var k = Est_calculerK_(d.k_ids || []);
+  var kIds = (d.k_ids || []).slice();
+  if (!kIds.length) { var kd = Est_kdepPour_(m.departement); if (kd) kIds.push(String(kd.id)); }
+  var k = Est_calculerK_(kIds);
   var moisIndice = d.mois_indice ? Est_mois_(d.mois_indice) : '';
   var travaux = d.date_travaux ? Est_mois_(d.date_travaux) : '';
   if (d.date_travaux && !travaux) throw new Error('Date des travaux : format MM/AAAA attendu.');
@@ -211,6 +220,24 @@ function Est_ligneMaj_(idLigne, champs) {
   maj.total_ht = Est_arrondi_(pu * q);
   Db_maj(EST_TABLES.LIGNES, idLigne, maj);
   return Est_recalculerTotaux_(l.id_estimation);
+}
+
+/**
+ * Change la surface de référence d'un brouillon : les lignes au m² qui portaient l'ancienne surface la reprennent,
+ * les totaux sont recalculés. Les autres quantités (saisies à la main) ne bougent pas.
+ */
+function Est_modifierSurface_(id, surface) {
+  var e = Est_estimationModifiable_(id);
+  var s = Number(String(surface).replace(/[\s m²]/g, '').replace(',', '.'));
+  if (!(s > 0)) throw new Error('Surface de référence : nombre de m² supérieur à 0 attendu.');
+  var ancienne = Number(e.surface_sdp);
+  Db_lire(EST_TABLES.LIGNES).forEach(function (l) {
+    if (String(l.id_estimation) !== String(id) || String(l.unite) !== 'm²' || Number(l.quantite) !== ancienne) return;
+    Db_maj(EST_TABLES.LIGNES, l.id, { quantite: s, total_ht: Est_arrondi_(Number(l.pu_ht) * s) });
+  });
+  Db_maj(EST_TABLES.ESTIMATIONS, id, { surface_sdp: s });
+  Est_journal_('estimation', 'surface modifiée', id + ' : ' + Est_fr_(ancienne) + ' → ' + Est_fr_(s) + ' m²');
+  return Est_recalculerTotaux_(id);
 }
 
 function Est_figer_(id) {

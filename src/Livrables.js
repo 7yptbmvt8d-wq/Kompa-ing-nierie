@@ -1,5 +1,5 @@
 /**
- * Livrables de la mission (fiche › Mission › Livrables) : une ligne par livrable du CCTP.
+ * Livrables de la mission (fiche › Mission › Planning) : une ligne par livrable du CCTP.
  * Les échéances des livrables non remis alimentent l'Échéancier et l'e-mail du matin.
  * Organisation validée le 18/11/2026.
  */

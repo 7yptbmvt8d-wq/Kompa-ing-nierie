@@ -166,7 +166,7 @@ var AIDES_CHAMPS = {
   cotraitant: ['Si groupement : nom du ou des cotraitants et leur rôle.', 'Atelier Durand, architecte (mandataire)'],
   tranches: ['Découpage de la mission prévu par le marché (acte d\'engagement, CCAP) : tranche ferme, tranches optionnelles ou phases. Une ligne par tranche.',
     'TF : étude de faisabilité\nTO1 : programme\nTO2 : suivi des études de maîtrise d\'œuvre'],
-  jours_par_tranche: ['Jours que vous prévoyez pour chaque tranche, une ligne par tranche avec son code (TF ferme ; TO1, TO2… optionnelles, à affermir dans Mission › Facturation).', 'TF : 6 j\nTO1 : 8 j\nTO2 : 10 j'],
+  jours_par_tranche: ['Jours que vous prévoyez pour chaque tranche, une ligne par tranche avec son code (TF ferme ; TO1, TO2… ou la mention « optionnelle » sur la ligne : optionnelles). Nature modifiable et affermissement dans Mission › Marché).', 'TF : 6 j\nTO1 : 8 j\nTO2 : 10 j'],
   prix_jour: ['Votre prix de journée HT. Le montant HT se calcule tout seul avec les jours par tranche.', '400'],
   montant_ht: ['Calculé automatiquement : total des jours par tranche × prix par jour. Vous pouvez le corriger (prix arrondi, frais en sus) : c\'est le prix inscrit à l\'acte d\'engagement.', '13200'],
   repartition_ca: ['Pour le CA prévisionnel : année d\'encaissement prévue et montant HT, une ligne par année ; « reste » pour le solde. Sans répartition, tout le reste à encaisser compte sur l\'année en cours.', '2027 : 10000\n2028 : reste'],

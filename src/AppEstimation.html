@@ -42,20 +42,63 @@
 
   // ——— Liste des estimations ———
   function rendreListe(zone, d) {
-    var bouton = '<div class="actions-ligne"><a class="bouton" href="#estimation/nouvelle">Nouvelle estimation</a>' +
-      '<span class="legende">Estimation au ratio : typologie, surface, coefficient de localisation, date des travaux → montant par lot. Les ratios viennent de la <a href="#estimation/bibliotheque">bibliothèque</a>.</span></div>';
+    var rapide = '<section class="carte chiffrage-rapide" data-rapide><h2>Chiffrage rapide</h2><div class="chargement">Lecture des typologies…</div></section>';
+    var bouton = '<h2 class="titre-section">Estimations enregistrées</h2><div class="actions-ligne"><a class="bouton bouton--discret" href="#estimation/nouvelle">Nouvelle estimation</a>' +
+      '<span class="legende">Estimation rattachée à une affaire (n° KA), avec choix des lots et du coefficient de localisation, exportable en .xlsx.</span></div>';
     if (!d.estimations.length) {
-      zone.innerHTML = bouton + '<div class="vide-etat"><p><strong>Aucune estimation pour l\'instant.</strong></p>' +
-        '<p class="legende">Commencez par importer les postes d\'un ou plusieurs marchés attribués dans la <a href="#estimation/bibliotheque">bibliothèque</a>, puis créez une estimation.</p></div>';
+      zone.innerHTML = rapide + bouton + '<div class="vide-etat"><p><strong>Aucune estimation enregistrée.</strong></p>' +
+        '<p class="legende">Les ratios viennent des marchés importés dans la <a href="#estimation/bibliotheque">bibliothèque</a>.</p></div>';
+      brancherRapide(zone);
       return;
     }
-    zone.innerHTML = bouton + '<div class="tableau-conteneur"><table><thead><tr><th scope="col">N°</th><th scope="col">Affaire</th><th scope="col">Phase</th>' +
+    zone.innerHTML = rapide + bouton + '<div class="tableau-conteneur"><table><thead><tr><th scope="col">N°</th><th scope="col">Affaire</th><th scope="col">Phase</th>' +
       '<th scope="col">Typologie</th><th scope="col" class="num">Total HT</th><th scope="col">Statut</th></tr></thead><tbody>' +
       d.estimations.map(function (e) {
         return '<tr><td class="mono"><a href="#estimation/' + esc(e.id) + '">' + esc(e.id) + '</a></td><td><a href="#affaire/' + esc(e.id_affaire) + '">' + esc(e.id_affaire) + '</a> ' +
           '<span class="legende">' + esc(e.acheteur) + '</span></td><td>' + esc(e.phase) + ' · ind ' + esc(e.indice) + '</td>' +
           '<td>' + esc(e.typologie) + '</td><td class="num mono">' + (e.total_ht === '' ? '' : K.euros(e.total_ht)) + '</td><td>' + esc(e.statut) + '</td></tr>';
       }).join('') + '</tbody></table></div>';
+    brancherRapide(zone);
+  }
+
+  // ——— Chiffrage rapide : typologie, nature, surface → montant par lot, sans affaire ———
+  var prefill = null; // reprise du chiffrage rapide dans « Nouvelle estimation »
+  function brancherRapide(zone) {
+    var carte = $('[data-rapide]', zone);
+    if (!carte) return;
+    K.charger('est-form:', 'apiEstFormulaire', [''], function (f) {
+      var p = prefill || {};
+      carte.innerHTML = '<h2>Chiffrage rapide</h2><p class="legende">Indiquez la surface : le montant de chaque lot s\'affiche aussitôt (médiane des marchés de la bibliothèque, actualisée au dernier index, coefficient du département).</p>' +
+        '<form class="form-grille form-grille--4" data-rapide-form novalidate>' +
+          '<div class="champ-bloc"><label for="r-typo">Typologie</label><select class="champ" id="r-typo">' + options(f.typologies, p.typologie || '', 'code', function (t) { return t.libelle; }) + '</select></div>' +
+          '<div class="champ-bloc"><label for="r-nature">Nature</label><select class="champ" id="r-nature">' + options(f.natures, p.nature || f.natures[1] || f.natures[0]) + '</select></div>' +
+          '<div class="champ-bloc"><label for="r-surface">Surface (m²)</label><input class="champ mono num champ-surface" id="r-surface" inputmode="decimal" placeholder="ex. 530" value="' + esc(p.surface || '') + '"></div>' +
+          '<div class="champ-bloc"><label for="r-dep">Département</label><input class="champ mono" id="r-dep" placeholder="ex. 2B" value="' + esc(p.departement || '2B') + '"></div>' +
+        '</form><div data-rapide-resultat aria-live="polite"></div>';
+      var form = $('[data-rapide-form]', carte), sortie = $('[data-rapide-resultat]', carte);
+      var lire = function () {
+        return { typologie: $('#r-typo', form).value, nature: $('#r-nature', form).value, surface: $('#r-surface', form).value.trim(), departement: $('#r-dep', form).value.trim() };
+      };
+      var minuteur = null, n = 0;
+      var calculer = function () {
+        var d = lire();
+        if (!d.surface || !d.typologie || !d.departement) { sortie.innerHTML = '<p class="legende">Saisissez la surface pour obtenir les prix.</p>'; return; }
+        var jeton = ++n;
+        sortie.innerHTML = '<div class="chargement">Calcul…</div>';
+        K.appel('apiEstApercu', d).then(function (c) {
+          if (jeton !== n) return;
+          sortie.innerHTML = '<p class="legende">' + esc(c.entete.phase) + ' · K ' + String(c.k.k).replace('.', ',') + ' (' + esc(c.entete.k_detail || 'sans coefficient') + ')</p>' +
+            tableLignes(c.lignes, c.totaux, { aleas: c.entete.aleas_pct, tva: c.entete.tva, k: c.k.k }, false) + avertissements(c.avertissements) +
+            '<div class="actions-ligne"><button type="button" class="bouton" data-rapide-garder>Enregistrer pour une affaire…</button><span class="legende">Ouvre « Nouvelle estimation » avec ces valeurs.</span></div>';
+          $('[data-rapide-garder]', sortie).addEventListener('click', function () { prefill = lire(); K.afficher('estimation/nouvelle', true); });
+        }).catch(function (e) { if (jeton === n) sortie.innerHTML = K.bandeauErreur(e); });
+      };
+      var differer = function () { clearTimeout(minuteur); minuteur = setTimeout(calculer, 450); };
+      form.addEventListener('input', differer);
+      form.addEventListener('change', differer);
+      calculer();
+      if (!p.surface) $('#r-surface', form).focus();
+    }, function (e) { carte.innerHTML = '<h2>Chiffrage rapide</h2>' + K.bandeauErreur(e); });
   }
 
   // ——— Index Insee ———
@@ -361,6 +404,7 @@
 
   // ——— Nouvelle estimation (assistant au ratio) ———
   function rendreFormulaire(zone, f) {
+    var p = prefill || {}; prefill = null;
     var a0 = f.affaires.filter(function (a) { return a.id === f.choisie; })[0] || f.affaires[0] || {};
     var facteurs = Object.keys(f.k).filter(function (x) { return x !== 'kdép'; });
     var selectK = function (fac, choisi) {
@@ -371,16 +415,16 @@
     };
     var neutre = function (fac) { var m = f.k[fac].filter(function (x) { return x.coefficient === 0; })[0]; return m ? m.id : ''; };
     zone.innerHTML = '<form class="assistant" data-assistant novalidate>' +
-      '<fieldset><legend>1. Affaire et typologie</legend><div class="form-grille form-grille--4">' +
+      '<fieldset><legend>1. Projet : typologie, nature et surface</legend><div class="form-grille form-grille--4">' +
+        '<div class="champ-bloc"><label for="e-typo">Typologie</label><select class="champ" id="e-typo">' + options(f.typologies, p.typologie || '', 'code', function (t) { return t.libelle; }) + '</select></div>' +
+        '<div class="champ-bloc"><label for="e-nature">Nature</label><select class="champ" id="e-nature">' + options(f.natures, p.nature || f.natures[1] || f.natures[0]) + '</select></div>' +
+        '<div class="champ-bloc"><label for="e-surface">Surface de référence (m²)</label><input class="champ mono num champ-surface" id="e-surface" inputmode="decimal" placeholder="SDP, ex. 530" value="' + esc(p.surface || '') + '"></div>' +
+        '<div class="champ-bloc"><label for="e-dep">Département</label><input class="champ mono" id="e-dep" value="' + esc(p.departement || a0.departement || '') + '" placeholder="ex. 2B"></div>' +
+      '</div></fieldset>' +
+      '<fieldset><legend>2. Affaire et phase</legend><div class="form-grille form-grille--4">' +
         '<div class="champ-bloc champ-bloc--large"><label for="e-affaire">Affaire</label><select class="champ" id="e-affaire">' +
           options(f.affaires, a0.id, 'id', function (a) { return a.id + ' — ' + a.acheteur + ' — ' + String(a.objet || '').slice(0, 60); }) + '</select></div>' +
         '<div class="champ-bloc"><label for="e-phase">Phase</label><select class="champ" id="e-phase">' + options(f.phases, f.phases[1] || f.phases[0]) + '</select></div>' +
-        '<div class="champ-bloc"><label for="e-typo">Typologie</label><select class="champ" id="e-typo">' + options(f.typologies, '', 'code', function (t) { return t.libelle; }) + '</select></div>' +
-        '<div class="champ-bloc"><label for="e-nature">Nature</label><select class="champ" id="e-nature">' + options(f.natures, f.natures[1] || f.natures[0]) + '</select></div>' +
-      '</div></fieldset>' +
-      '<fieldset><legend>2. Surface et lieu</legend><div class="form-grille form-grille--4">' +
-        '<div class="champ-bloc"><label for="e-surface">Surface de référence (m²)</label><input class="champ mono num" id="e-surface" inputmode="decimal" placeholder="SDP"></div>' +
-        '<div class="champ-bloc"><label for="e-dep">Département</label><input class="champ mono" id="e-dep" value="' + esc(a0.departement || '') + '" placeholder="ex. 2B"></div>' +
       '</div></fieldset>' +
       '<fieldset><legend>3. Coefficient de localisation (' + esc(f.kMode) + ')</legend><div class="form-grille form-grille--4">' +
         (f.k['kdép'] ? '<div class="champ-bloc"><label for="k-kdép">kdép (département)</label>' + selectK('kdép', '') + '</div>' : '') +
@@ -404,25 +448,57 @@
     $('#e-dep', form).addEventListener('change', choisirKdep);
     $('#e-affaire', form).addEventListener('change', function () {
       var a = f.affaires.filter(function (x) { return x.id === $('#e-affaire', form).value; })[0];
-      if (a && a.departement) { $('#e-dep', form).value = a.departement; choisirKdep(); }
+      if (a && a.departement) { $('#e-dep', form).value = a.departement; choisirKdep(); majMontants(); }
     });
+    // Coefficient K côté client (même règle que Est_calculerK_) pour les montants affichés en direct
+    var coefK = function () {
+      var c = $$('[data-k]', form).map(function (s) {
+        var fac = s.getAttribute('data-k'), m = (f.k[fac] || []).filter(function (x) { return x.id === s.value; })[0];
+        return m ? m.coefficient : null;
+      }).filter(function (x) { return x !== null; });
+      if (f.kMode === 'produit') return c.reduce(function (p, x) { return p * x; }, 1);
+      if (f.kMode === 'somme') return 1 + c.reduce(function (s, x) { return s + x - 1; }, 0);
+      return c.length ? c.reduce(function (s, x) { return s + x; }, 0) : 1;
+    };
+    var ratiosLots = {};
+    var majMontants = function () {
+      var surf = Number(String($('#e-surface', form).value).replace(/\s/g, '').replace(',', '.'));
+      var k = coefK(), total = 0, sansRatio = 0;
+      $$('.lot-est', form).forEach(function (lab) {
+        var cb = $('input', lab), x = ratiosLots[cb.value], m = $('.lot-est__montant', lab);
+        if (!m) return;
+        if (!(surf > 0) || !x || !x.utilisable) { m.textContent = ''; if (cb.checked && (!x || !x.utilisable)) sansRatio++; return; }
+        var v = x.mediane * surf * k;
+        m.textContent = K.euros(Math.round(v));
+        if (cb.checked) total += v;
+      });
+      var t = $('[data-total-lots]', form);
+      if (t) t.innerHTML = surf > 0
+        ? 'Total des lots cochés ≈ <strong class="mono">' + K.euros(Math.round(total)) + ' HT</strong> <span class="legende">(hors aléas et projection' + (sansRatio ? ', ' + sansRatio + ' lot(s) sans ratio à saisir' : '') + ')</span>'
+        : '<span class="legende">Indiquez la surface (étape 1) pour voir le montant de chaque lot.</span>';
+    };
     var chargerLots = function () {
       var z = $('[data-lots-est]', form);
       K.appel('apiEstRatios', $('#e-typo', form).value, $('#e-nature', form).value).then(function (r) {
-        var parLot = {};
-        r.forEach(function (x) { parLot[x.lot] = x; });
+        ratiosLots = {};
+        r.forEach(function (x) { ratiosLots[x.lot] = x; });
         z.innerHTML = '<p class="legende">Lots cochés d\'office : ceux qui ont un ratio. Un lot sans ratio peut être ajouté, son PU sera à saisir.</p><div class="lots-est">' +
           f.lots.map(function (l) {
-            var x = parLot[l.code];
+            var x = ratiosLots[l.code];
             var ok = x && x.utilisable;
             return '<label class="lot-est"><input type="checkbox" value="' + esc(l.code) + '"' + (ok ? ' checked' : '') + '> <span class="mono">' + esc(l.code) + '</span> ' + esc(l.libelle) +
+              ' <strong class="mono lot-est__montant"></strong>' +
               '<span class="legende">' + (x ? eur2(x.mediane) + '/m² · ' + x.n + ' marché(s) · fiab. ' + esc(x.fiabilite) : 'pas de ratio') + '</span></label>';
-          }).join('') + '</div>';
+          }).join('') + '</div><p class="total-lots" data-total-lots aria-live="polite"></p>';
+        majMontants();
       }).catch(function (e) { z.innerHTML = K.bandeauErreur(e); });
     };
     $('#e-typo', form).addEventListener('change', chargerLots);
     $('#e-nature', form).addEventListener('change', chargerLots);
+    $('#e-surface', form).addEventListener('input', majMontants);
+    form.addEventListener('change', function (ev) { if (ev.target.matches('[data-k], .lots-est input, #e-dep')) majMontants(); });
     chargerLots();
+    if (!p.surface) $('#e-surface', form).focus();
     var lire = function () {
       return {
         id_affaire: $('#e-affaire', form).value, phase: $('#e-phase', form).value, typologie: $('#e-typo', form).value, nature: $('#e-nature', form).value,
@@ -475,7 +551,9 @@
     var e = c.estimation, modifiable = e.statut !== 'figée';
     zone.innerHTML = '<div class="tete-est"><h2>' + esc(e.id) + ' — ' + esc(e.phase) + ' ind ' + esc(e.indice) + ' <span class="statut ' + (modifiable ? 'statut--encours' : 'statut--ok') + '">' + esc(e.statut) + '</span></h2>' +
         '<p><a href="#affaire/' + esc(c.affaire.id) + '" class="mono">' + esc(c.affaire.id) + '</a> ' + esc(c.affaire.acheteur) + ' — ' + esc(c.affaire.objet) + '</p>' +
-        '<p class="legende">' + esc(c.typologie) + ' · ' + esc(e.nature) + ' · département ' + esc(e.departement) + ' · ' + Number(e.surface_sdp).toLocaleString('fr-FR') + ' m² · K ' + String(e.k).replace('.', ',') +
+        '<p class="legende">' + esc(c.typologie) + ' · ' + esc(e.nature) + ' · département ' + esc(e.departement) + ' · ' +
+          (modifiable ? '<label class="surface-est">Surface <input class="champ mono num champ-surface" data-surface-est inputmode="decimal" value="' + esc(String(e.surface_sdp).replace('.', ',')) + '" aria-label="Surface de référence (m²)"> m²</label>'
+            : Number(e.surface_sdp).toLocaleString('fr-FR') + ' m²') + ' · K ' + String(e.k).replace('.', ',') +
           ' (' + esc(e.k_detail) + ')' + (e.date_travaux ? ' · travaux ' + mois(e.date_travaux) : '') + '</p></div>' +
       (c.lignesActualisees ? '<p class="bandeau">' + c.lignesActualisees + ' lot(s) mis à jour avec les ratios actuels de la bibliothèque.</p>' : '') +
       tableLignes(c.lignes, c.totaux, { aleas: e.aleas_pct, tva: e.tva, k: e.k }, modifiable) +
@@ -484,6 +562,11 @@
         (modifiable ? '<button class="bouton bouton--discret" type="button" data-figer>Figer</button><button class="bouton bouton--discret" type="button" data-supprimer-est>Supprimer</button>' : '') +
         (e.export_url ? '<a href="' + esc(e.export_url) + '" target="_blank" rel="noopener">Dernier export</a>' : '') +
         '<span class="legende">' + (modifiable ? 'Brouillon : les lots au ratio suivent la bibliothèque (nouveaux marchés, nouveaux index) ; un PU saisi à la main est conservé. Figée, l\'estimation ne bouge plus.' : 'Estimation figée : ratios et PU ne bougent plus.') + '</span></div>';
+    var surf = $('[data-surface-est]', zone);
+    if (surf) surf.addEventListener('change', function () {
+      K.appel('apiEstSurfaceMaj', e.id, surf.value).then(function (c2) { K.toast('Surface enregistrée : montants recalculés.'); rendreEstimation(zone, c2); })
+        .catch(function (er) { K.toast(er.message, true); });
+    });
     $$('[data-pu]', zone).forEach(function (inp) {
       inp.addEventListener('change', function () {
         K.appel('apiEstLigneMaj', inp.closest('tr').getAttribute('data-ligne'), { pu_ht: inp.value }).then(function (c2) { K.toast('PU enregistré.'); rendreEstimation(zone, c2); })

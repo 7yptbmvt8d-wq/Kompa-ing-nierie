@@ -372,7 +372,7 @@ var AIDES_CHAMPS = {
   cotraitant: ['Si groupement : nom du ou des cotraitants et leur rôle.', 'Atelier Durand, architecte (mandataire)'],
   tranches: ['Découpage de la mission prévu par le marché (acte d\'engagement, CCAP) : tranche ferme, tranches optionnelles ou phases. Une ligne par tranche.',
     'TF : étude de faisabilité\nTO1 : programme\nTO2 : suivi des études de maîtrise d\'œuvre'],
-  jours_par_tranche: ['Jours que vous prévoyez pour chaque tranche, une ligne par tranche avec son code (TF ferme ; TO1, TO2… optionnelles, à affermir dans Mission › Facturation).', 'TF : 6 j\nTO1 : 8 j\nTO2 : 10 j'],
+  jours_par_tranche: ['Jours que vous prévoyez pour chaque tranche, une ligne par tranche avec son code (TF ferme ; TO1, TO2… ou la mention « optionnelle » sur la ligne : optionnelles). Nature modifiable et affermissement dans Mission › Marché).', 'TF : 6 j\nTO1 : 8 j\nTO2 : 10 j'],
   prix_jour: ['Votre prix de journée HT. Le montant HT se calcule tout seul avec les jours par tranche.', '400'],
   montant_ht: ['Calculé automatiquement : total des jours par tranche × prix par jour. Vous pouvez le corriger (prix arrondi, frais en sus) : c\'est le prix inscrit à l\'acte d\'engagement.', '13200'],
   repartition_ca: ['Pour le CA prévisionnel : année d\'encaissement prévue et montant HT, une ligne par année ; « reste » pour le solde. Sans répartition, tout le reste à encaisser compte sur l\'année en cours.', '2027 : 10000\n2028 : reste'],
@@ -2943,7 +2943,7 @@ function Indicateurs_resume(quand) {
 // ════════ Livrables.js ════════
 
 /**
- * Livrables de la mission (fiche › Mission › Livrables) : une ligne par livrable du CCTP.
+ * Livrables de la mission (fiche › Mission › Planning) : une ligne par livrable du CCTP.
  * Les échéances des livrables non remis alimentent l'Échéancier et l'e-mail du matin.
  * Organisation validée le 18/11/2026.
  */
@@ -3421,7 +3421,7 @@ function PiecesOffre_resume_(pieces) {
  *
  * - Montant d'une tranche : montant du marché (notifié, à défaut l'offre) au prorata des jours de la tranche
  *   (« Jours par tranche » : « TF : 50 j »). Sans jours par tranche : une seule ligne « Mission ».
- * - Facture prévue à la remise du dernier livrable de la tranche (Mission › Livrables, même code de tranche) ;
+ * - Facture prévue à la remise du dernier livrable de la tranche (Mission › Planning, même code de tranche) ;
  *   paiement prévu au délai public (echeance.paiement_public_j, 30 jours).
  * - Une facture saisie avec le code de la tranche (bouton « Facturer » du planning) remplace la prévision ;
  *   « payée » dès son encaissement. Les factures sans tranche comptent seulement dans l'encaissé de l'affaire.
@@ -3431,10 +3431,22 @@ function PiecesOffre_resume_(pieces) {
 
 var PLANNING_MISSION = 'MISSION';
 var ETATS_AFFERMISSEMENT = ['optionnelle', 'affermie', 'non affermie'];
+/** États enregistrables : affermissement, plus « ferme » pour déclarer ferme une tranche au code d'option. */
+var ETATS_TRANCHE = ETATS_AFFERMISSEMENT.concat(['ferme']);
 
-/** Tranche optionnelle ou conditionnelle d'après son code (TO1, TC2, TOP…) ; TF et Mission sont fermes. */
-function Planning_estOptionnelle_(code) {
-  return /^T(O|C)/.test(String(code || '').toUpperCase());
+/**
+ * Tranche optionnelle ou conditionnelle d'après son code (TO1, TC2, TOP…) ou la mention « optionnelle » /
+ * « conditionnelle » sur sa ligne de « Jours par tranche » ; TF et Mission sont fermes.
+ */
+function Planning_estOptionnelle_(code, ligne) {
+  return /^T(O|C)/.test(String(code || '').toUpperCase()) || /option|condition/i.test(String(ligne || ''));
+}
+
+/** Nature d'une tranche : le choix enregistré (Mission › Marché) l'emporte sur le code et la mention. */
+function Planning_trancheOptionnelle_(t, etatsT) {
+  var e = etatsT[t.tranche];
+  if (e) return e.etat !== 'ferme';
+  return Planning_estOptionnelle_(t.tranche, t.texte);
 }
 
 /** État des tranches optionnelles enregistré sur l'affaire : « TO1:affermie:2027-03-01;TO2:non affermie ». */
@@ -3444,23 +3456,29 @@ function Planning_etatsTranches_(texte) {
     var m = p.split(':');
     if (m.length < 2) return;
     var code = Planning_codeTranche_(m[0]);
-    if (code && ETATS_AFFERMISSEMENT.indexOf(m[1].trim()) >= 0) out[code] = { etat: m[1].trim(), date: (m[2] || '').trim() };
+    if (code && ETATS_TRANCHE.indexOf(m[1].trim()) >= 0) out[code] = { etat: m[1].trim(), date: (m[2] || '').trim() };
   });
   return out;
 }
 
-/** Affermit une tranche optionnelle (ou la déclare non affermie, ou la remet optionnelle). */
+/**
+ * Affermit une tranche optionnelle (ou la déclare non affermie, ou la remet optionnelle) ;
+ * « ferme » / « optionnelle » fixent aussi la nature d'une tranche quel que soit son code (Mission › Marché).
+ */
 function Planning_affermir(idAffaire, tranche, etat, dateAffermissement) {
   var a = Affaires_get_(idAffaire);
   var code = Planning_codeTranche_(tranche);
-  if (ETATS_AFFERMISSEMENT.indexOf(etat) < 0) throw new Error('État attendu : ' + ETATS_AFFERMISSEMENT.join(', ') + '.');
+  if (ETATS_TRANCHE.indexOf(etat) < 0) throw new Error('État attendu : ' + ETATS_TRANCHE.join(', ') + '.');
   var etats = Planning_etatsTranches_(a.tranches_etat);
   var d = date_(dateAffermissement);
-  if (etat === 'optionnelle') delete etats[code];
+  var t = Planning_tranches_(a.jours_par_tranche).filter(function (x) { return x.tranche === code; })[0] || { tranche: code, texte: '' };
+  var parDefautOpt = Planning_estOptionnelle_(code, t.texte);
+  if (etat === 'optionnelle' && parDefautOpt) delete etats[code];
+  else if (etat === 'ferme' && !parDefautOpt) delete etats[code];
   else etats[code] = { etat: etat, date: d ? jourIso_(d) : (etat === 'affermie' ? jourIso_(aujourdhui_()) : '') };
   var texte = Object.keys(etats).map(function (k) { return k + ':' + etats[k].etat + (etats[k].date ? ':' + etats[k].date : ''); }).join(';');
   Db_maj(TABLES.AFFAIRES, idAffaire, { tranches_etat: texte });
-  if (etat !== 'optionnelle') Affaires_ajouterNote(idAffaire, 'Tranche ' + code + ' ' + etat + (etats[code].date ? ' le ' + etats[code].date.split('-').reverse().join('/') : ''));
+  if (etat !== 'optionnelle' && etat !== 'ferme') Affaires_ajouterNote(idAffaire, 'Tranche ' + code + ' ' + etat + (etats[code].date ? ' le ' + etats[code].date.split('-').reverse().join('/') : ''));
   return etats;
 }
 
@@ -3479,7 +3497,7 @@ function Planning_tranches_(texte) {
     if (!(j > 0)) return;
     var m = l.match(/^([^:=]+?)\s*[:=]/);
     var code = Planning_codeTranche_(m ? m[1] : (l.match(/^([A-Za-z][\w-]*)/) || [])[1] || 'T' + (i + 1));
-    out.push({ tranche: code, jours: j });
+    out.push({ tranche: code, jours: j, texte: l });
   });
   return out;
 }
@@ -3523,9 +3541,10 @@ function Planning_affaire(idAffaire, quand) {
       tranche: t.tranche, jours: t.jours, montant: montant,
       livrables: liv.map(function (l) { return { libelle: String(l.libelle), date: date_(l.date_echeance) ? jourIso_(date_(l.date_echeance)) : '', etat: String(l.etat) }; }),
       etat: 'à planifier', dateFacture: '', dateEcheance: '', dateEncaissement: '', montantEncaisse: 0, facture: null, retard: null,
-      optionnelle: Planning_estOptionnelle_(t.tranche),
-      affermissement: Planning_estOptionnelle_(t.tranche) ? (etatsT[t.tranche] || { etat: 'optionnelle' }).etat : 'ferme',
-      dateAffermissement: etatsT[t.tranche] ? etatsT[t.tranche].date : ''
+      optionnelle: Planning_trancheOptionnelle_(t, etatsT),
+      affermissement: Planning_trancheOptionnelle_(t, etatsT)
+        ? (etatsT[t.tranche] && ETATS_AFFERMISSEMENT.indexOf(etatsT[t.tranche].etat) >= 0 ? etatsT[t.tranche].etat : 'optionnelle') : 'ferme',
+      dateAffermissement: etatsT[t.tranche] && etatsT[t.tranche].etat !== 'ferme' ? etatsT[t.tranche].date : ''
     };
     var f = factures.filter(function (x) { return Planning_codeTranche_(x.tranche) === t.tranche; })
       .sort(function (x, y) { return (date_(y.date) || 0) - (date_(x.date) || 0); })[0];

@@ -157,6 +157,10 @@ function apiEstEstimation(id) {
   });
 }
 
+function apiEstSurfaceMaj(id, surface) {
+  return repondre_(function () { return Est_modifierSurface_(id, surface); });
+}
+
 function apiEstLigneMaj(idLigne, champs) {
   return repondre_(function () { return Est_ligneMaj_(idLigne, champs); });
 }

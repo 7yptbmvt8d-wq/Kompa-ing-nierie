@@ -272,7 +272,7 @@
           (a.remarques.length ? '<div class="legende">' + esc(a.remarques.join(' ; ')) + '</div>' : '') + '</td></tr>';
     }).join('');
     el.innerHTML = (sansTitre ? '' : K.titre('CA prévisionnel', 'Par année d\'encaissement : base des seuils de la micro-entreprise et de la franchise de TVA')) +
-      (aPreciser ? '<div class="bandeau">' + aPreciser + ' affaire(s) sans planning : leur reste à encaisser est compté sur ' + p.anneeCourante + '. Ajoutez les livrables datés de chaque tranche (fiche › Mission › Livrables).</div>' : '') +
+      (aPreciser ? '<div class="bandeau">' + aPreciser + ' affaire(s) sans planning : leur reste à encaisser est compté sur ' + p.anneeCourante + '. Ajoutez les livrables datés de chaque tranche (fiche › Mission › Planning).</div>' : '') +
       '<div class="tableau-conteneur"><table class="table-previsionnel"><thead><tr><th scope="col"><span class="seul-lecteur">Rubrique</span></th>' + colonnes + '</tr></thead><tbody>' +
         ligne('Encaissé', 'encaisse', false, 'factures payées') +
         ligne('Prévu', 'prevu', false, 'affaires gagnées, reste à encaisser') +

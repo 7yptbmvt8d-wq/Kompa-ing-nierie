@@ -323,20 +323,86 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .synthese__action { background: var(--kompa-brume) !important; }
 .synthese__action .synthese__val { color: var(--kompa-rouille); }
 .jours { font-family: var(--kompa-font-mono); font-size: 12px; color: var(--kompa-gris); font-weight: 400; }
-.volets { display: flex; align-items: stretch; border-bottom: 2px solid var(--kompa-ardoise); overflow-x: auto; }
-.volet { flex: 0 0 auto; border: 0; background: transparent; padding: var(--kompa-s3) var(--kompa-s5) var(--kompa-s2); cursor: pointer; text-align: left; border-radius: var(--kompa-radius-sm) var(--kompa-radius-sm) 0 0; color: var(--kompa-gris); font: inherit; }
-.volet__nom { display: block; font-size: 18px; font-weight: 700; }
-.volet__etapes { display: block; font-size: 12px; font-family: var(--kompa-font-mono); }
-.volet__ici { margin-left: var(--kompa-s2); font-size: 11px; font-family: var(--kompa-font-mono); font-weight: 600; color: var(--kompa-rouille); }
-.volet[aria-selected="true"] { background: var(--kompa-ardoise); color: var(--kompa-texte-inverse); }
-.volet[aria-selected="true"] .volet__etapes { color: var(--kompa-texte-inverse-2); }
-.volet[aria-selected="true"] .volet__ici { color: var(--kompa-rouille-clair); }
-.volet.est-inactif:not([aria-selected="true"]) { opacity: .6; }
-.volets__journal { margin-left: auto; align-self: center; }
-.sous-onglets { display: flex; gap: var(--kompa-s5); border-bottom: var(--kompa-filet-fin); margin: 0 0 var(--kompa-s5); overflow-x: auto; }
-.sous-onglets button { flex: 0 0 auto; border: 0; background: none; padding: var(--kompa-s3) 0 var(--kompa-s2); cursor: pointer; color: var(--kompa-gris); font: inherit; font-weight: 500; border-bottom: 3px solid transparent; }
-.sous-onglets button[aria-selected="true"] { color: var(--kompa-ardoise); border-bottom-color: var(--kompa-rouille); }
-.sous-onglets__codes { font-family: var(--kompa-font-mono); font-size: 12px; color: var(--kompa-gris); }
+/* Fiche affaire (réorganisation du 21/11/2026) : volets, étapes, blocs en lecture, tranches, panneaux */
+.fiche-tete__actions { flex-direction: row; flex-wrap: wrap; align-items: flex-start; justify-content: flex-end; gap: var(--kompa-s2); }
+.fiche-tete__actions > a { margin-left: 0; }
+.menu-statut { position: relative; }
+.menu-statut > summary { list-style: none; cursor: pointer; }
+.menu-statut > summary::-webkit-details-marker { display: none; }
+.menu-statut__liste { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; display: flex; flex-direction: column; gap: var(--kompa-s1); min-width: 180px;
+  background: var(--kompa-blanc); border: var(--kompa-filet-fin); border-radius: var(--kompa-radius-sm); box-shadow: 0 8px 24px rgba(11, 18, 32, .14); padding: var(--kompa-s2); }
+.menu-statut__liste .bouton { justify-content: flex-start; text-align: left; }
+.volets-fiche { display: flex; gap: 0; border-bottom: 2px solid var(--kompa-ardoise); margin-bottom: var(--kompa-s4); overflow-x: auto; }
+.volets-fiche button { flex: 0 0 auto; border: 0; background: transparent; padding: var(--kompa-s3) var(--kompa-s5); cursor: pointer; font: inherit; font-size: 17px; font-weight: 700; color: var(--kompa-gris); border-radius: var(--kompa-radius-sm) var(--kompa-radius-sm) 0 0; }
+.volets-fiche button[aria-selected="true"] { background: var(--kompa-ardoise); color: var(--kompa-texte-inverse); }
+.volets-fiche button.est-inactif:not([aria-selected="true"]) { opacity: .55; }
+.volets-fiche button .legende { font-weight: 500; }
+.sous-nav--fiche button { border: 0; background: none; padding: var(--kompa-s2) 0; cursor: pointer; font: inherit; font-weight: 500; color: var(--kompa-gris); border-bottom: 3px solid transparent; }
+.sous-nav--fiche button[aria-selected="true"] { color: var(--kompa-ardoise); border-bottom-color: var(--kompa-rouille); }
+.etapes-ao { list-style: none; padding: 0; margin: 0 0 var(--kompa-s5); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.etapes-ao li { display: flex; }
+.etape-ao { flex: 1; display: flex; gap: var(--kompa-s3); align-items: flex-start; text-align: left; font: inherit; cursor: pointer; background: var(--kompa-blanc);
+  border: var(--kompa-filet-fin); margin-left: -1px; padding: var(--kompa-s3) var(--kompa-s4); color: var(--kompa-texte); }
+.etapes-ao li:first-child .etape-ao { border-radius: var(--kompa-radius) 0 0 var(--kompa-radius); margin-left: 0; }
+.etapes-ao li:last-child .etape-ao { border-radius: 0 var(--kompa-radius) var(--kompa-radius) 0; }
+.etape-ao b { display: block; color: var(--kompa-ardoise); }
+.etape-ao__sous { display: block; font-size: 12px; color: var(--kompa-gris); }
+.etape-ao__num { flex: 0 0 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; background: var(--kompa-brume); color: var(--kompa-gris); }
+.etape-ao--faite .etape-ao__num { background: var(--app-statut-gagnee); color: #fff; }
+.etape-ao--ici .etape-ao__num { background: var(--kompa-rouille); color: #fff; }
+.etape-ao--arretee .etape-ao__num { background: var(--kompa-gris); color: #fff; }
+.etape-ao[aria-selected="true"] { border: 2px solid var(--kompa-rouille); position: relative; z-index: 1; background: var(--kompa-rouille-fond, #FFF8F3); }
+.fiche-deux { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: var(--kompa-s5); align-items: start; }
+.bloc-lect { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius); padding: var(--kompa-s3) var(--kompa-s4) var(--kompa-s4); margin-bottom: var(--kompa-s4); background: var(--kompa-blanc); }
+.bloc-lect .fiche-bloc__titre { border-top: 0; padding-top: 0; margin: 0 !important; }
+.bloc-lect__tete { display: flex; justify-content: space-between; align-items: center; gap: var(--kompa-s3); margin-bottom: var(--kompa-s3); min-height: 32px; }
+.lect { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--kompa-s3) var(--kompa-s5); margin: 0; }
+.lect dt { font-size: 12px; color: var(--kompa-gris); }
+.lect dd { margin: 0; overflow-wrap: anywhere; }
+.lect .lect--large { grid-column: 1 / -1; }
+.lect .pre { white-space: pre-wrap; }
+.calcul-lecture { margin: var(--kompa-s3) 0 0; padding-top: var(--kompa-s2); border-top: var(--kompa-filet-fin); }
+.bloc-lect .bloc-form__actions { display: flex; justify-content: flex-end; gap: var(--kompa-s2); }
+.bloc-lect #pieces-offre, .fiche-deux #pieces-offre { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius); padding: var(--kompa-s3) var(--kompa-s4); }
+.champ--compact { padding: 4px 8px; min-height: 0; font-size: 14px; }
+.table-tranches td { vertical-align: middle; }
+.table-tranches [data-nature] { min-width: 140px; }
+#tranches { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius); padding: var(--kompa-s3) var(--kompa-s4); }
+#tranches .fiche-bloc__titre { border-top: 0; padding-top: 0; }
+.tranche-carte { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius); padding: var(--kompa-s3) var(--kompa-s4); margin-bottom: var(--kompa-s3); background: var(--kompa-blanc); }
+.tranche-carte.est-arretee { opacity: .6; }
+.tranche-carte__tete { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kompa-s2) var(--kompa-s3); }
+.tranche-carte__act { margin-left: auto; display: flex; flex-wrap: wrap; gap: var(--kompa-s2); }
+.tranche-carte__corps { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: var(--kompa-s3); margin-top: var(--kompa-s3); font-size: 14px; }
+.tranche-carte__corps > div { background: var(--kompa-brume); border-radius: var(--kompa-radius-sm); padding: var(--kompa-s2) var(--kompa-s3); min-width: 0; }
+.tranche-carte__corps .legende { display: block; }
+.tranche-carte .k { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--kompa-gris); font-weight: 600; margin-bottom: var(--kompa-s1); }
+.livs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--kompa-s1); }
+.liv { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kompa-s1) var(--kompa-s2); }
+.liv .champ { width: auto; flex: 0 0 auto; }
+.liv .liv__lib { flex: 1 1 160px; min-width: 0; }
+.liv input[type=date] { width: 150px; }
+.fiche-deux #pieces-offre .fiche-bloc__titre { border-top: 0; padding-top: 0; }
+.liv__losange { color: var(--kompa-ardoise); }
+.factures-repli > summary { cursor: pointer; padding: var(--kompa-s2) 0; }
+.factures-repli { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius); padding: var(--kompa-s2) var(--kompa-s4); }
+.docs-groupe { margin-bottom: var(--kompa-s4); }
+.docs-groupe h3 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--kompa-ardoise); margin: 0 0 var(--kompa-s2); }
+.docs-groupe.est-vide { opacity: .6; }
+.pieces__dossier > summary { cursor: pointer; padding: var(--kompa-s1) 0; }
+.tiroir-docs .depot { margin-bottom: var(--kompa-s4); }
+@media (max-width: 900px) {
+  .fiche-deux, .tranche-carte__corps { grid-template-columns: minmax(0, 1fr); }
+  .etapes-ao { grid-template-columns: minmax(0, 1fr); }
+  .etapes-ao li .etape-ao { border-radius: var(--kompa-radius-sm) !important; margin: 0 0 -1px; }
+}
+/* Estimation : chiffrage rapide et surface */
+.chiffrage-rapide { margin-bottom: var(--kompa-s6); }
+.champ-surface { font-size: 18px; font-weight: 600; }
+.lot-est__montant { margin-left: auto; color: var(--kompa-ardoise); }
+.total-lots { margin-top: var(--kompa-s3); }
+.surface-est .champ-surface { width: 110px; display: inline-block; font-size: 15px; padding: 2px 8px; }
+.titre-section { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--kompa-ardoise); margin: var(--kompa-s5) 0 var(--kompa-s3); }
 .fiche-bloc { margin-bottom: var(--kompa-s6); }
 .fiche-bloc__titre { font-size: 13px !important; letter-spacing: .12em; text-transform: uppercase; color: var(--kompa-ardoise); border-top: var(--kompa-filet-section); padding-top: var(--kompa-s2); margin: 0 0 var(--kompa-s3) !important; }
 .tiroir-journal { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100%); background: var(--kompa-blanc); border-left: var(--kompa-filet-fin); box-shadow: -8px 0 24px rgba(11, 18, 32, .12); padding: var(--kompa-s5); overflow-y: auto; z-index: 30; }
