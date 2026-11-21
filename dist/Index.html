@@ -3030,9 +3030,14 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       '</tbody></table></div>' +
       '<p class="legende">Estimations calculées avec les taux de l\'onglet Paramètres, à vérifier chaque année sur votre espace URSSAF. ' +
       'Une relance « Déclaration URSSAF » apparaît dans l\'échéancier et l\'e-mail du matin tant qu\'une période terminée n\'est pas marquée déclarée.</p>' +
-      blocCfe(d);
+      blocCfe(d) + blocRevenus(d);
 
     brancherCfe(el, d);
+    var br = el.querySelector('[data-revenus-faite]');
+    if (br) br.addEventListener('click', function () {
+      K.appel('apiRevenusDeclares', d.revenus.annee, '').then(function (r) { K.toast('Déclaration de revenus ' + d.revenus.annee + ' marquée faite.'); rendreFiscal(el, r); })
+        .catch(function (e) { K.toast(e.message, true); });
+    });
     Array.prototype.forEach.call(el.querySelectorAll('[data-declarer]'), function (b) {
       b.addEventListener('click', function () { dialogueDeclarer(el, b.getAttribute('data-declarer'), b.getAttribute('data-libelle'), b.getAttribute('data-ca')); });
     });
@@ -3046,6 +3051,19 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
 
   // ——— CFE (cotisation foncière des entreprises) ———
   var ETATS_CFE = { 'payée': 'statut--ok', 'en retard': 'statut--ko', 'à payer': 'statut--alerte', 'à venir': 'statut--encours', 'exonérée': 'statut--neutre', 'non due': 'statut--neutre' };
+
+  function blocRevenus(d) {
+    var r = d.revenus;
+    if (!r || r.etat === 'non due') return '';
+    var cls = { 'à venir': 'statut--neutre', 'à faire': 'statut--alerte', 'en retard': 'statut--ko', 'faite': 'statut--ok' }[r.etat] || 'statut--neutre';
+    return '<div class="bloc-cfe"><div class="bloc-cfe__tete"><h3>Déclaration de revenus ' + r.annee + '</h3>' +
+      '<span class="statut ' + cls + '">' + esc(r.etat) + '</span>' +
+      '<span>CA ' + r.anneeCa + ' à reporter : <strong class="mono">' + K.euros(r.ca) + '</strong></span>' +
+      '<span class="legende">' + (r.etat === 'faite' ? 'faite le <span class="mono">' + jour(r.date_declaration) + '</span>' : 'du <span class="mono">' + jour(r.ouverture) + '</span> au <span class="mono">' + jour(r.echeance) + '</span>') + '</span>' +
+      (r.etat !== 'faite' ? '<button type="button" class="bouton" data-revenus-faite>Faite</button>' : '') + '</div>' +
+      '<p class="legende">Sur impots.gouv.fr, déclaration en ligne : CA encaissé de l\'année ' + r.anneeCa + ' dans la partie micro-entrepreneur (déclaration complémentaire 2042-C-PRO). ' +
+      'Dates à vérifier chaque printemps (Paramètres › Finances).</p></div>';
+  }
 
   function blocCfe(d) {
     var c = d.cfe;

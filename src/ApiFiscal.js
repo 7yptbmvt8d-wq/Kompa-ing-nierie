@@ -10,6 +10,11 @@ function apiDeclarer(idPeriode, caDeclare, dateDeclaration) {
   return repondre_(function () { Fiscal_marquerDeclaree(idPeriode, caDeclare, dateDeclaration); Relances_synchroniser(); return Fiscal_declarations(Number(String(idPeriode).slice(0, 4))); });
 }
 
+/** Déclaration de revenus faite (CA de l'année précédente reporté sur impots.gouv). */
+function apiRevenusDeclares(annee, dateDeclaration) {
+  return repondre_(function () { Fiscal_revenusDeclares(annee, dateDeclaration); return Fiscal_declarations(Number(annee)); });
+}
+
 function apiCfePayee(annee, montant, datePaiement) {
   return repondre_(function () { Fiscal_cfePayee(annee, montant, datePaiement); return Fiscal_declarations(Number(annee)); });
 }

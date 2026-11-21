@@ -89,6 +89,7 @@ function Fiscal_declarations(annee, quand) {
     tauxManquants: taux.cotisations === null || taux.cfp === null || taux.impot === null,
     periodes: periodes,
     cfe: Fiscal_cfe(annee, quand),
+    revenus: Fiscal_declarationRevenus(annee, quand),
     cfeProchaine: (function () {
       for (var an = annee + 1; an <= annee + 4; an++) {
         var c = Fiscal_cfe(an, quand);
@@ -128,6 +129,49 @@ function Fiscal_cfe(annee, quand) {
   r.montant = estimeAnnee === null ? null : arrondi_(estimeAnnee * (r.reduction ? 0.5 : 1));
   if (anCreation !== null) r.etat = auj > echeance ? 'en retard' : (auj >= new Date(annee, 10, 15) ? 'à payer' : 'à venir');
   return r;
+}
+
+/**
+ * Déclaration annuelle de revenus (impots.gouv, au printemps) : le CA encaissé de l'année précédente est à reporter
+ * dans la partie « micro-entrepreneur » de la déclaration complémentaire (2042-C-PRO).
+ * annee = année de la déclaration (ex. 2028 pour le CA 2027). Rien n'est dû pour une année antérieure à la création
+ * de l'entreprise (ex. au printemps 2027, aucun CA 2026 de micro-entreprise : pas de rappel).
+ * Dates : paramètres fiscal.declaration_revenus_ouverture et fiscal.declaration_revenus_limite (MM-JJ), à vérifier
+ * chaque printemps (la date limite dépend du département). Fait : onglet Déclarations, id « IR-AAAA ».
+ * Renvoie { id, annee, anneeCa, ca, ouverture, echeance, etat: 'non due'|'à venir'|'à faire'|'en retard'|'faite', date_declaration }.
+ */
+function Fiscal_declarationRevenus(annee, quand) {
+  var auj = aujourdhui_(quand);
+  annee = Number(annee) || auj.getFullYear();
+  var anneeCa = annee - 1;
+  var creation = date_(Params_texte('fiscal.date_creation', ''));
+  var md = function (cle, defaut) {
+    var m = String(Params_texte(cle, defaut)).match(/^(\d{1,2})-(\d{1,2})$/) || String(defaut).match(/^(\d{1,2})-(\d{1,2})$/);
+    return new Date(annee, Number(m[1]) - 1, Number(m[2]));
+  };
+  var ouverture = md('fiscal.declaration_revenus_ouverture', '04-10');
+  var echeance = md('fiscal.declaration_revenus_limite', '05-28');
+  var id = 'IR-' + annee;
+  var dec = Db_trouver(TABLES.DECLARATIONS, id);
+  var ca = Db_lire(TABLES.FACTURES).reduce(function (s, f) {
+    var d = date_(f.date_encaissement);
+    return d && d.getFullYear() === anneeCa && f.qonto_statut !== 'annulée' ? s + montant_(f.montant_encaisse) : s;
+  }, 0);
+  var r = { id: id, annee: annee, anneeCa: anneeCa, ca: arrondi_(ca), ouverture: jourIso_(ouverture), echeance: jourIso_(echeance),
+    etat: 'à venir', date_declaration: '', joursAvantEcheance: ecartJours_(echeance, auj) };
+  if (!creation || anneeCa < creation.getFullYear()) { r.etat = 'non due'; return r; }
+  if (dec && date_(dec.date_declaration)) { r.etat = 'faite'; r.date_declaration = jourIso_(date_(dec.date_declaration)); return r; }
+  r.etat = auj > echeance ? 'en retard' : (auj >= ouverture ? 'à faire' : 'à venir');
+  return r;
+}
+
+function Fiscal_revenusDeclares(annee, dateDeclaration) {
+  var id = 'IR-' + Number(annee);
+  if (!/^IR-\d{4}$/.test(id)) throw new Error('Année inconnue : ' + annee);
+  var r = Fiscal_declarationRevenus(Number(annee));
+  var champs = { ca_declare: r.ca, date_declaration: date_(dateDeclaration) || aujourdhui_(), commentaire: 'Déclaration de revenus (CA ' + r.anneeCa + ')' };
+  if (Db_trouver(TABLES.DECLARATIONS, id)) return Db_maj(TABLES.DECLARATIONS, id, champs);
+  return Db_inserer(TABLES.DECLARATIONS, Object.assign({ id: id }, champs));
 }
 
 function Fiscal_cfePayee(annee, montant, datePaiement) {

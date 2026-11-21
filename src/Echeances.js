@@ -139,6 +139,20 @@ function Echeances_calculer(debut, fin, quand) {
     });
   });
 
+  // Déclaration de revenus (printemps) : CA encaissé de l'année précédente, à partir de la 1re année d'activité
+  var ir = Fiscal_declarationRevenus(auj.getFullYear(), auj);
+  if (['à venir', 'à faire', 'en retard'].indexOf(ir.etat) >= 0) {
+    var dIr = date_(ir.echeance), jIr = ecartJours_(dIr, auj);
+    var dansIr = aujourdhui_(dIr) >= debut && aujourdhui_(dIr) <= fin;
+    if (dansIr || ir.etat !== 'à venir') {
+      out.push({
+        date: aujourdhui_(dIr), type: 'Déclaration', libelle: 'Déclaration de revenus — reporter le CA ' + ir.anneeCa + ' : ' + Courriers_euros_(ir.ca),
+        id_affaire: '', acheteur: 'Impôts (revenus)', objet: 'impots.gouv.fr : déclaration en ligne, partie micro-entrepreneur (2042-C-PRO). Date limite selon le département : à vérifier',
+        statut: ir.etat, jours: jIr, urgent: jIr >= 0 && jIr <= 15, depassee: ir.etat === 'en retard'
+      });
+    }
+  }
+
   return out.sort(function (x, y) { return x.date - y.date || x.type.localeCompare(y.type); });
 }
 

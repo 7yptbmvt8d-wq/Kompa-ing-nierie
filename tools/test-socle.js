@@ -281,10 +281,22 @@ test('passage à l\'année suivante : numérotation, CA et déclarations URSSAF 
   assert.ok(d2026.periodes.every((p) => p.etat === 'non suivie'), d2026.periodes.map((p) => p.libelle + ' ' + p.etat).join(' | '));
   const d2027 = brut(A.Fiscal_declarations(2027, new Date(2027, 0, 20)));
   assert.strictEqual(d2027.periodes[0].etat, 'en cours');
+  // Déclaration de revenus : rien au printemps 2027 (pas de CA 2026 de micro-entreprise), rappel au printemps 2028 pour le CA 2027
+  assert.strictEqual(A.Fiscal_declarationRevenus(2027, new Date(2027, 4, 1)).etat, 'non due');
+  assert.ok(!brut(A.Echeances_calculer(new Date(2027, 3, 1), new Date(2027, 5, 30), new Date(2027, 4, 1))).some((e) => /Déclaration de revenus/.test(e.libelle)));
+  const g = A.Affaires_creer({ acheteur: 'Commune C', objet: 'AMO' }, { date: '2027-01-06' }).id;
+  A.Affaires_changerStatut(g, 'Go', {}); A.Affaires_changerStatut(g, 'Déposée', { montant_ht: 9000, jours_reponse: 2, date_depot: '2027-01-20' });
+  A.Affaires_changerStatut(g, 'Gagnée', { date_notification: '2027-02-01', montant_notifie: 9000 });
+  A.Factures_ajouter(g, { numero: 'F-1', date: '2027-05-01', montant: 9000, date_encaissement: '2027-06-01', montant_encaisse: 9000 });
+  const ir = A.Fiscal_declarationRevenus(2028, new Date(2028, 4, 1));
+  assert.deepStrictEqual([ir.etat, ir.anneeCa, ir.ca, ir.echeance], ['à faire', 2027, 9000, '2028-05-28']);
+  const echIr = brut(A.Echeances_calculer(new Date(2028, 4, 1), new Date(2028, 4, 31), new Date(2028, 4, 1))).find((e) => /Déclaration de revenus/.test(e.libelle));
+  assert.match(echIr.libelle, /CA 2027 : 9\s000,00\s€/);
+  assert.ok(A.apiRevenusDeclares(2028, '2028-05-10').ok);
+  assert.strictEqual(A.Fiscal_declarationRevenus(2028, new Date(2028, 4, 15)).etat, 'faite');
   // Numérotation : les affaires créées en 2027 repartent à KA-2027-001
   A.Affaires_creer({ acheteur: 'Commune A', objet: 'AMO' }, { date: '2026-12-20' });
-  const id2027 = A.Affaires_creer({ acheteur: 'Commune B', objet: 'AMO' }, { date: '2027-01-05' }).id;
-  assert.strictEqual(id2027, 'KA-2027-001');
+  assert.strictEqual(g, 'KA-2027-001');
 });
 
 test('chaque onglet a id/clé en 1re colonne et cree_le, modifie_le en fin', () => {

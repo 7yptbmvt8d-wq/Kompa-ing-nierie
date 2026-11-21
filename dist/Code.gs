@@ -909,6 +909,11 @@ function apiDeclarer(idPeriode, caDeclare, dateDeclaration) {
   return repondre_(function () { Fiscal_marquerDeclaree(idPeriode, caDeclare, dateDeclaration); Relances_synchroniser(); return Fiscal_declarations(Number(String(idPeriode).slice(0, 4))); });
 }
 
+/** Déclaration de revenus faite (CA de l'année précédente reporté sur impots.gouv). */
+function apiRevenusDeclares(annee, dateDeclaration) {
+  return repondre_(function () { Fiscal_revenusDeclares(annee, dateDeclaration); return Fiscal_declarations(Number(annee)); });
+}
+
 function apiCfePayee(annee, montant, datePaiement) {
   return repondre_(function () { Fiscal_cfePayee(annee, montant, datePaiement); return Fiscal_declarations(Number(annee)); });
 }
@@ -2209,6 +2214,20 @@ function Echeances_calculer(debut, fin, quand) {
     });
   });
 
+  // Déclaration de revenus (printemps) : CA encaissé de l'année précédente, à partir de la 1re année d'activité
+  var ir = Fiscal_declarationRevenus(auj.getFullYear(), auj);
+  if (['à venir', 'à faire', 'en retard'].indexOf(ir.etat) >= 0) {
+    var dIr = date_(ir.echeance), jIr = ecartJours_(dIr, auj);
+    var dansIr = aujourdhui_(dIr) >= debut && aujourdhui_(dIr) <= fin;
+    if (dansIr || ir.etat !== 'à venir') {
+      out.push({
+        date: aujourdhui_(dIr), type: 'Déclaration', libelle: 'Déclaration de revenus — reporter le CA ' + ir.anneeCa + ' : ' + Courriers_euros_(ir.ca),
+        id_affaire: '', acheteur: 'Impôts (revenus)', objet: 'impots.gouv.fr : déclaration en ligne, partie micro-entrepreneur (2042-C-PRO). Date limite selon le département : à vérifier',
+        statut: ir.etat, jours: jIr, urgent: jIr >= 0 && jIr <= 15, depassee: ir.etat === 'en retard'
+      });
+    }
+  }
+
   return out.sort(function (x, y) { return x.date - y.date || x.type.localeCompare(y.type); });
 }
 
@@ -2895,6 +2914,7 @@ function Fiscal_declarations(annee, quand) {
     tauxManquants: taux.cotisations === null || taux.cfp === null || taux.impot === null,
     periodes: periodes,
     cfe: Fiscal_cfe(annee, quand),
+    revenus: Fiscal_declarationRevenus(annee, quand),
     cfeProchaine: (function () {
       for (var an = annee + 1; an <= annee + 4; an++) {
         var c = Fiscal_cfe(an, quand);
@@ -2934,6 +2954,49 @@ function Fiscal_cfe(annee, quand) {
   r.montant = estimeAnnee === null ? null : arrondi_(estimeAnnee * (r.reduction ? 0.5 : 1));
   if (anCreation !== null) r.etat = auj > echeance ? 'en retard' : (auj >= new Date(annee, 10, 15) ? 'à payer' : 'à venir');
   return r;
+}
+
+/**
+ * Déclaration annuelle de revenus (impots.gouv, au printemps) : le CA encaissé de l'année précédente est à reporter
+ * dans la partie « micro-entrepreneur » de la déclaration complémentaire (2042-C-PRO).
+ * annee = année de la déclaration (ex. 2028 pour le CA 2027). Rien n'est dû pour une année antérieure à la création
+ * de l'entreprise (ex. au printemps 2027, aucun CA 2026 de micro-entreprise : pas de rappel).
+ * Dates : paramètres fiscal.declaration_revenus_ouverture et fiscal.declaration_revenus_limite (MM-JJ), à vérifier
+ * chaque printemps (la date limite dépend du département). Fait : onglet Déclarations, id « IR-AAAA ».
+ * Renvoie { id, annee, anneeCa, ca, ouverture, echeance, etat: 'non due'|'à venir'|'à faire'|'en retard'|'faite', date_declaration }.
+ */
+function Fiscal_declarationRevenus(annee, quand) {
+  var auj = aujourdhui_(quand);
+  annee = Number(annee) || auj.getFullYear();
+  var anneeCa = annee - 1;
+  var creation = date_(Params_texte('fiscal.date_creation', ''));
+  var md = function (cle, defaut) {
+    var m = String(Params_texte(cle, defaut)).match(/^(\d{1,2})-(\d{1,2})$/) || String(defaut).match(/^(\d{1,2})-(\d{1,2})$/);
+    return new Date(annee, Number(m[1]) - 1, Number(m[2]));
+  };
+  var ouverture = md('fiscal.declaration_revenus_ouverture', '04-10');
+  var echeance = md('fiscal.declaration_revenus_limite', '05-28');
+  var id = 'IR-' + annee;
+  var dec = Db_trouver(TABLES.DECLARATIONS, id);
+  var ca = Db_lire(TABLES.FACTURES).reduce(function (s, f) {
+    var d = date_(f.date_encaissement);
+    return d && d.getFullYear() === anneeCa && f.qonto_statut !== 'annulée' ? s + montant_(f.montant_encaisse) : s;
+  }, 0);
+  var r = { id: id, annee: annee, anneeCa: anneeCa, ca: arrondi_(ca), ouverture: jourIso_(ouverture), echeance: jourIso_(echeance),
+    etat: 'à venir', date_declaration: '', joursAvantEcheance: ecartJours_(echeance, auj) };
+  if (!creation || anneeCa < creation.getFullYear()) { r.etat = 'non due'; return r; }
+  if (dec && date_(dec.date_declaration)) { r.etat = 'faite'; r.date_declaration = jourIso_(date_(dec.date_declaration)); return r; }
+  r.etat = auj > echeance ? 'en retard' : (auj >= ouverture ? 'à faire' : 'à venir');
+  return r;
+}
+
+function Fiscal_revenusDeclares(annee, dateDeclaration) {
+  var id = 'IR-' + Number(annee);
+  if (!/^IR-\d{4}$/.test(id)) throw new Error('Année inconnue : ' + annee);
+  var r = Fiscal_declarationRevenus(Number(annee));
+  var champs = { ca_declare: r.ca, date_declaration: date_(dateDeclaration) || aujourdhui_(), commentaire: 'Déclaration de revenus (CA ' + r.anneeCa + ')' };
+  if (Db_trouver(TABLES.DECLARATIONS, id)) return Db_maj(TABLES.DECLARATIONS, id, champs);
+  return Db_inserer(TABLES.DECLARATIONS, Object.assign({ id: id }, champs));
 }
 
 function Fiscal_cfePayee(annee, montant, datePaiement) {
@@ -3430,6 +3493,8 @@ var PARAMETRES_DEFAUT = [
   ['fiscal.debut_suivi', '', 'Début du suivi des déclarations (aaaa-mm-jj) : les périodes terminées avant ne sont ni affichées en retard ni relancées. Rempli à l\'installation'],
   ['fiscal.date_creation', '2027-01-04', 'Date de création de l\'entreprise (aaaa-mm-jj) : CFE exonérée l\'année de création, base réduite de moitié l\'année suivante. Modifiable depuis la carte URSSAF de l\'accueil'],
   ['fiscal.cfe_montant', '', 'CFE estimée pour une année pleine (€) : à remplacer par le montant de l\'avis (impots.gouv, vers la mi-novembre). Modifiable depuis la carte URSSAF de l\'accueil'],
+  ['fiscal.declaration_revenus_ouverture', '04-10', 'Déclaration de revenus (impots.gouv) : date d\'ouverture du service en ligne (mois-jour), à vérifier chaque printemps'],
+  ['fiscal.declaration_revenus_limite', '05-28', 'Déclaration de revenus : date limite en ligne (mois-jour), selon le département (Corse : zone 2), à vérifier chaque printemps sur impots.gouv.fr'],
   ['fiscal.periodicite', 'trimestrielle', 'Rythme de déclaration du CA à l\'URSSAF : trimestrielle ou mensuelle'],
   ['fiscal.taux_cotisations', '', 'Taux des cotisations sociales (%) — À RENSEIGNER : taux appliqué sur votre espace autoentrepreneur.urssaf.fr'],
   ['fiscal.taux_cfp', '0.2', 'Contribution à la formation professionnelle (%), professions libérales — à vérifier chaque année'],
