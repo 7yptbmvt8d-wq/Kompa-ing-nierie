@@ -83,7 +83,7 @@
     var t = d.totaux;
     el.innerHTML = '<div class="tableau-tete"><h2>Déclarations URSSAF ' + d.annee + ' — ' + esc(d.periodicite) + 's</h2>' +
         '<span class="legende">Base : CA encaissé de la période</span></div>' +
-      (d.tauxManquants ? '<div class="bandeau">Renseignez le taux de vos cotisations sociales (<span class="mono">fiscal.taux_cotisations</span>, onglet Paramètres › Déclarations URSSAF) pour estimer les sommes à payer. Il figure sur votre espace autoentrepreneur.urssaf.fr.</div>' : '') +
+      (d.tauxManquants ? '<div class="bandeau">Renseignez le taux de vos cotisations sociales (<span class="mono">fiscal.taux_cotisations</span>, Paramètres › Finances) pour estimer les sommes à payer. Il figure sur votre espace autoentrepreneur.urssaf.fr.</div>' : '') +
       '<div class="tableau-conteneur"><table><thead><tr><th scope="col">Période</th><th scope="col" class="num">CA encaissé</th>' +
       '<th scope="col" class="num">Cotisations (' + tx(d.taux.cotisations) + ')</th><th scope="col" class="num">CFP (' + tx(d.taux.cfp) + ')</th>' +
       '<th scope="col" class="num">Impôt' + (d.taux.versementLiberatoire ? ' (VL ' + tx(d.taux.impot) + ')' : ' (sans VL)') + '</th>' +

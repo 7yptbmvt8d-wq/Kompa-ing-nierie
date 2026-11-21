@@ -261,21 +261,36 @@
       '<p><a class="bouton bouton--discret" href="#previsionnel">CA prévisionnel des prochaines années</a></p>';
   }
 
-  function ecranParametres(el) {
-    el.innerHTML = titre('Paramètres', 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.') +
-      '<div class="chargement">Lecture des paramètres…</div>';
+  /** Sous-onglets des Paramètres (réorganisation du 21/11/2026) : [id, libellé, préfixes de clés]. */
+  var ONGLETS_PARAMS = [
+    ['veille', 'Veille', ['veille', 'zone', 'score']],
+    ['affaires', 'Affaires et échéances', ['capacite', 'echeance', 'liste', 'courrier']],
+    ['finances', 'Finances', ['seuil', 'fiscal', 'facture']],
+    ['messagerie', 'E-mail et Drive', ['email', 'drive', 'sauvegarde']],
+    ['apparence', 'Apparence', []],
+    ['socle', 'État du socle', ['app', '']]
+  ];
+
+  function ecranParametres(el, param) {
+    var onglet = ONGLETS_PARAMS.filter(function (o) { return o[0] === param; })[0] || ONGLETS_PARAMS[0];
+    var tete = titre('Paramètres', 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.') +
+      '<nav class="sous-nav" aria-label="Paramètres">' + ONGLETS_PARAMS.map(function (o) {
+        return '<a href="#parametres/' + o[0] + '"' + (o === onglet ? ' aria-current="page"' : '') + '>' + o[1] + '</a>';
+      }).join('') + '</nav>';
+    el.innerHTML = tete + '<div class="chargement">Lecture des paramètres…</div>';
 
     charger('parametres', 'apiParametres', [], function (groupes) {
-      var html = titre('Paramètres', 'Listes : valeurs séparées par « ; ». Nombres : chiffres seuls.') + blocApparence() +
-        '<section class="groupe-param carte" id="carte-etat"><h2>État du socle</h2><div class="chargement">Lecture du classeur…</div></section>';
-      groupes.forEach(function (g) {
+      var html = tete;
+      if (onglet[0] === 'apparence') html += blocApparence();
+      if (onglet[0] === 'socle') html += '<section class="groupe-param carte" id="carte-etat"><h2>État du socle</h2><div class="chargement">Lecture du classeur…</div></section>';
+      groupes.filter(function (g) { return onglet[2].indexOf(g.prefixe) >= 0; }).forEach(function (g) {
         html += '<section class="groupe-param"><h2>' + esc(g.titre) + '</h2>' + paramsPC(g.parametres) + '</section>';
       });
       el.innerHTML = html;
       brancherParams(el);
-      appel('apiEtat').then(rendreEtat).catch(function (e) { var z = $('#carte-etat'); if (z) z.innerHTML = '<h2>État du socle</h2>' + bandeauErreur(e); });
+      if (onglet[0] === 'socle') appel('apiEtat').then(rendreEtat).catch(function (e) { var z = $('#carte-etat'); if (z) z.innerHTML = '<h2>État du socle</h2>' + bandeauErreur(e); });
     }, function (e) {
-      el.innerHTML = titre('Paramètres', '') + bandeauErreur(e);
+      el.innerHTML = tete + bandeauErreur(e);
     });
   }
 

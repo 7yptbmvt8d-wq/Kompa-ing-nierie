@@ -3044,6 +3044,7 @@ var GROUPES_PARAMETRES = [
   ['drive', 'Dossiers Drive'],
   ['liste', 'Listes de valeurs'],
   ['sauvegarde', 'Sauvegarde'],
+  ['facture', 'Factures et retards de paiement'],
   ['app', 'Application']
 ];
 

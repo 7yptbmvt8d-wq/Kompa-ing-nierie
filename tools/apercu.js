@@ -93,7 +93,10 @@ function assembler() {
   await pc.page.screenshot({ path: path.join(sortie, 'pc-accueil.png'), fullPage: true });
 
   await pc.page.click('a.lien-parametres');
+  await pc.page.waitForSelector('.sous-nav a[href="#parametres/socle"]');
+  await pc.page.click('.sous-nav a[href="#parametres/socle"]');
   await pc.page.waitForSelector('#carte-etat dl');
+  await pc.page.click('.sous-nav a[href="#parametres/affaires"]');
   await pc.page.waitForSelector('tr[data-cle]');
   const ligne = pc.page.locator('tr[data-cle="capacite.montant_max_mission"]');
   await ligne.locator('.champ').fill('40000');
@@ -482,6 +485,7 @@ function assembler() {
     const np = n.page;
     await np.waitForSelector('#tuiles-accueil .tuile');
     await np.click('a.lien-parametres');
+    await np.click('.sous-nav a[href="#parametres/apparence"]');
     await np.waitForSelector('#apparence [data-theme-choix][value="neon"]');
     await np.check('#apparence [data-theme-choix][value="neon"]');
     assert.strictEqual(await np.evaluate(() => document.documentElement.getAttribute('data-theme')), 'neon');
@@ -498,7 +502,8 @@ function assembler() {
     await np.waitForSelector('.fiche-tete');
     await np.screenshot({ path: path.join(sortie, 'neon-fiche.png') });
     // Retour à la charte Kompa
-    await np.click('a.lien-parametres');
+    await np.evaluate(() => window.KA.afficher('parametres/apparence', true));
+    await np.waitForSelector('#apparence [data-theme-choix][value="kompa"]');
     await np.check('#apparence [data-theme-choix][value="kompa"]');
     assert.strictEqual(await np.evaluate(() => document.documentElement.getAttribute('data-theme')), null);
     assert.deepStrictEqual(n.erreurs, [], 'erreurs JavaScript (thème) : ' + n.erreurs.join(' | '));
