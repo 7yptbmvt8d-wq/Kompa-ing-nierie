@@ -320,6 +320,12 @@ function assembler() {
   await p.click('dialog button[type=submit]');
   await p.waitForFunction((n) => document.querySelectorAll('[data-declarer]').length === n - 1, nbDeclarer);
   assert.strictEqual(A.Db_lire(A.TABLES.DECLARATIONS).length, 1);
+  // CFE : réglages depuis la carte URSSAF
+  await p.fill('#cfe-montant', '400');
+  await p.click('[data-cfe-reglages] button[type=submit]');
+  await p.waitForSelector('#toast:has-text("CFE enregistrée")');
+  assert.strictEqual(A.Params_texte('fiscal.cfe_montant'), '400');
+  await p.locator('#carte-urssaf').screenshot({ path: path.join(sortie, 'pc-urssaf-cfe.png') });
 
   // ——— Module Estimation (étape 1) : référentiels modifiables ———
   await p.click('nav a[href="#estimation"]');

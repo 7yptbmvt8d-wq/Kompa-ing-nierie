@@ -106,6 +106,21 @@ function Echeances_calculer(debut, fin, quand) {
     });
   });
 
+  // CFE de l'année (et de l'année précédente si impayée), à payer avant le 15 décembre
+  [auj.getFullYear() - 1, auj.getFullYear()].forEach(function (an) {
+    var c = Fiscal_cfe(an, auj);
+    if (['à venir', 'à payer', 'en retard'].indexOf(c.etat) < 0 || !c.dateCreation) return;
+    var d = date_(c.echeance);
+    var dans = aujourdhui_(d) >= debut && aujourdhui_(d) <= fin;
+    if (!dans && c.etat !== 'en retard') return;
+    var j = ecartJours_(d, auj);
+    out.push({
+      date: aujourdhui_(d), type: 'Déclaration', libelle: 'CFE ' + an + ' à payer' + (c.montant !== null ? ' — ' + (c.estime ? 'estimée ' : '') + Courriers_euros_(c.montant) : ''),
+      id_affaire: '', acheteur: 'Impôts (CFE)', objet: 'Avis de CFE sur votre espace professionnel impots.gouv (vers la mi-novembre), paiement avant le 15/12',
+      statut: c.etat, jours: j, urgent: j >= 0 && j <= 15, depassee: c.etat === 'en retard'
+    });
+  });
+
   return out.sort(function (x, y) { return x.date - y.date || x.type.localeCompare(y.type); });
 }
 

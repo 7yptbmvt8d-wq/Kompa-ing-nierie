@@ -278,6 +278,34 @@ test('CA prévisionnel : encaissé, prévu (gagnées, répartition par année, r
   assert.match(brut(A.Previsionnel_ca(quand)).affaires.find((x) => x.id === g).remarques.join(' '), /supérieure au montant restant/);
 });
 
+test('CFE : non due avant la création, exonérée l\'année de création, moitié la 2e année, échéance 15/12, payée', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const ok = (r) => { assert.ok(r.ok, r.erreur); return brut(r.data); };
+  assert.strictEqual(A.Params_texte('fiscal.date_creation'), '2027-01-04');
+  const cfe = (an, quand) => brut(A.Fiscal_cfe(an, quand));
+  assert.deepStrictEqual([cfe(2026, new Date(2026, 10, 21)).etat, cfe(2027, new Date(2027, 5, 1)).etat], ['non due', 'exonérée']);
+  // Montant estimé saisi depuis la carte : 400 € l'année pleine → 200 € en 2028 (2e année), 400 € en 2029
+  const r = ok(A.apiCfeReglages('400', '2027-01-04'));
+  assert.strictEqual(r.cfe.estimeAnnee, 400);
+  const c28 = cfe(2028, new Date(2028, 10, 20));
+  assert.deepStrictEqual([c28.montant, c28.reduction, c28.etat, c28.echeance], [200, true, 'à payer', '2028-12-15']);
+  assert.deepStrictEqual([cfe(2029, new Date(2029, 5, 1)).montant, cfe(2029, new Date(2029, 5, 1)).etat], [400, 'à venir']);
+  assert.strictEqual(cfe(2028, new Date(2028, 11, 20)).etat, 'en retard');
+  // Échéancier : CFE 2028 dans les 7 jours avant le 15/12
+  const ech = brut(A.Echeances_calculer(new Date(2028, 11, 10), new Date(2028, 11, 17), new Date(2028, 11, 10)));
+  assert.ok(ech.some((e) => /^CFE 2028 à payer — estimée 200,00/.test(e.libelle)), JSON.stringify(ech.map((e) => e.libelle)));
+  // Payée (montant de l'avis) puis annulée
+  A.Fiscal_cfePayee(2028, '215,50', '2028-12-05');
+  const p = cfe(2028, new Date(2028, 11, 20));
+  assert.deepStrictEqual([p.etat, p.montant, p.estime], ['payée', 215.5, false]);
+  assert.strictEqual(ok(A.apiAnnulerDeclaration('CFE-2028')).annee, 2028);
+  assert.match(A.apiCfeReglages('abc', '').erreur, /nombre attendu/);
+  // Carte URSSAF : la CFE de l'année est fournie
+  assert.ok(ok(A.apiFiscal()).cfe);
+});
+
 test('pièces de l\'offre : liste collée depuis l\'analyse du DCE (titres, préfixes, puces, doublons)', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });

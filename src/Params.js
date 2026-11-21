@@ -87,6 +87,8 @@ var PARAMETRES_DEFAUT = [
 
   // Déclarations URSSAF (micro-entreprise)
   ['fiscal.debut_suivi', '', 'Début du suivi des déclarations (aaaa-mm-jj) : les périodes terminées avant ne sont ni affichées en retard ni relancées. Rempli à l\'installation'],
+  ['fiscal.date_creation', '2027-01-04', 'Date de création de l\'entreprise (aaaa-mm-jj) : CFE exonérée l\'année de création, base réduite de moitié l\'année suivante. Modifiable depuis la carte URSSAF de l\'accueil'],
+  ['fiscal.cfe_montant', '', 'CFE estimée pour une année pleine (€) : à remplacer par le montant de l\'avis (impots.gouv, vers la mi-novembre). Modifiable depuis la carte URSSAF de l\'accueil'],
   ['fiscal.periodicite', 'trimestrielle', 'Rythme de déclaration du CA à l\'URSSAF : trimestrielle ou mensuelle'],
   ['fiscal.taux_cotisations', '', 'Taux des cotisations sociales (%) — À RENSEIGNER : taux appliqué sur votre espace autoentrepreneur.urssaf.fr'],
   ['fiscal.taux_cfp', '0.2', 'Contribution à la formation professionnelle (%), professions libérales — à vérifier chaque année'],

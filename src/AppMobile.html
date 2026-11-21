@@ -106,7 +106,8 @@
       return '<li><div class="mob-ligne__tete"><strong>' + esc(p.libelle) + '</strong><span class="statut ' + (ETATS_DECL[p.etat] || 'statut--neutre') + '">' + esc(p.etat) + '</span></div>' +
         '<div class="mob-legende">CA <span class="mono">' + (p.ca === null || p.ca === undefined ? '—' : K.euros(p.ca)) + '</span> · à payer ≈ <span class="mono">' + total + '</span>' +
         (p.echeance ? ' · avant le <span class="mono">' + jour(p.echeance) + '</span>' : '') + '</div></li>';
-    }).join('') + '</ul>';
+    }).join('') + (f.cfe ? '<li><div class="mob-ligne__tete"><strong>CFE ' + f.cfe.annee + '</strong><span class="statut ' + (f.cfe.etat === 'payée' ? 'statut--ok' : f.cfe.etat === 'en retard' ? 'statut--ko' : f.cfe.etat === 'à payer' ? 'statut--alerte' : 'statut--neutre') + '">' + esc(f.cfe.etat) + '</span></div>' +
+      '<div class="mob-legende">' + (f.cfe.montant !== null ? (f.cfe.estime ? 'estimée ' : '') + '<span class="mono">' + K.euros(f.cfe.montant) + '</span> · ' : '') + (f.cfe.motif ? esc(f.cfe.motif) + ' · ' : '') + 'avant le <span class="mono">' + jour(f.cfe.echeance) + '</span></div></li>' : '') + '</ul>';
 
     el.innerHTML = '<div class="mob">' +
       '<div class="mob-tete"><div><div class="mob-surtitre">Tableau de bord</div><div class="mob-date">' + JOURS[maintenant.getDay()] + ' ' + maintenant.getDate() + ' ' + MOIS[maintenant.getMonth()] + '</div></div>' +

@@ -893,8 +893,25 @@ function apiDeclarer(idPeriode, caDeclare, dateDeclaration) {
   return repondre_(function () { Fiscal_marquerDeclaree(idPeriode, caDeclare, dateDeclaration); Relances_synchroniser(); return Fiscal_declarations(Number(String(idPeriode).slice(0, 4))); });
 }
 
+function apiCfePayee(annee, montant, datePaiement) {
+  return repondre_(function () { Fiscal_cfePayee(annee, montant, datePaiement); return Fiscal_declarations(Number(annee)); });
+}
+
+/** Réglages de la CFE depuis la carte de l'accueil : montant estimé (année pleine) et date de création. */
+function apiCfeReglages(montant, dateCreation) {
+  return repondre_(function () {
+    var m = String(montant || '').replace(/[\s\u00a0€]/g, '').replace(',', '.');
+    if (m && !(Number(m) >= 0)) throw new Error('Montant de la CFE : nombre attendu.');
+    var d = date_(dateCreation);
+    if (dateCreation && !d) throw new Error('Date de création : date attendue.');
+    Params_enregistrer('fiscal.cfe_montant', m);
+    if (d) Params_enregistrer('fiscal.date_creation', Utilities.formatDate(d, APP.FUSEAU, 'yyyy-MM-dd'));
+    return Fiscal_declarations();
+  });
+}
+
 function apiAnnulerDeclaration(idPeriode) {
-  return repondre_(function () { Fiscal_annulerDeclaration(idPeriode); Relances_synchroniser(); return Fiscal_declarations(Number(String(idPeriode).slice(0, 4))); });
+  return repondre_(function () { Fiscal_annulerDeclaration(idPeriode); Relances_synchroniser(); return Fiscal_declarations(Number((String(idPeriode).match(/\d{4}/) || [])[0]) || null); });
 }
 
 
@@ -1959,6 +1976,21 @@ function Echeances_calculer(debut, fin, quand) {
     });
   });
 
+  // CFE de l'année (et de l'année précédente si impayée), à payer avant le 15 décembre
+  [auj.getFullYear() - 1, auj.getFullYear()].forEach(function (an) {
+    var c = Fiscal_cfe(an, auj);
+    if (['à venir', 'à payer', 'en retard'].indexOf(c.etat) < 0 || !c.dateCreation) return;
+    var d = date_(c.echeance);
+    var dans = aujourdhui_(d) >= debut && aujourdhui_(d) <= fin;
+    if (!dans && c.etat !== 'en retard') return;
+    var j = ecartJours_(d, auj);
+    out.push({
+      date: aujourdhui_(d), type: 'Déclaration', libelle: 'CFE ' + an + ' à payer' + (c.montant !== null ? ' — ' + (c.estime ? 'estimée ' : '') + Courriers_euros_(c.montant) : ''),
+      id_affaire: '', acheteur: 'Impôts (CFE)', objet: 'Avis de CFE sur votre espace professionnel impots.gouv (vers la mi-novembre), paiement avant le 15/12',
+      statut: c.etat, jours: j, urgent: j >= 0 && j <= 15, depassee: c.etat === 'en retard'
+    });
+  });
+
   return out.sort(function (x, y) { return x.date - y.date || x.type.localeCompare(y.type); });
 }
 
@@ -2550,8 +2582,54 @@ function Fiscal_declarations(annee, quand) {
     taux: { cotisations: taux.cotisations, cfp: taux.cfp, impot: taux.impot, versementLiberatoire: taux.vl },
     tauxManquants: taux.cotisations === null || taux.cfp === null || taux.impot === null,
     periodes: periodes,
+    cfe: Fiscal_cfe(annee, quand),
+    cfeProchaine: (function () {
+      for (var an = annee + 1; an <= annee + 4; an++) {
+        var c = Fiscal_cfe(an, quand);
+        if (['non due', 'exonérée'].indexOf(c.etat) < 0) return c;
+      }
+      return null;
+    })(),
     totaux: { ca: somme('ca'), cotisations: somme('cotisations'), cfp: somme('cfp'), impot: somme('impot'), total: somme('total') }
   };
+}
+
+/**
+ * CFE (cotisation foncière des entreprises) d'une année : due au 15 décembre, avis sur impots.gouv.
+ * Exonérée l'année de création ; base réduite de moitié l'année suivante ; non due avant la création.
+ * Montant : celui payé (onglet Déclarations, id « CFE-AAAA »), à défaut estimation fiscal.cfe_montant.
+ * Renvoie { id, annee, echeance, etat: 'non due'|'exonérée'|'à venir'|'à payer'|'en retard'|'payée', montant, estime, reduction, motif }.
+ */
+function Fiscal_cfe(annee, quand) {
+  var auj = aujourdhui_(quand);
+  annee = annee || auj.getFullYear();
+  var creation = date_(Params_texte('fiscal.date_creation', ''));
+  var anCreation = creation ? creation.getFullYear() : null;
+  var estimeAnnee = Params_nombre('fiscal.cfe_montant', null);
+  var echeance = new Date(annee, 11, 15);
+  var id = 'CFE-' + annee;
+  var dec = Db_trouver(TABLES.DECLARATIONS, id);
+  var r = { id: id, annee: annee, echeance: jourIso_(echeance), dateCreation: creation ? jourIso_(creation) : '', estimeAnnee: estimeAnnee,
+    reduction: false, montant: null, estime: true, etat: 'à venir', motif: '', date_paiement: '', joursAvantEcheance: ecartJours_(echeance, auj) };
+  if (anCreation === null) { r.etat = 'à venir'; r.motif = 'date de création à renseigner'; }
+  else if (annee < anCreation) { r.etat = 'non due'; r.motif = 'avant la création (' + Utilities.formatDate(creation, APP.FUSEAU, 'MM/yyyy') + ')'; return r; }
+  else if (annee === anCreation) { r.etat = 'exonérée'; r.motif = 'année de création'; return r; }
+  if (anCreation !== null && annee === anCreation + 1) { r.reduction = true; r.motif = 'base réduite de moitié (2e année)'; }
+  if (dec && date_(dec.date_declaration)) {
+    r.etat = 'payée'; r.montant = montant_(dec.ca_declare); r.estime = false; r.date_paiement = jourIso_(date_(dec.date_declaration));
+    return r;
+  }
+  r.montant = estimeAnnee === null ? null : arrondi_(estimeAnnee * (r.reduction ? 0.5 : 1));
+  if (anCreation !== null) r.etat = auj > echeance ? 'en retard' : (auj >= new Date(annee, 10, 15) ? 'à payer' : 'à venir');
+  return r;
+}
+
+function Fiscal_cfePayee(annee, montant, datePaiement) {
+  var id = 'CFE-' + Number(annee);
+  if (!/^CFE-\d{4}$/.test(id)) throw new Error('Année inconnue : ' + annee);
+  var champs = { ca_declare: montant_(montant), date_declaration: date_(datePaiement) || aujourdhui_(), commentaire: 'CFE' };
+  if (Db_trouver(TABLES.DECLARATIONS, id)) return Db_maj(TABLES.DECLARATIONS, id, champs);
+  return Db_inserer(TABLES.DECLARATIONS, Object.assign({ id: id }, champs));
 }
 
 /** Marque une période déclarée (CA déclaré, date). */
@@ -2914,6 +2992,8 @@ var PARAMETRES_DEFAUT = [
 
   // Déclarations URSSAF (micro-entreprise)
   ['fiscal.debut_suivi', '', 'Début du suivi des déclarations (aaaa-mm-jj) : les périodes terminées avant ne sont ni affichées en retard ni relancées. Rempli à l\'installation'],
+  ['fiscal.date_creation', '2027-01-04', 'Date de création de l\'entreprise (aaaa-mm-jj) : CFE exonérée l\'année de création, base réduite de moitié l\'année suivante. Modifiable depuis la carte URSSAF de l\'accueil'],
+  ['fiscal.cfe_montant', '', 'CFE estimée pour une année pleine (€) : à remplacer par le montant de l\'avis (impots.gouv, vers la mi-novembre). Modifiable depuis la carte URSSAF de l\'accueil'],
   ['fiscal.periodicite', 'trimestrielle', 'Rythme de déclaration du CA à l\'URSSAF : trimestrielle ou mensuelle'],
   ['fiscal.taux_cotisations', '', 'Taux des cotisations sociales (%) — À RENSEIGNER : taux appliqué sur votre espace autoentrepreneur.urssaf.fr'],
   ['fiscal.taux_cfp', '0.2', 'Contribution à la formation professionnelle (%), professions libérales — à vérifier chaque année'],

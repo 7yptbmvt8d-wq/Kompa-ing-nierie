@@ -85,8 +85,54 @@ function Fiscal_declarations(annee, quand) {
     taux: { cotisations: taux.cotisations, cfp: taux.cfp, impot: taux.impot, versementLiberatoire: taux.vl },
     tauxManquants: taux.cotisations === null || taux.cfp === null || taux.impot === null,
     periodes: periodes,
+    cfe: Fiscal_cfe(annee, quand),
+    cfeProchaine: (function () {
+      for (var an = annee + 1; an <= annee + 4; an++) {
+        var c = Fiscal_cfe(an, quand);
+        if (['non due', 'exonérée'].indexOf(c.etat) < 0) return c;
+      }
+      return null;
+    })(),
     totaux: { ca: somme('ca'), cotisations: somme('cotisations'), cfp: somme('cfp'), impot: somme('impot'), total: somme('total') }
   };
+}
+
+/**
+ * CFE (cotisation foncière des entreprises) d'une année : due au 15 décembre, avis sur impots.gouv.
+ * Exonérée l'année de création ; base réduite de moitié l'année suivante ; non due avant la création.
+ * Montant : celui payé (onglet Déclarations, id « CFE-AAAA »), à défaut estimation fiscal.cfe_montant.
+ * Renvoie { id, annee, echeance, etat: 'non due'|'exonérée'|'à venir'|'à payer'|'en retard'|'payée', montant, estime, reduction, motif }.
+ */
+function Fiscal_cfe(annee, quand) {
+  var auj = aujourdhui_(quand);
+  annee = annee || auj.getFullYear();
+  var creation = date_(Params_texte('fiscal.date_creation', ''));
+  var anCreation = creation ? creation.getFullYear() : null;
+  var estimeAnnee = Params_nombre('fiscal.cfe_montant', null);
+  var echeance = new Date(annee, 11, 15);
+  var id = 'CFE-' + annee;
+  var dec = Db_trouver(TABLES.DECLARATIONS, id);
+  var r = { id: id, annee: annee, echeance: jourIso_(echeance), dateCreation: creation ? jourIso_(creation) : '', estimeAnnee: estimeAnnee,
+    reduction: false, montant: null, estime: true, etat: 'à venir', motif: '', date_paiement: '', joursAvantEcheance: ecartJours_(echeance, auj) };
+  if (anCreation === null) { r.etat = 'à venir'; r.motif = 'date de création à renseigner'; }
+  else if (annee < anCreation) { r.etat = 'non due'; r.motif = 'avant la création (' + Utilities.formatDate(creation, APP.FUSEAU, 'MM/yyyy') + ')'; return r; }
+  else if (annee === anCreation) { r.etat = 'exonérée'; r.motif = 'année de création'; return r; }
+  if (anCreation !== null && annee === anCreation + 1) { r.reduction = true; r.motif = 'base réduite de moitié (2e année)'; }
+  if (dec && date_(dec.date_declaration)) {
+    r.etat = 'payée'; r.montant = montant_(dec.ca_declare); r.estime = false; r.date_paiement = jourIso_(date_(dec.date_declaration));
+    return r;
+  }
+  r.montant = estimeAnnee === null ? null : arrondi_(estimeAnnee * (r.reduction ? 0.5 : 1));
+  if (anCreation !== null) r.etat = auj > echeance ? 'en retard' : (auj >= new Date(annee, 10, 15) ? 'à payer' : 'à venir');
+  return r;
+}
+
+function Fiscal_cfePayee(annee, montant, datePaiement) {
+  var id = 'CFE-' + Number(annee);
+  if (!/^CFE-\d{4}$/.test(id)) throw new Error('Année inconnue : ' + annee);
+  var champs = { ca_declare: montant_(montant), date_declaration: date_(datePaiement) || aujourdhui_(), commentaire: 'CFE' };
+  if (Db_trouver(TABLES.DECLARATIONS, id)) return Db_maj(TABLES.DECLARATIONS, id, champs);
+  return Db_inserer(TABLES.DECLARATIONS, Object.assign({ id: id }, champs));
 }
 
 /** Marque une période déclarée (CA déclaré, date). */

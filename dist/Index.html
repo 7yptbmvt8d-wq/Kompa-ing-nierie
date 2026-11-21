@@ -430,6 +430,11 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .table-previsionnel th[scope="row"] { text-align: left; font-weight: 500; }
 .table-previsionnel td .legende { margin-top: 2px; }
 .apercu-repartition { margin: var(--kompa-s1) 0 0; }
+.bloc-cfe { margin-top: var(--kompa-s5); padding-top: var(--kompa-s4); border-top: var(--kompa-filet-fin); }
+.bloc-cfe__tete { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kompa-s3) var(--kompa-s4); margin-bottom: var(--kompa-s3); }
+.bloc-cfe__tete h3 { margin: 0; font-size: var(--kompa-fs-h3); }
+.bloc-cfe__reglages { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--kompa-s3) var(--kompa-s4); margin-bottom: var(--kompa-s2); }
+.bloc-cfe__reglages .champ-bloc { min-width: 12rem; }
 .calcul-offre { margin: var(--kompa-s3) 0 0; padding: var(--kompa-s2) var(--kompa-s3); background: var(--kompa-brume); border-radius: var(--kompa-radius-sm); font-size: var(--kompa-fs-small); }
 .calcul-offre:empty { display: none; }
 .ajout-piece { display: flex; gap: var(--kompa-s2); flex-wrap: wrap; margin-top: var(--kompa-s3); }
@@ -2438,8 +2443,10 @@ html[data-theme="neon"] .mob-actualiser { background: rgba(20, 10, 38, .5); colo
       '<td class="num mono">' + eur(t.cfp) + '</td><td class="num mono">' + eur(t.impot) + '</td><td class="num mono">' + eur(t.total) + '</td><td colspan="3"></td></tr>' +
       '</tbody></table></div>' +
       '<p class="legende">Estimations calculées avec les taux de l\'onglet Paramètres, à vérifier chaque année sur votre espace URSSAF. ' +
-      'Une relance « Déclaration URSSAF » apparaît dans l\'échéancier et l\'e-mail du matin tant qu\'une période terminée n\'est pas marquée déclarée.</p>';
+      'Une relance « Déclaration URSSAF » apparaît dans l\'échéancier et l\'e-mail du matin tant qu\'une période terminée n\'est pas marquée déclarée.</p>' +
+      blocCfe(d);
 
+    brancherCfe(el, d);
     Array.prototype.forEach.call(el.querySelectorAll('[data-declarer]'), function (b) {
       b.addEventListener('click', function () { dialogueDeclarer(el, b.getAttribute('data-declarer'), b.getAttribute('data-libelle'), b.getAttribute('data-ca')); });
     });
@@ -2448,6 +2455,54 @@ html[data-theme="neon"] .mob-actualiser { background: rgba(20, 10, 38, .5); colo
         K.appel('apiAnnulerDeclaration', b.getAttribute('data-annuler-decl')).then(function (r) { K.toast('Déclaration annulée.'); rendreFiscal(el, r); })
           .catch(function (e) { K.toast(e.message, true); });
       });
+    });
+  }
+
+  // ——— CFE (cotisation foncière des entreprises) ———
+  var ETATS_CFE = { 'payée': 'statut--ok', 'en retard': 'statut--ko', 'à payer': 'statut--alerte', 'à venir': 'statut--encours', 'exonérée': 'statut--neutre', 'non due': 'statut--neutre' };
+
+  function blocCfe(d) {
+    var c = d.cfe;
+    if (!c) return '';
+    var montant = c.montant === null ? '<span class="vide">montant à estimer</span>'
+      : '<strong class="mono">' + K.euros(c.montant) + '</strong>' + (c.estime ? ' <span class="legende">estimé' + (c.reduction ? ', réduit de moitié' : '') + '</span>' : ' <span class="legende">payé le ' + jour(c.date_paiement) + '</span>');
+    var action = ['à venir', 'à payer', 'en retard'].indexOf(c.etat) >= 0 && c.dateCreation
+      ? '<button type="button" class="bouton" data-cfe-payee>Payée</button>'
+      : c.etat === 'payée' ? '<button type="button" class="bouton bouton--discret" data-cfe-annuler>Annuler</button>' : '';
+    return '<div class="bloc-cfe"><div class="bloc-cfe__tete"><h3>CFE ' + c.annee + '</h3>' +
+        '<span class="statut ' + (ETATS_CFE[c.etat] || 'statut--neutre') + '">' + esc(c.etat) + '</span>' +
+        (['non due', 'exonérée'].indexOf(c.etat) < 0 ? '<span>' + montant + '</span><span class="legende">à payer avant le <span class="mono">' + jour(c.echeance) + '</span></span>' : '') +
+        (c.motif ? '<span class="legende">' + esc(c.motif) + '</span>' : '') + action + '</div>' +
+      (d.cfeProchaine && ['non due', 'exonérée'].indexOf(c.etat) >= 0 ? '<p>Première CFE due : <strong>' + d.cfeProchaine.annee + '</strong>, ' +
+        (d.cfeProchaine.montant === null ? 'montant à estimer' : '<strong class="mono">' + K.euros(d.cfeProchaine.montant) + '</strong> estimée' + (d.cfeProchaine.reduction ? ' (base réduite de moitié)' : '')) +
+        ', avant le <span class="mono">' + jour(d.cfeProchaine.echeance) + '</span>.</p>' : '') +
+      '<form class="bloc-cfe__reglages" data-cfe-reglages novalidate>' +
+        '<div class="champ-bloc"><label for="cfe-montant">CFE estimée, année pleine (€)</label><input class="champ mono num" id="cfe-montant" inputmode="decimal" value="' + esc(c.estimeAnnee === null ? '' : String(c.estimeAnnee).replace('.', ',')) + '" placeholder="ex. 350"></div>' +
+        '<div class="champ-bloc"><label for="cfe-creation">Création de l\'entreprise</label><input class="champ mono" type="date" id="cfe-creation" value="' + esc(c.dateCreation) + '"></div>' +
+        '<div class="bloc-form__actions"><button type="submit" class="bouton bouton--discret">Enregistrer</button></div>' +
+      '</form>' +
+      '<p class="legende">CFE : payée aux impôts (pas à l\'URSSAF), avis sur votre espace professionnel impots.gouv vers la mi-novembre, paiement avant le 15 décembre. ' +
+        'Exonérée l\'année de création, base réduite de moitié l\'année suivante. Remplacez l\'estimation par le montant de l\'avis ; l\'échéance apparaît dans l\'échéancier et l\'e-mail du matin.</p></div>';
+  }
+
+  function brancherCfe(el, d) {
+    var c = d.cfe;
+    if (!c) return;
+    var f = el.querySelector('[data-cfe-reglages]');
+    if (f) f.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      K.appel('apiCfeReglages', f.querySelector('#cfe-montant').value, f.querySelector('#cfe-creation').value)
+        .then(function (r) { K.toast('CFE enregistrée.'); rendreFiscal(el, r); }).catch(function (e) { K.toast(e.message, true); });
+    });
+    var p = el.querySelector('[data-cfe-payee]');
+    if (p) p.addEventListener('click', function () {
+      var m = window.prompt('Montant payé pour la CFE ' + c.annee + ' (€) :', c.montant === null ? '' : String(c.montant).replace('.', ','));
+      if (m === null) return;
+      K.appel('apiCfePayee', c.annee, m, '').then(function (r) { K.toast('CFE ' + c.annee + ' marquée payée.'); rendreFiscal(el, r); }).catch(function (e) { K.toast(e.message, true); });
+    });
+    var a = el.querySelector('[data-cfe-annuler]');
+    if (a) a.addEventListener('click', function () {
+      K.appel('apiAnnulerDeclaration', c.id).then(function (r) { K.toast('Paiement annulé.'); rendreFiscal(el, r); }).catch(function (e) { K.toast(e.message, true); });
     });
   }
 
@@ -3201,7 +3256,8 @@ html[data-theme="neon"] .mob-actualiser { background: rgba(20, 10, 38, .5); colo
       return '<li><div class="mob-ligne__tete"><strong>' + esc(p.libelle) + '</strong><span class="statut ' + (ETATS_DECL[p.etat] || 'statut--neutre') + '">' + esc(p.etat) + '</span></div>' +
         '<div class="mob-legende">CA <span class="mono">' + (p.ca === null || p.ca === undefined ? '—' : K.euros(p.ca)) + '</span> · à payer ≈ <span class="mono">' + total + '</span>' +
         (p.echeance ? ' · avant le <span class="mono">' + jour(p.echeance) + '</span>' : '') + '</div></li>';
-    }).join('') + '</ul>';
+    }).join('') + (f.cfe ? '<li><div class="mob-ligne__tete"><strong>CFE ' + f.cfe.annee + '</strong><span class="statut ' + (f.cfe.etat === 'payée' ? 'statut--ok' : f.cfe.etat === 'en retard' ? 'statut--ko' : f.cfe.etat === 'à payer' ? 'statut--alerte' : 'statut--neutre') + '">' + esc(f.cfe.etat) + '</span></div>' +
+      '<div class="mob-legende">' + (f.cfe.montant !== null ? (f.cfe.estime ? 'estimée ' : '') + '<span class="mono">' + K.euros(f.cfe.montant) + '</span> · ' : '') + (f.cfe.motif ? esc(f.cfe.motif) + ' · ' : '') + 'avant le <span class="mono">' + jour(f.cfe.echeance) + '</span></div></li>' : '') + '</ul>';
 
     el.innerHTML = '<div class="mob">' +
       '<div class="mob-tete"><div><div class="mob-surtitre">Tableau de bord</div><div class="mob-date">' + JOURS[maintenant.getDay()] + ' ' + maintenant.getDate() + ' ' + MOIS[maintenant.getMonth()] + '</div></div>' +
