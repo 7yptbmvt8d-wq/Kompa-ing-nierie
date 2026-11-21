@@ -422,9 +422,9 @@
       consultation: function () { return formBloc('identification') + formBloc('echeances') + formBloc('decision'); },
       offre: function () { return blocPiecesOffre(f) + formBloc('offre'); },
       resultat: function () { return formBloc('resultat') + '<section class="fiche-bloc">' + tableCriteres(f.criteres) + '</section>' + formBloc('enseignements'); },
-      livrables: function () { return blocLivrables(f); },
+      livrables: function () { return blocLivrables(f) + planningHtml(f); },
       estimations: function () { return '<section class="fiche-bloc"><h2 class="fiche-bloc__titre">Estimations des travaux</h2><div data-estimations><div class="chargement">Lecture des estimations…</div></div></section>'; },
-      facturation: function () { return formBloc('execution') + '<section class="fiche-bloc">' + tableFactures(f) + '</section>'; }
+      facturation: function () { return planningHtml(f) + formBloc('execution') + '<section class="fiche-bloc">' + tableFactures(f) + '</section>'; }
     };
 
     var volet = VOLETS.filter(function (v) { return v.id === choixFiche.volet; })[0] || VOLETS[0];
@@ -751,6 +751,94 @@
       '<div class="bloc-form__actions"><button type="submit" class="bouton">Enregistrer les critères</button></div></form>';
   }
 
+  // ——— Planning de facturation : livrables → facture → paiement (barre chronologique) ———
+  var ETATS_PLAN = { 'à planifier': 'statut--neutre', 'prévue': 'statut--encours', 'facturée': 'statut--alerte', 'en retard': 'statut--ko', 'payée': 'statut--ok' };
+
+  function planningHtml(f) {
+    var p = f.planning;
+    if (!p) return '';
+    var titre = '<h2 class="fiche-bloc__titre">Planning de facturation</h2>';
+    if (!p.base) return '<section class="fiche-bloc">' + titre + '<p class="vide">Montant du marché inconnu : renseignez les jours par tranche et le prix par jour (Appel d\'offres › Offre).</p></section>';
+    var ms = function (iso) { var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime() : null; };
+    var jr = 86400000;
+    var t0 = Math.min(ms(p.debut) || ms(p.aujourdhui), ms(p.aujourdhui)) - 15 * jr;
+    var t1 = Math.max(ms(p.fin) || ms(p.aujourdhui), ms(p.aujourdhui)) + 20 * jr;
+    var pos = function (iso) { return ((ms(iso) - t0) / (t1 - t0) * 100).toFixed(2) + '%'; };
+    var annees = '';
+    for (var an = new Date(t0).getFullYear() + 1; an <= new Date(t1).getFullYear(); an++) {
+      var x = ((new Date(an, 0, 1).getTime() - t0) / (t1 - t0) * 100).toFixed(2) + '%';
+      annees += '<span class="plan-annee" style="left:' + x + '"><span>' + an + '</span></span>';
+    }
+    var auj = '<span class="plan-auj" style="left:' + pos(p.aujourdhui) + '" title="Aujourd\'hui"></span>';
+    var parAnnee = {};
+    var lignes = p.lignes.map(function (l, i) {
+      var marques = l.livrables.filter(function (x) { return x.date; }).map(function (x) {
+        return '<span class="plan-m plan-liv' + (x.etat === 'remis' || x.etat === 'validé' ? ' est-fait' : '') + '" style="left:' + pos(x.date) + '" title="Livrable : ' + esc(x.libelle) + ' — ' + jour(x.date) + ' (' + esc(x.etat) + ')"></span>';
+      }).join('');
+      var paiement = l.dateEncaissement || l.dateEcheance;
+      if (l.dateFacture && paiement) marques += '<span class="plan-trait plan-trait--' + (l.etat === 'en retard' ? 'retard' : l.etat === 'payée' ? 'paye' : 'attente') + '" style="left:' + pos(l.dateFacture) + ';width:calc(' + pos(paiement) + ' - ' + pos(l.dateFacture) + ')"></span>';
+      if (l.dateFacture) marques += '<span class="plan-m plan-fac' + (l.facture ? ' est-fait' : '') + '" style="left:' + pos(l.dateFacture) + '" title="Facture ' + (l.facture ? esc(l.facture.numero) + ' émise' : 'prévue') + ' le ' + jour(l.dateFacture) + '"></span>';
+      if (paiement) marques += '<span class="plan-m plan-pay plan-pay--' + (l.etat === 'payée' ? 'paye' : l.etat === 'en retard' ? 'retard' : 'attente') + '" style="left:' + pos(paiement) + '" title="' + (l.etat === 'payée' ? 'Payée le ' : 'Paiement attendu le ') + jour(paiement) + '"></span>';
+      var anP = (l.etat === 'payée' ? l.dateEncaissement : l.dateEcheance || p.aujourdhui).slice(0, 4);
+      parAnnee[anP] = (parAnnee[anP] || 0) + (l.etat === 'payée' ? l.montantEncaisse || l.montant : l.montant);
+      var detail = [];
+      var livDates = l.livrables.filter(function (x) { return x.date; });
+      if (livDates.length) detail.push('livrable' + (livDates.length > 1 ? 's' : '') + ' ' + livDates.map(function (x) { return jour(x.date); }).join(', '));
+      else detail.push(l.livrables.length ? 'livrable sans date' : 'aucun livrable « ' + l.tranche + ' »');
+      if (l.dateFacture) detail.push((l.facture ? 'facture ' + esc(l.facture.numero) + ' du ' : 'facture prévue le ') + jour(l.dateFacture));
+      if (l.etat === 'payée') detail.push('payée le ' + jour(l.dateEncaissement));
+      else if (l.dateEcheance) detail.push('paiement ' + (l.facture ? 'dû' : 'prévu') + ' le ' + jour(l.dateEcheance));
+      var retard = l.retard ? '<div class="plan-retard">Retard de ' + l.retard.jours + ' j : intérêts moratoires ≈ <span class="mono">' + K.euros(l.retard.interets) + '</span> (taux ' + String(l.retard.taux).replace('.', ',') + ' %) + indemnité forfaitaire de <span class="mono">' + K.euros(l.retard.indemnite) + '</span>' +
+        (l.etat === 'en retard' ? ' — relance avec le modèle de courrier de l\'Échéancier' : ' — à réclamer') + '</div>' : '';
+      var action = l.etat === 'prévue' || l.etat === 'à planifier'
+        ? '<button type="button" class="bouton bouton--petit" data-plan-facturer="' + i + '">Facturer</button>'
+        : l.etat === 'facturée' || l.etat === 'en retard' ? '<button type="button" class="bouton bouton--petit" data-plan-payer="' + i + '">Paiement reçu</button>' : '';
+      return '<div class="plan-ligne">' +
+        '<div class="plan-tete"><strong class="mono">' + esc(l.tranche === 'MISSION' ? 'Mission' : l.tranche) + '</strong>' + (l.jours ? '<span class="mono">' + String(l.jours).replace('.', ',') + ' j</span>' : '')<span class="mono">' + K.euros(l.montant) + '</span>' +
+          '<span class="statut ' + (ETATS_PLAN[l.etat] || 'statut--neutre') + '">' + esc(l.etat) + '</span>' + action + '</div>' +
+        '<div class="plan-piste">' + annees + auj + marques + '</div>' +
+        '<div class="legende">' + detail.join(' · ') + '</div>' + retard + '</div>';
+    }).join('');
+    var repartition = Object.keys(parAnnee).sort().map(function (an) { return an + ' : <strong class="mono">' + K.euros(parAnnee[an]) + '</strong>'; }).join(' · ');
+    return '<section class="fiche-bloc planning-fact">' + titre +
+      '<p class="legende">Montant du marché <strong class="mono">' + K.euros(p.base) + '</strong> HT, réparti par tranche au prorata des jours. Facture à la remise du dernier livrable de la tranche, paiement à ' + p.delai + ' jours. ' +
+        'Encaissements par année : ' + repartition + ' — repris dans le <a href="#previsionnel">CA prévisionnel</a>.</p>' +
+      (p.aPlanifier ? '<p class="bandeau">' + p.aPlanifier + ' tranche(s) sans livrable daté : ajoutez dans Mission › Livrables des livrables avec le code de tranche (' + p.lignes.filter(function (l) { return l.etat === 'à planifier'; }).map(function (l) { return esc(l.tranche); }).join(', ') + ') et leur échéance.</p>' : '') +
+      '<div class="plan-cle legende"><span><i class="plan-m plan-liv"></i> livrable</span><span><i class="plan-m plan-fac"></i> facture</span><span><i class="plan-m plan-pay plan-pay--attente"></i> paiement attendu</span>' +
+        '<span><i class="plan-m plan-pay plan-pay--paye"></i> payée</span><span><i class="plan-m plan-pay plan-pay--retard"></i> en retard</span><span><i class="plan-auj-cle"></i> aujourd\'hui</span></div>' +
+      lignes + '</section>';
+  }
+
+  function brancherPlanning(el, f, recharger) {
+    var p = f.planning;
+    if (!p) return;
+    var a = f.affaire;
+    $$('[data-plan-facturer]', el).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var l = p.lignes[Number(b.getAttribute('data-plan-facturer'))];
+        var corps = '<div class="form-grille">' +
+          champHtml({ nom: 'numero', libelle: 'N° de facture', type: 'texte', obligatoire: true }, '', {}, 'pf') +
+          champHtml({ nom: 'date', libelle: 'Date de la facture', type: 'date', obligatoire: true }, l.dateFacture && l.dateFacture <= p.aujourdhui ? l.dateFacture : aujourdhuiIso(), {}, 'pf') +
+          champHtml({ nom: 'montant', libelle: 'Montant HT (' + l.tranche + ')', type: 'euros', obligatoire: true }, String(l.montant).replace('.', ','), {}, 'pf') + '</div>' +
+          '<p class="legende">Échéance de paiement calculée à ' + p.delai + ' jours. La facture apparaît dans Mission › Facturation.</p>';
+        dialogue('Facturer la tranche ' + l.tranche, corps, 'Enregistrer la facture', function (form) {
+          return K.appel('apiPlanningFacturer', a.id, l.tranche, lireChamps(form)).then(function (fiche) { K.toast('Facture de la tranche ' + l.tranche + ' enregistrée.'); recharger(fiche); });
+        });
+      });
+    });
+    $$('[data-plan-payer]', el).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var l = p.lignes[Number(b.getAttribute('data-plan-payer'))];
+        var corps = '<div class="form-grille">' +
+          champHtml({ nom: 'date_encaissement', libelle: 'Date du paiement', type: 'date', obligatoire: true }, aujourdhuiIso(), {}, 'pp') +
+          champHtml({ nom: 'montant_encaisse', libelle: 'Montant reçu', type: 'euros', obligatoire: true }, String(l.montant).replace('.', ','), {}, 'pp') + '</div>';
+        dialogue('Paiement de la tranche ' + l.tranche, corps, 'Confirmer le paiement', function (form) {
+          return K.appel('apiFactureMaj', a.id, l.facture.id, lireChamps(form)).then(function (fiche) { K.toast('Paiement de la tranche ' + l.tranche + ' confirmé.'); recharger(fiche); });
+        });
+      });
+    });
+  }
+
   function tableFactures(f) {
     var t = f.totaux;
     var resume = '<dl class="totaux"><div><dt>Facturé</dt><dd class="mono">' + K.euros(t.facture) + '</dd></div>' +
@@ -760,7 +848,7 @@
       var enc = !x.date_encaissement
         ? '<button type="button" class="bouton bouton--discret" data-encaisser="' + esc(x.id) + '" data-montant="' + esc(x.montant) + '">Encaissée</button>'
         : '<span class="mono">' + jour(x.date_encaissement) + '</span>';
-      return '<tr><td class="mono">' + esc(x.numero) + '</td><td class="mono">' + jour(x.date) + '</td><td class="num mono">' + montant(x.montant) + '</td>' +
+      return '<tr><td class="mono">' + esc(x.numero) + (x.tranche ? ' <span class="legende">' + esc(x.tranche) + '</span>' : '') + '</td><td class="mono">' + jour(x.date) + '</td><td class="num mono">' + montant(x.montant) + '</td>' +
         '<td class="mono">' + jour(x.date_echeance) + '</td><td>' + enc + '</td><td class="num mono">' + montant(x.montant_encaisse) + '</td></tr>';
     }).join('');
     var table = '<h3>Factures</h3>' + resume + (f.factures.length ? '<div class="tableau-conteneur"><table><thead><tr><th scope="col">N°</th><th scope="col">Date</th><th scope="col" class="num">Montant</th><th scope="col">Échéance</th><th scope="col">Encaissement</th><th scope="col" class="num">Encaissé</th></tr></thead><tbody>' + lignes + '</tbody></table></div>' : '<p class="vide">Aucune facture.</p>');
@@ -782,6 +870,7 @@
     });
     brancherPiecesOffre(el, f, recharger);
     brancherLivrables(el, f, recharger);
+    brancherPlanning(el, f, recharger);
     // Volets : on rouvre le sous-onglet de l'étape en cours si c'est le volet en cours, sinon le premier
     $$('[data-volet]', el).forEach(function (b) {
       b.addEventListener('click', function () {

@@ -367,6 +367,32 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .bloc-cfe__tete h3 { margin: 0; font-size: var(--kompa-fs-h3); }
 .bloc-cfe__reglages { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--kompa-s3) var(--kompa-s4); margin-bottom: var(--kompa-s2); }
 .bloc-cfe__reglages .champ-bloc { min-width: 12rem; }
+/* Planning de facturation */
+.plan-cle { display: flex; flex-wrap: wrap; gap: var(--kompa-s2) var(--kompa-s4); margin: var(--kompa-s2) 0 var(--kompa-s3); }
+.plan-cle span { display: inline-flex; align-items: center; gap: 6px; }
+.plan-cle .plan-m { position: static; transform: none; }
+.plan-ligne { padding: var(--kompa-s3) 0; border-top: var(--kompa-filet-fin); }
+.plan-tete { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kompa-s2) var(--kompa-s4); margin-bottom: var(--kompa-s2); }
+.plan-tete .bouton { margin-left: auto; }
+.plan-piste { position: relative; height: 30px; margin: var(--kompa-s3) 0 var(--kompa-s2); background: linear-gradient(var(--kompa-filet), var(--kompa-filet)) center / 100% 2px no-repeat; }
+.plan-annee { position: absolute; top: -10px; bottom: -4px; border-left: 1px dashed var(--kompa-gris); }
+.plan-annee span { position: absolute; top: -6px; left: 4px; font-family: var(--kompa-font-mono); font-size: 11px; color: var(--kompa-gris); }
+.plan-auj { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--kompa-rouille); }
+.plan-auj-cle { display: inline-block; width: 2px; height: 14px; background: var(--kompa-rouille); }
+.plan-m { position: absolute; top: 50%; width: 14px; height: 14px; transform: translate(-50%, -50%); display: inline-block; z-index: 2; }
+.plan-liv { width: 12px; height: 12px; background: var(--kompa-blanc); border: 2px solid var(--kompa-ardoise); transform: translate(-50%, -50%) rotate(45deg); }
+.plan-cle .plan-liv { transform: rotate(45deg); }
+.plan-liv.est-fait { background: var(--kompa-ardoise); }
+.plan-fac { width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 14px solid var(--kompa-gris); background: none; }
+.plan-fac.est-fait { border-bottom-color: var(--kompa-ardoise); }
+.plan-pay { border-radius: 50%; border: 2px solid var(--app-statut-gagnee); background: var(--kompa-blanc); }
+.plan-pay--paye { background: var(--app-statut-gagnee); }
+.plan-pay--retard { border-color: var(--app-statut-perdue); background: var(--app-statut-perdue); }
+.plan-trait { position: absolute; top: 50%; height: 4px; transform: translateY(-50%); border-radius: 2px; z-index: 1; }
+.plan-trait--attente { background: repeating-linear-gradient(90deg, var(--app-statut-gagnee) 0 6px, transparent 6px 10px); }
+.plan-trait--paye { background: var(--app-statut-gagnee); }
+.plan-trait--retard { background: var(--app-statut-perdue); }
+.plan-retard { margin-top: var(--kompa-s1); color: var(--app-statut-perdue); font-size: var(--kompa-fs-small); font-weight: 600; }
 .calcul-offre { margin: var(--kompa-s3) 0 0; padding: var(--kompa-s2) var(--kompa-s3); background: var(--kompa-brume); border-radius: var(--kompa-radius-sm); font-size: var(--kompa-fs-small); }
 .calcul-offre:empty { display: none; }
 .ajout-piece { display: flex; gap: var(--kompa-s2); flex-wrap: wrap; margin-top: var(--kompa-s3); }

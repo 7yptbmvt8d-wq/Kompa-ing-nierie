@@ -115,9 +115,10 @@ var TABLES = {
     prefixe: 'FA',
     colonnes: [
       'id', 'id_affaire', 'numero', 'date', 'montant', 'date_echeance',
-      'date_encaissement', 'montant_encaisse'
+      'date_encaissement', 'montant_encaisse', 'tranche'
     ],
-    nombres: ['montant', 'montant_encaisse']
+    nombres: ['montant', 'montant_encaisse'],
+    texteBrut: ['tranche']
   },
   RELANCES: {
     onglet: 'Relances',

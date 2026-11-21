@@ -691,7 +691,8 @@ function ficheClient_(id) {
     livrables: f.livrables.map(function (l) { return versClient_(TABLES.LIVRABLES, l); }),
     livrablesResume: Livrables_resume_(f.livrables),
     totaux: f.totaux,
-    transitions: f.transitions
+    transitions: f.transitions,
+    planning: Planning_affaire(id)
   };
 }
 
@@ -747,6 +748,11 @@ function apiCriteres(id, lignes) {
 
 function apiFactureAjouter(id, facture) {
   return repondre_(function () { Factures_ajouter(id, facture); Relances_synchroniser(); return ficheClient_(id); });
+}
+
+/** Facture d'une tranche, depuis la barre de planning. */
+function apiPlanningFacturer(id, tranche, facture) {
+  return repondre_(function () { Planning_facturer(id, tranche, facture); Relances_synchroniser(); return ficheClient_(id); });
 }
 
 function apiFactureMaj(idAffaire, idFacture, champs) {
@@ -1225,9 +1231,10 @@ var TABLES = {
     prefixe: 'FA',
     colonnes: [
       'id', 'id_affaire', 'numero', 'date', 'montant', 'date_echeance',
-      'date_encaissement', 'montant_encaisse'
+      'date_encaissement', 'montant_encaisse', 'tranche'
     ],
-    nombres: ['montant', 'montant_encaisse']
+    nombres: ['montant', 'montant_encaisse'],
+    texteBrut: ['tranche']
   },
   RELANCES: {
     onglet: 'Relances',
@@ -3006,6 +3013,8 @@ var PARAMETRES_DEFAUT = [
   ['echeance.visite_alerte_j', '2', 'Alerte avant la visite de site (jours)'],
   ['echeance.rejet_relance_j', '10', 'Relance des motifs du rejet si rien reçu (jours)'],
   ['echeance.paiement_public_j', '30', 'Délai de paiement public (jours)'],
+  ['facture.taux_moratoire', '10.15', 'Taux des intérêts moratoires (%) : taux de refinancement de la BCE + 8 points (art. R. 2192-31 CCP), à mettre à jour chaque semestre'],
+  ['facture.indemnite_recouvrement', '40', 'Indemnité forfaitaire pour frais de recouvrement (€), due en cas de retard de paiement (art. D. 2192-35 CCP)'],
   ['echeance.validite_defaut_j', '90', 'Validité de l\'offre si non renseignée dans l\'affaire (jours)'],
   ['courrier.signature', 'Sébastien De Raedt EI\nKompa Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · kompa.ingenierie@gmail.com\nSIRET [n°] · TVA non applicable, art. 293 B du CGI',
     'Signature des modèles de courriers (\\n = retour à la ligne)'],
@@ -3292,6 +3301,151 @@ function PiecesOffre_resume_(pieces) {
 }
 
 
+// ════════ Planning.js ════════
+
+/**
+ * Planning de facturation d'une affaire (décision du 21/11/2026, option A « par livrable »).
+ *
+ * - Montant d'une tranche : montant du marché (notifié, à défaut l'offre) au prorata des jours de la tranche
+ *   (« Jours par tranche » : « TF : 50 j »). Sans jours par tranche : une seule ligne « Mission ».
+ * - Facture prévue à la remise du dernier livrable de la tranche (Mission › Livrables, même code de tranche) ;
+ *   paiement prévu au délai public (echeance.paiement_public_j, 30 jours).
+ * - Une facture saisie avec le code de la tranche (bouton « Facturer » du planning) remplace la prévision ;
+ *   « payée » dès son encaissement. Les factures sans tranche comptent seulement dans l'encaissé de l'affaire.
+ * - Retard de paiement : intérêts moratoires (taux BCE + 8 points, paramètre facture.taux_moratoire)
+ *   et indemnité forfaitaire de 40 € (articles L. 2192-13 et D. 2192-35 du code de la commande publique).
+ */
+
+var PLANNING_MISSION = 'MISSION';
+
+/** Code de tranche comparable à celui des livrables (majuscules, 12 caractères). */
+function Planning_codeTranche_(t) {
+  return String(t || '').trim().toUpperCase().replace(/\s+/g, ' ').slice(0, 12);
+}
+
+/** Tranches et jours lus dans « Jours par tranche » : [{ tranche, jours }]. */
+function Planning_tranches_(texte) {
+  var out = [];
+  String(texte || '').split(/\r?\n|;/).forEach(function (ligne, i) {
+    var l = ligne.trim();
+    if (!l) return;
+    var j = Affaires_joursTotal_(l);
+    if (!(j > 0)) return;
+    var m = l.match(/^([^:=]+?)\s*[:=]/);
+    var code = Planning_codeTranche_(m ? m[1] : (l.match(/^([A-Za-z][\w-]*)/) || [])[1] || 'T' + (i + 1));
+    out.push({ tranche: code, jours: j });
+  });
+  return out;
+}
+
+/** Intérêts moratoires d'un retard : { jours, interets, indemnite, total }. */
+function Planning_interets_(montant, echeance, paiement) {
+  var jours = Math.max(ecartJours_(aujourdhui_(paiement), aujourdhui_(echeance)), 0);
+  if (!jours) return null;
+  var taux = Params_nombre('facture.taux_moratoire', 10.15) / 100;
+  var interets = arrondi_(montant * taux * jours / 365);
+  var indemnite = Params_nombre('facture.indemnite_recouvrement', 40);
+  return { jours: jours, taux: taux * 100, interets: interets, indemnite: indemnite, total: arrondi_(interets + indemnite) };
+}
+
+/**
+ * Planning d'une affaire. Renvoie { base, lignes: [...], debut, fin, aPlanifier, utilisable }.
+ * Ligne : { tranche, jours, montant, livrables: [{ libelle, date, etat }], etat: 'à planifier'|'prévue'|'facturée'|'en retard'|'payée',
+ *           dateFacture, dateEcheance, dateEncaissement, montantEncaisse, facture: { id, numero }, retard }.
+ */
+function Planning_affaire(idAffaire, quand) {
+  var auj = aujourdhui_(quand);
+  var a = Affaires_get_(idAffaire);
+  var gagnee = ['Gagnée', 'Soldée'].indexOf(String(a.statut)) >= 0;
+  var base = montant_(gagnee ? (a.montant_notifie || a.montant_ht) : a.montant_ht);
+  var delai = Params_nombre('echeance.paiement_public_j', 30);
+  var tranches = Planning_tranches_(a.jours_par_tranche);
+  if (!tranches.length) tranches = [{ tranche: PLANNING_MISSION, jours: Affaires_joursTotal_(a.jours_par_tranche) }];
+  var totalJours = tranches.reduce(function (s, t) { return s + t.jours; }, 0);
+  var livrables = Livrables_lister(idAffaire);
+  var factures = Db_lire(TABLES.FACTURES).filter(function (f) { return String(f.id_affaire) === String(idAffaire); });
+  var codes = tranches.map(function (t) { return t.tranche; });
+  var lignes = tranches.map(function (t) {
+    var unique = tranches.length === 1;
+    var liv = livrables.filter(function (l) {
+      var c = Planning_codeTranche_(l.tranche);
+      return c === t.tranche || (unique && (!c || codes.indexOf(c) < 0));
+    });
+    var montant = arrondi_(totalJours > 0 ? base * t.jours / totalJours : base);
+    var ligne = {
+      tranche: t.tranche, jours: t.jours, montant: montant,
+      livrables: liv.map(function (l) { return { libelle: String(l.libelle), date: date_(l.date_echeance) ? jourIso_(date_(l.date_echeance)) : '', etat: String(l.etat) }; }),
+      etat: 'à planifier', dateFacture: '', dateEcheance: '', dateEncaissement: '', montantEncaisse: 0, facture: null, retard: null
+    };
+    var f = factures.filter(function (x) { return Planning_codeTranche_(x.tranche) === t.tranche; })
+      .sort(function (x, y) { return (date_(y.date) || 0) - (date_(x.date) || 0); })[0];
+    if (f) {
+      var dF = date_(f.date), dE = date_(f.date_echeance), dP = date_(f.date_encaissement);
+      ligne.facture = { id: String(f.id), numero: String(f.numero || '') };
+      ligne.montant = arrondi_(montant_(f.montant)) || montant;
+      ligne.dateFacture = dF ? jourIso_(dF) : '';
+      ligne.dateEcheance = dE ? jourIso_(dE) : '';
+      if (dP) {
+        ligne.etat = 'payée';
+        ligne.dateEncaissement = jourIso_(dP);
+        ligne.montantEncaisse = arrondi_(montant_(f.montant_encaisse));
+        if (dE) ligne.retard = Planning_interets_(ligne.montant, dE, dP);
+      } else {
+        ligne.etat = dE && auj > aujourdhui_(dE) ? 'en retard' : 'facturée';
+        if (ligne.etat === 'en retard') ligne.retard = Planning_interets_(ligne.montant, dE, auj);
+      }
+      return ligne;
+    }
+    var dates = liv.map(function (l) { return date_(l.date_echeance); }).filter(Boolean).sort(function (x, y) { return x - y; });
+    if (dates.length) {
+      var dFac = dates[dates.length - 1];
+      var dEch = new Date(dFac.getTime()); dEch.setDate(dEch.getDate() + delai);
+      ligne.etat = 'prévue';
+      ligne.dateFacture = jourIso_(dFac);
+      ligne.dateEcheance = jourIso_(dEch);
+    }
+    return ligne;
+  });
+  var toutes = [];
+  lignes.forEach(function (l) {
+    l.livrables.forEach(function (x) { if (x.date) toutes.push(x.date); });
+    [l.dateFacture, l.dateEcheance, l.dateEncaissement].forEach(function (d) { if (d) toutes.push(d); });
+  });
+  toutes.sort();
+  return {
+    base: arrondi_(base), delai: delai, lignes: lignes,
+    debut: toutes[0] || '', fin: toutes[toutes.length - 1] || '', aujourdhui: jourIso_(auj),
+    aPlanifier: lignes.filter(function (l) { return l.etat === 'à planifier'; }).length,
+    utilisable: lignes.some(function (l) { return l.etat !== 'à planifier'; })
+  };
+}
+
+/**
+ * Encaissements à venir par année d'après le planning (pour le CA prévisionnel), ou null si rien n'est planifié.
+ * Tranche prévue ou facturée : année de l'échéance de paiement (année en cours si elle est passée) ;
+ * tranche à planifier : année en cours (signalée).
+ */
+function Planning_parAnnee_(idAffaire, quand) {
+  var p = Planning_affaire(idAffaire, quand);
+  if (!p.utilisable) return null;
+  var anCourant = aujourdhui_(quand).getFullYear();
+  var parAnnee = {}, aPreciser = false;
+  p.lignes.forEach(function (l) {
+    if (l.etat === 'payée') return;
+    var an = l.dateEcheance ? Math.max(Number(l.dateEcheance.slice(0, 4)), anCourant) : anCourant;
+    if (!l.dateEcheance) aPreciser = true;
+    parAnnee[an] = (parAnnee[an] || 0) + l.montant;
+  });
+  return { parAnnee: parAnnee, aPreciser: aPreciser, planning: p };
+}
+
+/** Facture d'une tranche (depuis la barre de planning) : numéro, date, montant prérempli. */
+function Planning_facturer(idAffaire, tranche, donnees) {
+  var d = Object.assign({}, donnees || {}, { tranche: Planning_codeTranche_(tranche) });
+  return Factures_ajouter(idAffaire, d);
+}
+
+
 // ════════ Previsionnel.js ════════
 
 /**
@@ -3410,6 +3564,19 @@ function Previsionnel_ca(quand) {
     var base = montant_(gagnee ? (a.montant_notifie || a.montant_ht) : a.montant_ht);
     var deja = encaisseAffaire[a.id] || {};
     var rep = Previsionnel_repartir_(base, deja, a.repartition_ca, anneeCourante);
+    var plan = Planning_parAnnee_(a.id, auj);
+    if (plan) {
+      // Planning de facturation (livrables) : prioritaire sur la répartition saisie, plafonné au reste à encaisser
+      var resteP = Math.max(base - Object.keys(deja).reduce(function (s, k) { return s + deja[k]; }, 0), 0);
+      var parAnneeP = {};
+      Object.keys(plan.parAnnee).map(Number).sort().forEach(function (k) {
+        var v = Math.min(plan.parAnnee[k], resteP);
+        if (v > 0.005) parAnneeP[k] = v;
+        resteP -= v;
+      });
+      if (resteP > 0.005) parAnneeP[anneeCourante] = (parAnneeP[anneeCourante] || 0) + resteP;
+      rep = { parAnnee: parAnneeP, aPreciser: plan.aPreciser, remarques: plan.aPreciser ? ['tranche(s) sans livrable daté : comptée(s) sur ' + anneeCourante] : [], source: 'planning' };
+    }
     var cible = gagnee ? prevu : potentiel;
     Object.keys(rep.parAnnee).forEach(function (k) { cible[k] = (cible[k] || 0) + rep.parAnnee[k]; annees[k] = true; });
     // Jours : saisis dans « Jours par tranche » ; prix de journée saisi, à défaut montant / jours.
@@ -3428,7 +3595,7 @@ function Previsionnel_ca(quand) {
       id: a.id, acheteur: a.acheteur, objet: a.objet, statut: a.statut, base: arrondi_(base),
       encaisse: arrondi_(Object.keys(deja).reduce(function (s, k) { return s + deja[k]; }, 0)),
       parAnnee: Object.keys(rep.parAnnee).reduce(function (o, k) { if (rep.parAnnee[k] > 0.005) o[k] = arrondi_(rep.parAnnee[k]); return o; }, {}),
-      aPreciser: rep.aPreciser && base > 0, remarques: rep.remarques, repartition: String(a.repartition_ca || ''),
+      aPreciser: rep.aPreciser && base > 0, remarques: rep.remarques, repartition: String(a.repartition_ca || ''), source: rep.source || (a.repartition_ca ? 'répartition saisie' : ''),
       jours: joursTotal, joursSource: joursTotal > 0 ? 'jours par tranche' : (prixJour > 0 ? 'montant / prix par jour' : ''),
       joursEstimes: joursTotal > 0 ? joursTotal : (prixJour > 0 && base > 0 ? Math.round(base / prixJour * 10) / 10 : 0),
       prixJour: Math.round(prixJour * 100) / 100, joursParAnnee: joursParAnnee

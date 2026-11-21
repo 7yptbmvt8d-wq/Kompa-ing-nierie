@@ -306,6 +306,51 @@ test('CFE : non due avant la création, exonérée l\'année de création, moiti
   assert.ok(ok(A.apiFiscal()).cfe);
 });
 
+test('planning de facturation : tranches au prorata des jours, facture au dernier livrable, paiement à 30 j, intérêts moratoires, CA prévisionnel', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const ok = (r) => { assert.ok(r.ok, r.erreur); return brut(r.data); };
+  const quand = new Date(2027, 1, 1);
+  assert.deepStrictEqual(brut(A.Planning_tranches_('TF : 50 j\nTO1 : 60 j')), [{ tranche: 'TF', jours: 50 }, { tranche: 'TO1', jours: 60 }]);
+  const g = A.Affaires_creer({ acheteur: 'Ville de Marseille', objet: 'AMO programmation' }).id;
+  A.Affaires_maj(g, { jours_par_tranche: 'TF : 50 j\nTO1 : 60 j', prix_jour: '400', montant_ht: '' });
+  A.Affaires_changerStatut(g, 'Go', {});
+  A.Affaires_changerStatut(g, 'Déposée', { montant_ht: 44000, jours_reponse: 2, date_depot: '2026-06-01' });
+  A.Affaires_changerStatut(g, 'Gagnée', { date_notification: '2026-12-01', montant_notifie: 44000 });
+  // Sans livrable daté : à planifier, le CA prévisionnel reprend la répartition saisie (ou l'année en cours)
+  let p = brut(A.Planning_affaire(g, quand));
+  assert.deepStrictEqual(p.lignes.map((l) => [l.tranche, l.montant, l.etat]), [['TF', 20000, 'à planifier'], ['TO1', 24000, 'à planifier']]);
+  assert.strictEqual(A.Planning_parAnnee_(g, quand), null);
+  // Livrables : TF remis le 30/06/2027, TO1 en deux livrables (dernier le 15/12/2027)
+  A.Livrables_ajouter(g, { tranche: 'TF', libelle: 'Rapport de faisabilité', date_echeance: '2027-06-30' });
+  A.Livrables_ajouter(g, { tranche: 'TO1', libelle: 'Préprogramme', date_echeance: '2027-09-30' });
+  A.Livrables_ajouter(g, { tranche: 'to1', libelle: 'Programme', date_echeance: '2027-12-15' });
+  p = brut(A.Planning_affaire(g, quand));
+  const tf = p.lignes[0], to1 = p.lignes[1];
+  assert.deepStrictEqual([tf.etat, tf.dateFacture, tf.dateEcheance], ['prévue', '2027-06-30', '2027-07-30']);
+  assert.deepStrictEqual([to1.dateFacture, to1.dateEcheance, to1.livrables.length], ['2027-12-15', '2028-01-14', 2]);
+  // CA prévisionnel : 20 000 € en 2027, 24 000 € en 2028 (paiement à 30 jours), répartition saisie ignorée
+  A.Affaires_maj(g, { repartition_ca: '2027 : reste' });
+  const prev = brut(A.Previsionnel_ca(quand));
+  assert.deepStrictEqual(prev.affaires.find((x) => x.id === g).parAnnee, { 2027: 20000, 2028: 24000 });
+  assert.strictEqual(prev.affaires.find((x) => x.id === g).source, 'planning');
+  // Facturer TF depuis le planning, puis paiement en retard : intérêts moratoires + 40 €
+  const fiche = ok(A.apiPlanningFacturer(g, 'TF', { numero: 'F-2027-01', date: '2027-06-30', montant: '20000' }));
+  const ltf = fiche.planning.lignes[0];
+  assert.deepStrictEqual([ltf.etat, ltf.facture.numero, ltf.dateEcheance], ['facturée', 'F-2027-01', '2027-07-30']);
+  assert.strictEqual(fiche.factures[0].tranche, 'TF');
+  p = brut(A.Planning_affaire(g, new Date(2027, 8, 28))); // 28/09/2027 : 60 j de retard
+  assert.strictEqual(p.lignes[0].etat, 'en retard');
+  assert.deepStrictEqual([p.lignes[0].retard.jours, p.lignes[0].retard.indemnite], [60, 40]);
+  assert.strictEqual(p.lignes[0].retard.interets, Math.round(20000 * 0.1015 * 60 / 365 * 100) / 100);
+  A.Factures_maj(fiche.factures[0].id, { date_encaissement: '2027-08-09', montant_encaisse: '20000' });
+  p = brut(A.Planning_affaire(g, new Date(2027, 8, 28)));
+  assert.deepStrictEqual([p.lignes[0].etat, p.lignes[0].retard.jours], ['payée', 10]);
+  const prev2 = brut(A.Previsionnel_ca(new Date(2027, 8, 28)));
+  assert.deepStrictEqual(prev2.affaires.find((x) => x.id === g).parAnnee, { 2028: 24000 });
+});
+
 test('pièces de l\'offre : liste collée depuis l\'analyse du DCE (titres, préfixes, puces, doublons)', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });

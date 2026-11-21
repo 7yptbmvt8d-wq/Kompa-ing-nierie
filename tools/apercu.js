@@ -247,6 +247,12 @@ function assembler() {
   await p.waitForFunction(() => document.querySelectorAll('#livrables tr[data-livrable]').length === 2);
   await p.waitForSelector('.synthese:has-text("Remettre : Rapport de faisabilité")');
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-mission-livrables.png'), fullPage: true });
+  // Planning de facturation : barre livrable → facture → paiement
+  await p.waitForSelector('.planning-fact .plan-ligne');
+  await p.click('[data-sous="facturation"]');
+  await p.waitForSelector('#p-facturation .planning-fact');
+  await p.locator('#p-facturation .planning-fact').screenshot({ path: path.join(sortie, 'pc-planning-facturation.png') });
+  await p.click('[data-sous="livrables"]');
   await p.click('[data-sous="facturation"]');
   await p.waitForSelector('#p-facturation:not([hidden])');
 

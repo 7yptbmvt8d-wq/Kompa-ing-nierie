@@ -114,6 +114,19 @@ function Previsionnel_ca(quand) {
     var base = montant_(gagnee ? (a.montant_notifie || a.montant_ht) : a.montant_ht);
     var deja = encaisseAffaire[a.id] || {};
     var rep = Previsionnel_repartir_(base, deja, a.repartition_ca, anneeCourante);
+    var plan = Planning_parAnnee_(a.id, auj);
+    if (plan) {
+      // Planning de facturation (livrables) : prioritaire sur la répartition saisie, plafonné au reste à encaisser
+      var resteP = Math.max(base - Object.keys(deja).reduce(function (s, k) { return s + deja[k]; }, 0), 0);
+      var parAnneeP = {};
+      Object.keys(plan.parAnnee).map(Number).sort().forEach(function (k) {
+        var v = Math.min(plan.parAnnee[k], resteP);
+        if (v > 0.005) parAnneeP[k] = v;
+        resteP -= v;
+      });
+      if (resteP > 0.005) parAnneeP[anneeCourante] = (parAnneeP[anneeCourante] || 0) + resteP;
+      rep = { parAnnee: parAnneeP, aPreciser: plan.aPreciser, remarques: plan.aPreciser ? ['tranche(s) sans livrable daté : comptée(s) sur ' + anneeCourante] : [], source: 'planning' };
+    }
     var cible = gagnee ? prevu : potentiel;
     Object.keys(rep.parAnnee).forEach(function (k) { cible[k] = (cible[k] || 0) + rep.parAnnee[k]; annees[k] = true; });
     // Jours : saisis dans « Jours par tranche » ; prix de journée saisi, à défaut montant / jours.
@@ -132,7 +145,7 @@ function Previsionnel_ca(quand) {
       id: a.id, acheteur: a.acheteur, objet: a.objet, statut: a.statut, base: arrondi_(base),
       encaisse: arrondi_(Object.keys(deja).reduce(function (s, k) { return s + deja[k]; }, 0)),
       parAnnee: Object.keys(rep.parAnnee).reduce(function (o, k) { if (rep.parAnnee[k] > 0.005) o[k] = arrondi_(rep.parAnnee[k]); return o; }, {}),
-      aPreciser: rep.aPreciser && base > 0, remarques: rep.remarques, repartition: String(a.repartition_ca || ''),
+      aPreciser: rep.aPreciser && base > 0, remarques: rep.remarques, repartition: String(a.repartition_ca || ''), source: rep.source || (a.repartition_ca ? 'répartition saisie' : ''),
       jours: joursTotal, joursSource: joursTotal > 0 ? 'jours par tranche' : (prixJour > 0 ? 'montant / prix par jour' : ''),
       joursEstimes: joursTotal > 0 ? joursTotal : (prixJour > 0 && base > 0 ? Math.round(base / prixJour * 10) / 10 : 0),
       prixJour: Math.round(prixJour * 100) / 100, joursParAnnee: joursParAnnee

@@ -42,7 +42,8 @@ function ficheClient_(id) {
     livrables: f.livrables.map(function (l) { return versClient_(TABLES.LIVRABLES, l); }),
     livrablesResume: Livrables_resume_(f.livrables),
     totaux: f.totaux,
-    transitions: f.transitions
+    transitions: f.transitions,
+    planning: Planning_affaire(id)
   };
 }
 
@@ -98,6 +99,11 @@ function apiCriteres(id, lignes) {
 
 function apiFactureAjouter(id, facture) {
   return repondre_(function () { Factures_ajouter(id, facture); Relances_synchroniser(); return ficheClient_(id); });
+}
+
+/** Facture d'une tranche, depuis la barre de planning. */
+function apiPlanningFacturer(id, tranche, facture) {
+  return repondre_(function () { Planning_facturer(id, tranche, facture); Relances_synchroniser(); return ficheClient_(id); });
 }
 
 function apiFactureMaj(idAffaire, idFacture, champs) {
