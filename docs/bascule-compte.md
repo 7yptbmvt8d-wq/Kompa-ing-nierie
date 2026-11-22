@@ -33,7 +33,9 @@ Puis Déployer › Gérer les déploiements › **Archiver** l'ancien déploieme
    `curl "adresse localhost"` dans un 2e onglet, puis `cat ~/.clasprc.json`.
 3. GitHub › Settings › Secrets › Actions : remplacer **CLASPRC_JSON** et **DEPLOYMENT_ID** (nouvelle adresse /exec).
    SCRIPT_ID ne change pas.
-4. Révoquer l'accès clasp de l'ancien compte (myaccount.google.com/permissions) et supprimer ~/.clasprc.json dans Cloud Shell.
+4. Révoquer l'accès clasp **de l'ancien compte uniquement** (myaccount.google.com/permissions, connecté en kompa),
+   puis `rm ~/.clasprc.json` dans Cloud Shell. Ne pas lancer `clasp logout` et ne rien révoquer côté kartes :
+   cela invalide le jeton du secret CLASPRC_JSON (erreur `invalid_grant` dans GitHub Actions).
 
 ## F. Après la bascule
 - Alertes e-mail des plateformes (BOAMP, achatpublic, PLACE, marchés sécurisés…) : nouvelle adresse.
