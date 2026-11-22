@@ -3398,6 +3398,11 @@ function MiseAJour_appliquer_() {
     var nb = (r.parametres || 0) + (r.lots || 0) + (r.typologies || 0) + (Number(r.k) || 0);
     if (nb) changements.push('Estimation : ' + nb + ' ligne' + (nb > 1 ? 's' : '') + ' de référentiel ajoutée' + (nb > 1 ? 's' : ''));
   }
+  // Acheteurs exclus (Ministère des Armées) : avis « nouveaux » déjà collectés archivés
+  if (typeof Veille_archiverAcheteursExclus_ === 'function') {
+    var arch = Veille_archiverAcheteursExclus_();
+    if (arch) changements.push(arch + ' avis d\'acheteur exclu archivé' + (arch > 1 ? 's' : ''));
+  }
   var renommes = MiseAJour_renommer_();
   if (renommes.length) changements.push('renommé' + (renommes.length > 1 ? 's' : '') + ' : ' + renommes.join(', '));
   var existants = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
@@ -3494,6 +3499,8 @@ var PARAMETRES_DEFAUT = [
     'Mots-clés « cœur de mission » (30 pts au critère Mission)'],
   ['veille.exclusions', 'marché de travaux;AMO juridique;AMO financière;assurance;eau potable;assainissement;adduction;délégation de service public;délégations de service public;dsp ;concession;comptab;budget;plan local d\'urbanisme;plu ;déchet;collecte;rivière;ruisseau;hydraul;inondation;bassin versant;copropriété;géomètre;topograph;amiante;termite;xylophage;jeux d\'enfants;scénographie;services graphiques;multimédia;recrutement;ressources humaines;effectifs;communication;informatique;systèmes d\'information;tourisme;touristique;routier;routière;voirie;portuaire;nettoyage;restauration collective;approvisionnement;illumination;pyrotechni;cartographie;sensibilisation;biodiversité;renaturation;écolog;notation;émetteur;contentieux;enquête publique;enquêtes publiques;décence;logistique;ordonnancement;opc ;géotechni;éclairage public;incendie;chaufferie;réseau de chaleur;très haut débit;fourniture;location;prestations artistiques;événementiel;évènementiel;assistance technique générale',
     'Avis écartés si l\'objet contient l\'un de ces termes — à valider'],
+  ['veille.acheteurs_exclus', 'minarm;ministère des armées;ministère de la défense;armées;armée de terre;armée de l\'air;marine nationale;légion étrangère;infrastructure de la défense;esid ;usid ;sid ;gsbdd;base de défense;direction générale de l\'armement;dga ;commissariat des armées;service de santé des armées;énergie opérationnelle;plateforme achats finances;pfaf;onacvg;ecpad',
+    'Acheteurs jamais retenus (cumul d\'activités : aucun marché du Ministère des Armées, quelle que soit la procédure) : comparés au nom de l\'acheteur et à l\'objet'],
   ['veille.exclusions_souples', 'foncier;financ;juridique;mobilité;déplacement;transport', 'Exclusions levées si l\'objet cite un équipement (ex. « accompagnement foncier pour un projet de collège »)'],
   ['veille.batiment_requis', 'oui', 'Ne garder que les avis dont l\'objet relève du bâtiment : oui ou non'],
   ['veille.exclusions_a_verifier', 'pmpfci;pidaf;dfci;débroussaill;forêt;forestier;enfance;jeux olympiques;olympique;tourisme;culture;sport',
@@ -4527,6 +4534,7 @@ function Veille_contexte_() {
     motsCles: Params_liste('veille.mots_cles').map(Veille_norm_),
     motsCoeur: Params_liste('veille.mots_cles_coeur').map(Veille_norm_),
     exclusions: Params_liste('veille.exclusions').map(Veille_norm_),
+    acheteursExclus: Veille_motsEntiers_(Params_liste('veille.acheteurs_exclus')),
     exclusionsSouples: Params_liste('veille.exclusions_souples').map(Veille_norm_),
     motsBatiment: Params_liste('veille.mots_batiment').map(Veille_norm_),
     equipements: Params_liste('veille.equipements').map(Veille_norm_),
@@ -4749,6 +4757,9 @@ function Veille_depuisEmail_(id, sujet, de, corps, quand, ctx) {
 function Veille_filtrer_(a, ctx) {
   var objet = Veille_norm_(a.objet);
   var texte = objet + ' ' + Veille_norm_(a.texte || '');
+  // Acheteurs exclus (Ministère des Armées) : AO, MAPA, toute procédure. Alerte e-mail sans acheteur : début du texte.
+  var exAch = Veille_acheteurExclu_(a, ctx);
+  if (exAch) return { garde: false, motif: 'acheteur exclu : ' + exAch };
   // Zone : départements connus et tous hors zone → exclu (sauf veille.hors_zone = oui)
   var deps = (a.departements || [a.departement]).filter(Boolean);
   if (!ctx.horsZone && deps.length && !deps.some(function (d) { return ctx.paca.indexOf(d) >= 0; })) {
@@ -4785,6 +4796,33 @@ function Veille_filtrer_(a, ctx) {
   return { garde: true };
 }
 
+/** Terme de veille.acheteurs_exclus trouvé dans l'acheteur ou l'objet (ou le début d'une alerte e-mail sans acheteur), sinon ''. */
+function Veille_acheteurExclu_(a, ctx) {
+  if (!ctx.acheteursExclus || !ctx.acheteursExclus.length) return '';
+  var cible = Veille_norm_(a.acheteur) + ' | ' + Veille_norm_(a.objet);
+  if (!a.acheteur) cible += ' | ' + Veille_norm_(String(a.texte || '').slice(0, 600));
+  return Veille_contientMot_(cible, ctx.acheteursExclus);
+}
+
+/** Termes comparés en mot entier (« sid » ≠ « Sidiailles », « armées » ≠ « armement »). */
+function Veille_motsEntiers_(termes) {
+  return termes.map(function (t) { return Veille_norm_(t) + ' '; }).filter(function (t) { return t.trim(); });
+}
+
+/** Avis « nouveaux » d'un acheteur exclu, déjà collectés : archivés (rien d'autre n'est touché). */
+function Veille_archiverAcheteursExclus_() {
+  var ctx = { acheteursExclus: Veille_motsEntiers_(Params_liste('veille.acheteurs_exclus')) };
+  var n = 0;
+  Db_lire(TABLES.AVIS).forEach(function (a) {
+    if (a.statut !== 'nouveau') return;
+    var m = Veille_acheteurExclu_({ acheteur: a.acheteur || '-', objet: a.objet }, ctx);
+    if (!m) return;
+    Db_maj(TABLES.AVIS, a.id, { statut: 'archivé', classement: 'archivé', score_detail: 'Acheteur exclu : ' + m + ' · ' + (a.score_detail || '') });
+    n++;
+  });
+  return n;
+}
+
 /**
  * Premier terme de la liste présent dans le texte, comparé en début de mot
  * (« graphique » ne correspond pas à « muséographique »). Un terme qui finit par une espace
@@ -4810,7 +4848,7 @@ function Veille_refiltrer_() {
   var n = 0;
   Db_lire(TABLES.AVIS).forEach(function (a) {
     if (a.statut !== 'nouveau') return;
-    var f = Veille_filtrer_({ objet: a.objet, cpv: a.cpv, descripteurs: '', departement: a.departement, departements: [a.departement], texte: '' }, ctx);
+    var f = Veille_filtrer_({ acheteur: a.acheteur, objet: a.objet, cpv: a.cpv, descripteurs: '', departement: a.departement, departements: [a.departement], texte: '' }, ctx);
     // Les avis collectés avant ce filtre ont passé le contrôle CPV / mots-clés : seul le nouveau tri s'applique
     if (!f.garde && f.motif !== 'hors CPV et mots-clés') {
       Db_maj(TABLES.AVIS, a.id, { statut: 'archivé', classement: 'archivé', score_detail: 'Exclu par les nouveaux filtres : ' + f.motif + ' · ' + (a.score_detail || '') });

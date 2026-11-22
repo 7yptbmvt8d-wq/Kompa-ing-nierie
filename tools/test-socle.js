@@ -1669,6 +1669,35 @@ test('veille : filtres § 3.2 (maîtrise d\'œuvre exclue, AMO gardée)', () => 
   assert.strictEqual(g.garde, false);
 });
 
+test('veille : acheteurs du Ministère des Armées exclus (AO, MAPA), avis déjà collectés archivés', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const ctx = A.Veille_contexte_();
+  const base = { objet: 'AMO programmation d\'une école', cpv: '71241000', departement: '13', departements: ['13'] };
+  assert.strictEqual(A.Veille_filtrer_(Object.assign({ acheteur: 'Ville d\'Aix' }, base), ctx).garde, true);
+  ['Ministère des Armées - ESID de Lyon', 'ESID Marseille', 'Etablissement du service d\'infrastructure de la défense de Toulon', 'USID Ajaccio',
+    'GSBdD Marseille Aubagne', 'Direction générale de l\'armement', 'Ministère des armées et des anciens combattants', 'Marine nationale', 'SID Sud-Est'].forEach((ach) => {
+    const f = A.Veille_filtrer_(Object.assign({ acheteur: ach }, base, { procedure: 'Procédure Adaptée' }), ctx);
+    assert.strictEqual(f.garde, false, ach);
+    assert.match(f.motif, /^acheteur exclu/, ach);
+  });
+  // Objet qui cite le ministère ; alerte e-mail sans acheteur
+  assert.strictEqual(A.Veille_filtrer_(Object.assign({}, base, { acheteur: 'OPPIC', objet: 'AMO programmation de locaux pour le Ministère des Armées' }), ctx).garde, false);
+  assert.strictEqual(A.Veille_filtrer_(Object.assign({}, base, { acheteur: '', texte: 'Acheteur : ESID de Lyon. Objet : AMO école' }), ctx).garde, false);
+  // Pas de faux positif sur un mot proche
+  assert.strictEqual(A.Veille_filtrer_(Object.assign({}, base, { acheteur: 'Commune de Sidiailles' }), ctx).garde, true);
+  // Avis déjà collectés : seuls les « nouveaux » d'un acheteur exclu sont archivés
+  const n = A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'm1', acheteur: 'ESID de Lyon', objet: 'AMO caserne', statut: 'nouveau', classement: 'à étudier' });
+  const e = A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'm2', acheteur: 'ESID de Lyon', objet: 'AMO caserne 2', statut: 'étudié', classement: 'à étudier' });
+  const v = A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'v1', acheteur: 'Ville de Gap', objet: 'AMO école', statut: 'nouveau', classement: 'à étudier' });
+  assert.strictEqual(A.Veille_archiverAcheteursExclus_(), 1);
+  A.Db_viderCache_();
+  assert.strictEqual(A.Db_trouver(A.TABLES.AVIS, n.id).statut, 'archivé');
+  assert.strictEqual(A.Db_trouver(A.TABLES.AVIS, e.id).statut, 'étudié');
+  assert.strictEqual(A.Db_trouver(A.TABLES.AVIS, v.id).statut, 'nouveau');
+});
+
 test('veille : AMO « bâtiment à vérifier » plafonnée à « possible », mention dans le détail ; paramètre à non → écartée', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });
@@ -2388,7 +2417,7 @@ test('page : titre « Kartes Affaires » et icône Kompa dans l\'onglet', () => 
 
 const PACA = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'boamp-paca-corse.json'), 'utf8'));
 
-test('filtres PACA-Corse : 29 avis du domaine bâtiment + 11 AMO « bâtiment à vérifier » gardés sur 137', () => {
+test('filtres PACA-Corse : 39 avis gardés sur 137 (dont 10 AMO « bâtiment à vérifier »), Ministère des Armées exclu', () => {
   const env = creerEnvironnement({ boamp: PACA });
   env.ctx.installer({ exercice: false });
   const ctx = env.ctx.Veille_contexte_();
@@ -2398,8 +2427,9 @@ test('filtres PACA-Corse : 29 avis du domaine bâtiment + 11 AMO « bâtiment à
   };
   const filtre = (r) => env.ctx.Veille_filtrer_(env.ctx.Veille_depuisBoamp_(r, ctx), ctx);
   const gardes = PACA.results.filter((r) => filtre(r).garde);
-  assert.strictEqual(gardes.length, 40);
-  assert.strictEqual(gardes.filter((r) => filtre(r).batimentAVerifier).length, 11);
+  assert.strictEqual(gardes.length, 39); // 40 avant l'exclusion des acheteurs du Ministère des Armées (AMO de la BAN de Hyères, SID-MED)
+  assert.strictEqual(gardes.filter((r) => filtre(r).batimentAVerifier).length, 10); // 11 avant (l'AMO de la BAN en était)
+  assert.ok(!garde('AMO environnemental pour l’accueil des HIL sur la BAN de Hyères'), 'SID-MED exclu');
   // Assouplissement : AMO explicite sans mot du bâtiment → gardée, bâtiment à vérifier
   ['Assistance technique à maîtrise d\'ouvrage pour les marchés de travaux - 13120 - Gardanne', 'compétences "Cadre de Vie" de la CASA',
     'lancement des consultations de la maitrise d\'oeuvre', 'Programmation De La Construction D\'Une Nouvelle'].forEach((o) => assert.ok(garde(o), 'devrait être gardé (à vérifier) : ' + o));

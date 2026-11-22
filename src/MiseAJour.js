@@ -95,6 +95,11 @@ function MiseAJour_appliquer_() {
     var nb = (r.parametres || 0) + (r.lots || 0) + (r.typologies || 0) + (Number(r.k) || 0);
     if (nb) changements.push('Estimation : ' + nb + ' ligne' + (nb > 1 ? 's' : '') + ' de référentiel ajoutée' + (nb > 1 ? 's' : ''));
   }
+  // Acheteurs exclus (Ministère des Armées) : avis « nouveaux » déjà collectés archivés
+  if (typeof Veille_archiverAcheteursExclus_ === 'function') {
+    var arch = Veille_archiverAcheteursExclus_();
+    if (arch) changements.push(arch + ' avis d\'acheteur exclu archivé' + (arch > 1 ? 's' : ''));
+  }
   var renommes = MiseAJour_renommer_();
   if (renommes.length) changements.push('renommé' + (renommes.length > 1 ? 's' : '') + ' : ' + renommes.join(', '));
   var existants = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
