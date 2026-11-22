@@ -1,4 +1,4 @@
-# Déploiement automatique de Kompa Affaires dans Apps Script (plus de copier-coller).
+# Déploiement automatique de Kartes Affaires dans Apps Script (plus de copier-coller).
 # Mise en place unique : docs/deploiement-automatique.md (3 secrets GitHub).
 # Tant que les secrets ne sont pas renseignés, ce workflow ne fait rien (il s'arrête sans erreur).
 #
@@ -75,5 +75,5 @@ jobs:
           echo "— Envoi du code (clasp push)"
           npx --yes @google/clasp@3.4.1 push --force
           echo "— Nouvelle version et mise à jour du déploiement"
-          npx --yes @google/clasp@3.4.1 update-deployment "$DID" --description "Kompa Affaires $VERSION — ${GITHUB_SHA::7}"
+          npx --yes @google/clasp@3.4.1 update-deployment "$DID" --description "Kartes Affaires $VERSION — ${GITHUB_SHA::7}"
           rm -f "$HOME/.clasprc.json" .clasp.json
