@@ -16,7 +16,7 @@ const DIST = path.join(__dirname, '..', 'dist');
 fs.mkdirSync(DIST, { recursive: true });
 
 const version = (fs.readFileSync(path.join(SRC, 'Config.js'), 'utf8').match(/VERSION: '([^']+)'/) || [])[1];
-const entete = `Kompa Affaires ${version} — fichier généré par tools/build.js depuis src/. Ne pas modifier ici.`;
+const entete = `Kartes Affaires ${version} — fichier généré par tools/build.js depuis src/. Ne pas modifier ici.`;
 
 // Setup.js en tête : « installer » est ainsi la fonction sélectionnée par défaut
 // dans la liste « Exécuter » de l'éditeur Apps Script.
@@ -32,7 +32,7 @@ fs.writeFileSync(path.join(DIST, 'Code.gs'), `/* ${entete} */\n\n${code}\n`);
 const versionEst = (fs.readFileSync(path.join(SRC, 'EstConfig.js'), 'utf8').match(/EST_VERSION = '([^']+)'/) || [])[1];
 const est = assembler(sources.filter(estModule).sort((a, b) => (a === 'EstConfig.js' ? -1 : b === 'EstConfig.js' ? 1 : a.localeCompare(b))));
 fs.writeFileSync(path.join(DIST, 'Estimation.gs'),
-  `/* Kompa Affaires — module Estimation ${versionEst} — fichier généré par tools/build.js depuis src/Est*.js. Ne pas modifier ici. */\n\n${est}\n`);
+  `/* Kartes Affaires — module Estimation ${versionEst} — fichier généré par tools/build.js depuis src/Est*.js. Ne pas modifier ici. */\n\n${est}\n`);
 
 let html = fs.readFileSync(path.join(SRC, 'Index.html'), 'utf8');
 html = html.replace(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g, (_, nom) => fs.readFileSync(path.join(SRC, nom + '.html'), 'utf8').trim());
