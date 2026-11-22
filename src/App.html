@@ -1,5 +1,5 @@
 <script>
-/* Kompa Affaires — interface (lot 1 : socle). */
+/* Kartes Affaires — interface (lot 1 : socle). */
 (function () {
   'use strict';
 
@@ -354,11 +354,11 @@
         '<span class="apercu-theme apercu-theme--' + v + '"></span><span><strong>' + lib + '</strong><br><span class="legende">' + detail + '</span></span></label>';
     };
     return '<section class="groupe-param" id="apparence"><h2>Apparence</h2><div class="choix-theme">' +
-      opt('kompa', 'Kompa', 'Charte Kompa Ingénierie (par défaut)') + opt('neon', 'Néon Sunset', 'Fond nuit, coucher de soleil néon') +
-      '</div><p class="legende">Choix gardé sur votre compte (ordinateur et téléphone, même après une mise à jour de l\'app) ; les e-mails et les fichiers exportés gardent la charte Kompa.</p></section>';
+      opt('kompa', 'Kartes', 'Charte Kartes Ingénierie (par défaut)') + opt('neon', 'Néon Sunset', 'Fond nuit, coucher de soleil néon') +
+      '</div><p class="legende">Choix gardé sur votre compte (ordinateur et téléphone, même après une mise à jour de l\'app) ; les e-mails et les fichiers exportés gardent la charte Kartes.</p></section>';
   }
   document.addEventListener('change', function (ev) {
-    if (ev.target.matches && ev.target.matches('[data-theme-choix]')) { choisirTheme(ev.target.value); toast('Thème « ' + (ev.target.value === 'neon' ? 'Néon Sunset' : 'Kompa') + ' » appliqué.'); }
+    if (ev.target.matches && ev.target.matches('[data-theme-choix]')) { choisirTheme(ev.target.value); toast('Thème « ' + (ev.target.value === 'neon' ? 'Néon Sunset' : 'Kartes') + ' » appliqué.'); }
   });
 
   function paramsPC(params) {
@@ -434,7 +434,7 @@
       if (a.getAttribute('href') === '#' + onglet) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
     });
-    document.title = (param || ECRANS[nom].titre) + ' — Kompa Affaires';
+    document.title = (param || ECRANS[nom].titre) + ' — Kartes Affaires';
     jetonEcran++;
     var el = $('#ecran');
     ECRANS[nom].rendu(el, param);
@@ -478,7 +478,7 @@
     precharger();
   }
 
-  $('#pied').textContent = 'Kompa Affaires';
+  $('#pied').textContent = 'Kartes Affaires';
 
   // Utilitaires partagés avec les autres scripts de l'interface (AppAffaires…).
   window.KA = {

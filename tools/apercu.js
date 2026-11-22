@@ -124,7 +124,7 @@ function assembler() {
   await p.waitForSelector(`.colonne[data-statut="Go"] .carte-affaire[data-id="${e1}"]`);
   assert.strictEqual(A.Affaires_get_(e1).statut, 'Go', 'glisser-déposer sans effet');
   // Colonne « Clôturées » : l'exercice Mouthe y est visible ; Déposée → Clôturées propose Perdue / Sans suite
-  await p.waitForSelector('.colonne[data-statut="Clôturées"] .carte-affaire[data-id="KA-2026-001"]');
+  await p.waitForSelector('.colonne[data-statut="Clôturées"] .carte-affaire[data-id="KI-2026-001"]');
   await p.locator(`.carte-affaire[data-id="${d1}"]`).dragTo(p.locator('.colonne[data-statut="Clôturées"]'));
   await p.waitForSelector('dialog.dialogue[open] input[name=cloture]');
   await p.screenshot({ path: path.join(sortie, 'pc-choix-cloture.png') });
@@ -141,7 +141,7 @@ function assembler() {
   await p.waitForSelector('.table-affaires');
   await p.screenshot({ path: path.join(sortie, 'pc-affaires-liste.png') });
   // Fiche Mouthe, onglet Résultat
-  await p.click('tr[data-ouvrir="KA-2026-001"]');
+  await p.click('tr[data-ouvrir="KI-2026-001"]');
   await p.waitForSelector('.fiche-tete');
   // Affaire perdue : la fiche s'ouvre sur Appel d'offres › Résultat
   await p.waitForSelector('[data-sous="resultat"][aria-selected="true"]');

@@ -111,12 +111,14 @@ var PARAMETRES_DEFAUT = [
   ['facture.mise_en_demeure_j', '30', 'Retard de paiement (jours après l\'échéance) à partir duquel le courrier de relance devient une mise en demeure'],
   ['facture.indemnite_recouvrement', '40', 'Indemnité forfaitaire pour frais de recouvrement (€), due en cas de retard de paiement (art. D. 2192-35 CCP)'],
   ['echeance.validite_defaut_j', '90', 'Validité de l\'offre si non renseignée dans l\'affaire (jours)'],
-  ['courrier.signature', 'Sébastien De Raedt EI\nKompa Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · kompa.ingenierie@gmail.com\nSIRET [n°] · TVA non applicable, art. 293 B du CGI',
-    'Signature des modèles de courriers (\\n = retour à la ligne)'],
+  ['courrier.nom_entreprise', 'Kartes Ingénierie', 'Nom de l\'entreprise dans les courriers et documents'],
+  ['courrier.email_public', '', 'Adresse e-mail publique (courriers, offres, DC1) : remplace [e-mail] dans la signature. À renseigner'],
+  ['courrier.signature', 'Sébastien De Raedt EI\nKartes Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · [e-mail]\nSIRET [n°] · TVA non applicable, art. 293 B du CGI',
+    'Signature des modèles de courriers (\\n = retour à la ligne ; [e-mail] = adresse publique ci-dessus)'],
 
   // E-mail (§ 6)
   ['email.heure', '7', 'Heure d\'envoi de l\'e-mail du matin (0-23)'],
-  ['email.destinataire', '', 'Adresse de réception (vide = compte Kompa : kompa.ingenierie@gmail.com)'],
+  ['email.destinataire', '', 'Adresse de réception (vide = compte Google de l\'app)'],
   ['email.jours', 'lun;mar;mer;jeu;ven', 'Jours d\'envoi (pas le week-end)'],
   ['email.recap_lundi', 'oui', 'Envoi le lundi même si toutes les rubriques sont vides'],
   ['email.si_rien', 'oui', 'Envoi chaque jour ouvré même sans nouvel avis, échéance ni relance (« aucun nouvel avis », avec le bilan de la collecte du matin)'],
@@ -137,8 +139,8 @@ var PARAMETRES_DEFAUT = [
 
   // Dossiers Drive des affaires
   ['drive.actif', 'oui', 'Créer un dossier Drive pour chaque affaire : oui ou non'],
-  ['drive.dossier_racine', '', 'Dossier racine (URL ou identifiant). Vide = créé automatiquement « Kompa Affaires — Dossiers »'],
-  ['drive.nom_racine', 'Kompa Affaires — Dossiers', 'Nom du dossier racine s\'il est créé automatiquement'],
+  ['drive.dossier_racine', '', 'Dossier racine (URL ou identifiant). Vide = créé automatiquement « Kartes Affaires — Dossiers »'],
+  ['drive.nom_racine', 'Kartes Affaires — Dossiers', 'Nom du dossier racine s\'il est créé automatiquement'],
   ['drive.sous_dossiers_etude', '01 DCE;02 Questions et visite', 'Sous-dossiers créés avec l\'affaire (En étude)'],
   ['drive.sous_dossiers_go', '03 Candidature;04 Offre;05 Dépôt', 'Sous-dossiers créés au passage en Go'],
   ['drive.sous_dossiers_resultat', '06 Résultat', 'Sous-dossiers créés au résultat (gagnée, perdue, sans suite)'],
@@ -148,7 +150,7 @@ var PARAMETRES_DEFAUT = [
   ['sauvegarde.nb_copies', '8', 'Nombre de copies hebdomadaires conservées dans Drive'],
 
   // Application
-  ['app.favicon_url', '', 'Icône de l\'onglet : URL publique se terminant par .png (vide = icône Kompa du kit)'],
+  ['app.favicon_url', '', 'Icône de l\'onglet : URL publique se terminant par .png (vide = icône du kit)'],
   ['app.url', '', 'Adresse /exec de l\'app pour les liens de l\'e-mail (vide = détectée automatiquement)']
 ];
 
@@ -201,6 +203,9 @@ function Params_enregistrer(cle, valeur) {
  * [clé, ancienne valeur par défaut, nouvelle]
  */
 var MIGRATIONS_PARAMETRES = [
+  ['drive.nom_racine', 'Kompa Affaires — Dossiers', null],
+  // Renommage Kompa → Kartes Ingénierie (22/11/2026) : seulement si la valeur d'origine n'a pas été modifiée
+  ['courrier.signature', 'Sébastien De Raedt EI\nKompa Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · kompa.ingenierie@gmail.com\nSIRET [n°] · TVA non applicable, art. 293 B du CGI', null],
   ['zone.departements_paca', '04;05;06;13;83;84', null],
   ['zone.libelle_paca', 'PACA', null],
   ['veille.exclusions', 'marché de travaux;AMO juridique;AMO financière;assurances', null]

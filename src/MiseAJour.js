@@ -4,7 +4,7 @@
  *
  * Seulement des AJOUTS, jamais de suppression, de déplacement ni de modification d'une valeur saisie :
  * - onglets absents créés, colonnes absentes ajoutées en fin de ligne d'en-tête ;
- * - paramètres absents ajoutés avec leur valeur par défaut ;
+ * - paramètres absents ajoutés avec leur valeur par défaut ; valeur d'origine jamais modifiée → nouvelle valeur par défaut ;
  * - référentiels du module Estimation : lignes absentes ajoutées ;
  * - déclencheurs absents recréés (ceux qui existent ne sont pas touchés).
  * installer() reste disponible pour une remise à plat complète (migrations de valeurs, avis re-filtrés…).
@@ -87,11 +87,16 @@ function MiseAJour_appliquer_() {
   Db_viderCache_();
   var p = Params_initialiser_();
   if (p) changements.push(p + ' paramètre' + (p > 1 ? 's' : '') + ' ajouté' + (p > 1 ? 's' : ''));
+  // Valeurs par défaut d'origine remplacées par les nouvelles (une valeur que vous avez modifiée n'est jamais touchée)
+  var migres = Params_migrer_();
+  if (migres && migres.length) changements.push('paramètre' + (migres.length > 1 ? 's' : '') + ' mis à jour (valeur d\'origine) : ' + migres.join(', '));
   if (typeof Est_initialiserReferentiels_ === 'function') {
     var r = Est_initialiserReferentiels_();
     var nb = (r.parametres || 0) + (r.lots || 0) + (r.typologies || 0) + (Number(r.k) || 0);
     if (nb) changements.push('Estimation : ' + nb + ' ligne' + (nb > 1 ? 's' : '') + ' de référentiel ajoutée' + (nb > 1 ? 's' : ''));
   }
+  var renommes = MiseAJour_renommer_();
+  if (renommes.length) changements.push('renommé' + (renommes.length > 1 ? 's' : '') + ' : ' + renommes.join(', '));
   var existants = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
   var absents = MiseAJour_declencheursVoulus_().filter(function (n) { return existants.indexOf(n) < 0; });
   if (absents.length && existants.length) {
@@ -104,6 +109,37 @@ function MiseAJour_appliquer_() {
     erreurs: changements.length ? ('v' + APP.VERSION + ' : ' + changements.join(' ; ')).slice(0, 500) : ''
   });
   return { changements: changements };
+}
+
+/**
+ * Renommage Kompa → Kartes (22/11/2026) : classeurs, dossier racine des affaires et dossier des sauvegardes,
+ * seulement s'ils portent encore le nom d'origine « Kompa … ». L'app les retrouve par leur identifiant :
+ * le renommage ne change ni leur contenu ni leurs liens.
+ */
+function MiseAJour_renommer_() {
+  var faits = [];
+  var renommer = function (element, nouveau) {
+    if (!element) return;
+    var nom = String(element.getName());
+    if (nom.indexOf(APP.ANCIEN_NOM + ' ') !== 0 || nom === nouveau) return;
+    element.setName(nouveau);
+    faits.push('« ' + nom + ' » → « ' + nouveau + ' »');
+  };
+  var props = PropertiesService.getScriptProperties();
+  Object.keys(CLASSEURS).forEach(function (cle) {
+    var id = props.getProperty(CLASSEURS[cle].prop);
+    if (!id) return;
+    try { renommer(DriveApp.getFileById(id), CLASSEURS[cle].nom); } catch (e) { /* fichier inaccessible : laissé tel quel */ }
+  });
+  try {
+    var racine = Drive_id_(Params_texte('drive.dossier_racine', ''));
+    if (racine) renommer(DriveApp.getFolderById(racine), Params_texte('drive.nom_racine', 'Kartes Affaires — Dossiers'));
+  } catch (e) { /* sans effet */ }
+  try {
+    var sauv = props.getProperty(APP.PROP_DOSSIER_SAUVEGARDES_ID);
+    if (sauv) renommer(DriveApp.getFolderById(sauv), APP.DOSSIER_SAUVEGARDES);
+  } catch (e) { /* sans effet */ }
+  return faits;
 }
 
 /** Dernière mise à jour automatique (affichée sur l'accueil pendant 3 jours), ou null. */

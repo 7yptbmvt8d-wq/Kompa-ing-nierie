@@ -17,7 +17,7 @@ test('installer() crée le classeur, les 11 onglets et supprime la feuille par d
   const env = creerEnvironnement();
   const rapport = env.ctx.installer({ exercice: false });
   const ss = Object.values(env.classeurs)[0];
-  assert.strictEqual(ss.getName(), 'Kompa Affaires — données');
+  assert.strictEqual(ss.getName(), 'Kartes Affaires — données');
   const noms = ss.getSheets().map((f) => f.getName());
   assert.deepStrictEqual(noms, ['Avis', 'Affaires', 'Historique', 'Pièces de l\'offre', 'Livrables', 'Critères', 'Factures', 'Relances', 'Acheteurs', 'Paramètres', 'Déclarations', 'Journal moteur', 'Avis archivés']);
   assert.ok(rapport.parametresAjoutes > 40);
@@ -186,11 +186,11 @@ test('veille apprenante : avis ignorés et No-go font baisser, affaires étudié
 test('Qonto : connexion testée, factures et paiements récupérés, rattachement par n° KA, rien de supprimé', () => {
   const inv = (o) => Object.assign({ status: 'unpaid', currency: 'EUR', vat_amount: { value: '0.00' }, items: [] }, o);
   const factures = [
-    inv({ id: 'q1', number: 'F-2027-001', purchase_order: 'KA-2026-002 TF', issue_date: '2027-03-01', due_date: '2027-03-31', total_amount: { value: '8000.00' },
+    inv({ id: 'q1', number: 'F-2027-001', purchase_order: 'KI-2026-002 TF', issue_date: '2027-03-01', due_date: '2027-03-31', total_amount: { value: '8000.00' },
       status: 'paid', paid_at: '2027-03-25T10:00:00Z', amount_paid: { value: '8000.00' }, invoice_url: 'https://app.qonto.com/invoices/q1' }),
     inv({ id: 'q2', number: 'F-2027-002', issue_date: '2027-04-01', due_date: '2027-05-01', total_amount: { value: '1500.00' } }), // sans n° KA
-    inv({ id: 'q3', number: 'F-2027-003', header: 'Mission KA-2026-002 — TO1', issue_date: '2027-06-01', due_date: '2027-07-01', total_amount: { value: '12000.00' } }),
-    inv({ id: 'q4', number: 'F-2027-004', purchase_order: 'KA-2026-002', issue_date: '2027-06-02', due_date: '2027-07-02', total_amount: { value: '100.00' }, status: 'canceled' })
+    inv({ id: 'q3', number: 'F-2027-003', header: 'Mission KI-2026-002 — TO1', issue_date: '2027-06-01', due_date: '2027-07-01', total_amount: { value: '12000.00' } }),
+    inv({ id: 'q4', number: 'F-2027-004', purchase_order: 'KI-2026-002', issue_date: '2027-06-02', due_date: '2027-07-02', total_amount: { value: '100.00' }, status: 'canceled' })
   ];
   const env = creerEnvironnement({ qonto: { cle: 'kompa-1234:secret', factures } });
   const A = env.ctx;
@@ -199,7 +199,7 @@ test('Qonto : connexion testée, factures et paiements récupérés, rattachemen
   console.log = journal;
   A.Affaires_creer({ acheteur: 'Commune de Lurs', objet: 'AMO' });
   const id = A.Affaires_creer({ acheteur: 'Ville de Marseille', objet: 'AMO programmation' }).id;
-  assert.strictEqual(id, 'KA-2026-002');
+  assert.strictEqual(id, 'KI-2026-002');
   A.Affaires_maj(id, { jours_par_tranche: 'TF : 20 j\nTO1 : 30 j', prix_jour: 400 });
   // Facture déjà saisie à la main avec le même numéro : complétée, pas dupliquée
   A.Affaires_changerStatut(id, 'Go', {}); A.Affaires_changerStatut(id, 'Déposée', { montant_ht: 20000, date_depot: '2027-01-10', jours_reponse: 2 });
@@ -294,9 +294,9 @@ test('passage à l\'année suivante : numérotation, CA et déclarations URSSAF 
   assert.match(echIr.libelle, /CA 2027 : 9\s000,00\s€/);
   assert.ok(A.apiRevenusDeclares(2028, '2028-05-10').ok);
   assert.strictEqual(A.Fiscal_declarationRevenus(2028, new Date(2028, 4, 15)).etat, 'faite');
-  // Numérotation : les affaires créées en 2027 repartent à KA-2027-001
+  // Numérotation : les affaires créées en 2027 repartent à KI-2027-001
   A.Affaires_creer({ acheteur: 'Commune A', objet: 'AMO' }, { date: '2026-12-20' });
-  assert.strictEqual(g, 'KA-2027-001');
+  assert.strictEqual(g, 'KI-2027-001');
 });
 
 test('thème gardé sur le compte et appliqué dès l\'ouverture de la page', () => {
@@ -318,6 +318,40 @@ test('thème gardé sur le compte et appliqué dès l\'ouverture de la page', ()
   A.HtmlService.createTemplateFromFile = () => ({ evaluate: () => o });
   A.doGet();
   assert.match(o.contenu, /var serveur = 'neon'/);
+});
+
+test('renommage Kompa → Kartes : fichiers renommés et signature d\'origine mise à jour, valeurs modifiées respectées', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  console.log = () => {};
+  A.installer({ exercice: false });
+  console.log = journal;
+  // Installation d'avant le renommage : noms et signature d'origine
+  Object.values(env.classeurs).forEach((c) => { c.nom = c.nom.replace(/^Kartes/, 'Kompa'); });
+  const ancienne = 'Sébastien De Raedt EI\nKompa Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · kompa.ingenierie@gmail.com\nSIRET [n°] · TVA non applicable, art. 293 B du CGI';
+  A.Params_enregistrer('courrier.signature', ancienne);
+  A.Params_enregistrer('veille.heure_collecte', '5'); // valeur modifiée : jamais touchée
+  A.Params_cache_ = null;
+  env.proprietes.KA_SIGNATURE_SCHEMA = 'ancienne-version';
+  const r = brut(A.MiseAJour_verifier_());
+  assert.ok(r.changements.some((c) => /courrier\.signature/.test(c)), r.changements.join(' | '));
+  assert.ok(r.changements.some((c) => /« Kompa Affaires — données » → « Kartes Affaires — données »/.test(c)), r.changements.join(' | '));
+  assert.deepStrictEqual(Object.values(env.classeurs).map((c) => c.nom).sort(), ['Kartes Affaires — données', 'Kartes Estimation — données']);
+  A.Db_viderCache_(); A.Params_cache_ = null;
+  assert.match(A.Params_texte('courrier.signature'), /^Sébastien De Raedt EI\nKartes Ingénierie/);
+  assert.strictEqual(A.Params_texte('veille.heure_collecte'), '5');
+  // Adresse publique : remplace [e-mail] dans la signature des courriers
+  A.Params_enregistrer('courrier.email_public', 'contact@kartes-ingenierie.fr');
+  A.Params_cache_ = null;
+  const id = A.Affaires_creer({ acheteur: 'Commune', objet: 'AMO' }).id;
+  A.Affaires_changerStatut(id, 'Go', {}); A.Affaires_changerStatut(id, 'Déposée', { montant_ht: 1000, jours_reponse: 1, date_depot: '2026-10-01' });
+  A.Affaires_changerStatut(id, 'Perdue', { date_resultat: '2026-11-01', attributaire: 'X' });
+  A.Relances_synchroniser();
+  const rel = A.Db_lire(A.TABLES.RELANCES).find((x) => x.id_affaire === id);
+  const c = A.Courriers_modele(rel.id);
+  assert.match(c.corps, /remise par Kartes Ingénierie/);
+  assert.match(c.corps, /contact@kartes-ingenierie\.fr/);
+  assert.doesNotMatch(c.corps, /Kompa/);
 });
 
 test('chaque onglet a id/clé en 1re colonne et cree_le, modifie_le en fin', () => {
@@ -423,8 +457,8 @@ test('sauvegarde hebdomadaire : copie datée et rotation des copies', () => {
   for (let i = 0; i < 4; i++) env.ctx.sauvegardeHebdo();
   const actives = env.fichiersDrive.filter((f) => !f.corbeille);
   // 2 copies conservées par classeur (suivi + estimation)
-  assert.strictEqual(actives.filter((f) => /^Kompa Affaires — données — \d{4}-\d{2}-\d{2}$/.test(f.nom)).length, 2);
-  assert.strictEqual(actives.filter((f) => /^Kompa Estimation — données — \d{4}-\d{2}-\d{2}$/.test(f.nom)).length, 2);
+  assert.strictEqual(actives.filter((f) => /^Kartes Affaires — données — \d{4}-\d{2}-\d{2}$/.test(f.nom)).length, 2);
+  assert.strictEqual(actives.filter((f) => /^Kartes Estimation — données — \d{4}-\d{2}-\d{2}$/.test(f.nom)).length, 2);
   assert.strictEqual(actives.length, 4);
 });
 
@@ -446,14 +480,14 @@ test('compteur CA : encaissé, engagé, jalons et alertes', () => {
   env.ctx.installer({ exercice: false });
   const T = env.ctx.TABLES;
   env.ctx.Db_insererPlusieurs(T.FACTURES, [
-    { id_affaire: 'KA-2026-001', numero: 'F1', date: '15/01/2026', montant: 20000, date_encaissement: '10/02/2026', montant_encaisse: 20000 },
-    { id_affaire: 'KA-2026-001', numero: 'F2', date: new Date(2026, 4, 2), montant: '11 000,00 €', date_encaissement: new Date(2026, 5, 1), montant_encaisse: 11000 },
-    { id_affaire: 'KA-2026-002', numero: 'F3', date: '01/10/2026', montant: 4000 }, // non payée
-    { id_affaire: 'KA-2025-009', numero: 'F0', date: '01/12/2025', montant: 5000, date_encaissement: '05/01/2025', montant_encaisse: 5000 } // autre année
+    { id_affaire: 'KI-2026-001', numero: 'F1', date: '15/01/2026', montant: 20000, date_encaissement: '10/02/2026', montant_encaisse: 20000 },
+    { id_affaire: 'KI-2026-001', numero: 'F2', date: new Date(2026, 4, 2), montant: '11 000,00 €', date_encaissement: new Date(2026, 5, 1), montant_encaisse: 11000 },
+    { id_affaire: 'KI-2026-002', numero: 'F3', date: '01/10/2026', montant: 4000 }, // non payée
+    { id_affaire: 'KI-2025-009', numero: 'F0', date: '01/12/2025', montant: 5000, date_encaissement: '05/01/2025', montant_encaisse: 5000 } // autre année
   ]);
   env.ctx.Db_insererPlusieurs(T.AFFAIRES, [
-    { id: 'KA-2026-002', statut: 'Gagnée', montant_notifie: 12000, date_notification: '01/09/2026' },
-    { id: 'KA-2026-003', statut: 'Perdue', montant_notifie: '' }
+    { id: 'KI-2026-002', statut: 'Gagnée', montant_notifie: 12000, date_notification: '01/09/2026' },
+    { id: 'KI-2026-003', statut: 'Perdue', montant_notifie: '' }
   ]);
   const ca = brut(env.ctx.Compteur_ca(2026));
   assert.strictEqual(ca.encaisse, 31000);
@@ -806,11 +840,11 @@ test('livrables de mission : ajout, contrôles, état, échéancier et e-mail, s
 
 // ——— Module Estimation, étape 0 : deux classeurs, deux fichiers ———
 
-test('estimation (étape 0) : installer() crée aussi le classeur « Kompa Estimation — données »', () => {
+test('estimation (étape 0) : installer() crée aussi le classeur « Kartes Estimation — données »', () => {
   const env = creerEnvironnement();
   const r = env.ctx.installer({ exercice: false });
   const noms = Object.values(env.classeurs).map((c) => c.getName());
-  assert.deepStrictEqual(noms, ['Kompa Affaires — données', 'Kompa Estimation — données']);
+  assert.deepStrictEqual(noms, ['Kartes Affaires — données', 'Kartes Estimation — données']);
   assert.ok(env.proprietes.CLASSEUR_EST_ID);
   assert.match(r.classeurEstimation, /spreadsheets/);
   env.ctx.installer({ exercice: false }); // idempotent : pas de 3e classeur
@@ -919,7 +953,7 @@ test('estimation (étape 1) : écran Estimation et onglet de la fiche affaire', 
   const acc = A.apiEstAccueil().data;
   assert.strictEqual(acc.estimations[0].acheteur, 'Commune de Digne-les-Bains');
   assert.strictEqual(A.apiEstAffaire(id).data.length, 1);
-  assert.strictEqual(A.apiEstAffaire('KA-2099-999').data.length, 0);
+  assert.strictEqual(A.apiEstAffaire('KI-2099-999').data.length, 0);
   assert.strictEqual(A.apiEtat().data.onglets.length, 13 + 12);
 });
 
@@ -1400,14 +1434,18 @@ test('calcul : médiane et fourchette, aléas, TVA par zone, totaux, projection'
 
 const nouvelleAffaire = (env, extra = {}) => env.ctx.Affaires_creer(Object.assign({ acheteur: 'Commune de Test', objet: 'AMO faisabilité' }, extra));
 
-test('affaire : numérotation KA-AAAA-NNN, statut En étude et historique daté', () => {
+test('affaire : numérotation KI-AAAA-NNN (suite des anciens KA-), statut En étude et historique daté', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });
   const a1 = nouvelleAffaire(env);
   const a2 = nouvelleAffaire(env);
   const an = new Date().getFullYear();
-  assert.strictEqual(a1.id, `KA-${an}-001`);
-  assert.strictEqual(a2.id, `KA-${an}-002`);
+  assert.strictEqual(a1.id, `KI-${an}-001`);
+  assert.strictEqual(a2.id, `KI-${an}-002`);
+  // Affaire créée avant le renommage (KA-) : la numérotation de l'année continue à la suite, sans doublon
+  env.ctx.Db_maj(env.ctx.TABLES.AFFAIRES, a2.id, { id: a2.id }); // (sans effet : la clé ne change pas)
+  env.ctx.Db_inserer(env.ctx.TABLES.AFFAIRES, { id: `KA-${an}-007`, acheteur: 'Ancienne', objet: 'AMO', statut: 'No-go' });
+  assert.strictEqual(nouvelleAffaire(env).id, `KI-${an}-008`);
   assert.strictEqual(a1.statut, 'En étude');
   const h = env.ctx.Affaires_fiche(a1.id).historique;
   assert.strictEqual(h.length, 1);
@@ -1517,7 +1555,7 @@ test('exercice Mouthe : saisie de bout en bout, historique daté, idempotent', (
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });
   const id = env.ctx.creerAffaireExerciceMouthe();
-  assert.strictEqual(id, 'KA-2026-001');
+  assert.strictEqual(id, 'KI-2026-001');
   assert.strictEqual(env.ctx.creerAffaireExerciceMouthe(), id);
   const f = brut(env.ctx.apiAffaire(id));
   assert.ok(f.ok, f.erreur);
@@ -1573,8 +1611,8 @@ const rec = (idweb) => ECHANTILLON.results.find((r) => r.idweb === idweb);
 test('installer() crée l\'affaire d\'exercice Mouthe et le déclencheur de collecte', () => {
   const env = creerEnvironnement();
   const r = env.ctx.installer();
-  assert.strictEqual(r.exerciceMouthe, 'KA-2026-001');
-  assert.strictEqual(env.ctx.installer().exerciceMouthe, 'KA-2026-001');
+  assert.strictEqual(r.exerciceMouthe, 'KI-2026-001');
+  assert.strictEqual(env.ctx.installer().exerciceMouthe, 'KI-2026-001');
   assert.strictEqual(env.ctx.Affaires_lister().length, 1);
   assert.ok(env.declencheurs.some((t) => t.getHandlerFunction() === 'collecteQuotidienne'));
 });
@@ -1727,7 +1765,7 @@ test('veille : Étudier crée l\'affaire liée ; Ignorer ; étudié non modifiab
   const digne = avis.find((a) => /DIGNE/i.test(a.acheteur));
   const r = brut(env.ctx.apiAvisEtudier(digne.id));
   assert.ok(r.ok, r.erreur);
-  assert.match(r.data.id, /^KA-\d{4}-001$/);
+  assert.match(r.data.id, /^KI-\d{4}-001$/);
   assert.strictEqual(r.data.statut, 'En étude');
   assert.strictEqual(r.data.lien_avis, digne.lien);
   assert.strictEqual(r.data.id_avis, digne.id);
@@ -1855,7 +1893,7 @@ test('e-mail du matin : rubriques, objet, pas d\'envoi le week-end, récap du lu
   A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'x3', acheteur: 'Ignoré', objet: 'AMO', zone: 'PACA-Corse', pre_score: 70, statut: 'ignoré', lien: 'https://www.boamp.fr/x3' });
   const m = brut(A.Email_construire(new Date()));
   assert.deepStrictEqual(m.nombres, { remises: 1, avisPaca: 1, avisFrance: 2, echeances: 4, relances: 1 }); // relance « motifs » créée au passage en Perdue ; facture prévue à émettre (Facturation)
-  assert.match(m.sujet, /^Kompa Affaires — \d{2}\/\d{2}\/\d{4} — ⚠ Remise J-3 · 3 nouveaux avis · 4 échéances$/);
+  assert.match(m.sujet, /^Kartes Affaires — \d{2}\/\d{2}\/\d{4} — ⚠ Remise J-3 · 3 nouveaux avis · 4 échéances$/);
   assert.match(m.html, /\+ 1 autre avis « possible » hors PACA-Corse/);
   assert.doesNotMatch(m.html, /Ville de Lille/);
   assert.match(m.html, /Nouveaux avis PACA-Corse/);
@@ -1870,7 +1908,7 @@ test('e-mail du matin : rubriques, objet, pas d\'envoi le week-end, récap du lu
   assert.strictEqual(ok.envoye, true);
   assert.strictEqual(env.ctx.MailApp.envois.length, 1);
   assert.strictEqual(env.ctx.MailApp.envois[0].to, 'kompa.affaires@example.com');
-  assert.strictEqual(env.ctx.MailApp.envois[0].name, 'Kompa Affaires');
+  assert.strictEqual(env.ctx.MailApp.envois[0].name, 'Kartes Affaires');
 });
 
 test('e-mail du matin : remise imminente J-3 à J0 en tête, avec l\'état des pièces et le conseil de dépôt', () => {
@@ -2011,7 +2049,7 @@ test('indicateurs : fenêtre de 12 mois glissants (au 20/11/2027, plus rien)', (
 test('enseignements : affaires perdues avec écarts, les plus récentes d\'abord', () => {
   const env = jeuIndicateurs();
   const e = brut(env.ctx.Indicateurs_enseignements());
-  assert.deepStrictEqual(e.map((x) => x.id), ['KA-2026-001', 'KA-2026-003']);
+  assert.deepStrictEqual(e.map((x) => x.id), ['KI-2026-001', 'KI-2026-003']);
   assert.deepStrictEqual(e.map((x) => x.exercice), [true, false]);
   proche(e[0].ecartPrix, 0.125, 'Mouthe');
   assert.strictEqual(e[0].ecartNote, -6);
@@ -2031,9 +2069,9 @@ test('affaires [TEST] : création idempotente puis suppression complète', () =>
   assert.strictEqual(env.ctx.supprimerAffairesTest(), 3);
   assert.strictEqual(env.ctx.Affaires_lister().length, 1); // Mouthe reste
   const T = env.ctx.TABLES;
-  assert.ok(env.ctx.Db_lire(T.HISTORIQUE).every((h) => h.id_affaire === 'KA-2026-001'));
+  assert.ok(env.ctx.Db_lire(T.HISTORIQUE).every((h) => h.id_affaire === 'KI-2026-001'));
   assert.strictEqual(env.ctx.Db_lire(T.FACTURES).length, 0);
-  assert.strictEqual(env.ctx.Db_lire(T.CRITERES).filter((c) => c.id_affaire !== 'KA-2026-001').length, 0);
+  assert.strictEqual(env.ctx.Db_lire(T.CRITERES).filter((c) => c.id_affaire !== 'KI-2026-001').length, 0);
   assert.strictEqual(brut(env.ctx.Compteur_ca(2026)).encaisse, 0);
 });
 
@@ -2201,12 +2239,12 @@ test('Drive : dossier racine / année / affaire, sous-dossiers selon l\'étape, 
   const id = A.Affaires_creer({ acheteur: 'Commune de Digne-les-Bains', objet: 'Programmation d\'une cantine / école' }, { date: '2026-11-12' }).id;
   const a = A.Affaires_get_(id);
   assert.match(a.lien_dce, /^https:\/\/drive\.google\.com\/drive\/folders\//);
-  const racine = dossiers().find((d) => d.nom === 'Kompa Affaires — Dossiers');
+  const racine = dossiers().find((d) => d.nom === 'Kartes Affaires — Dossiers');
   assert.ok(racine);
   assert.match(A.Params_texte('drive.dossier_racine'), /folders/);
   assert.deepStrictEqual(enfants(racine), ['2026']);
   const annee = dossiers().find((d) => d.nom === '2026');
-  const nomAffaire = 'KA-2026-001 — Commune de Digne-les-Bains — Programmation d\'une cantine école';
+  const nomAffaire = 'KI-2026-001 — Commune de Digne-les-Bains — Programmation d\'une cantine école';
   assert.deepStrictEqual(enfants(annee), [nomAffaire]);
   const dossier = dossiers().find((d) => d.nom === nomAffaire);
   assert.deepStrictEqual(enfants(dossier), ['01 DCE', '02 Questions et visite']);
@@ -2222,7 +2260,7 @@ test('Drive : dossier racine / année / affaire, sous-dossiers selon l\'étape, 
   assert.deepStrictEqual([et('07 Exécution').rang, et('08 Facturation').rang, et('09 Estimations').rang], [0, 1, 2]);
   // Deuxième affaire : même racine, même dossier d'année
   A.Affaires_creer({ acheteur: 'EPCI', objet: 'AMO' }, { date: '2026-11-13' });
-  assert.strictEqual(dossiers().filter((d) => d.nom === 'Kompa Affaires — Dossiers').length, 1);
+  assert.strictEqual(dossiers().filter((d) => d.nom === 'Kartes Affaires — Dossiers').length, 1);
   assert.strictEqual(enfants(annee).length, 2);
 });
 
@@ -2246,7 +2284,7 @@ test('Drive : installer() crée le dossier de l\'exercice Mouthe', () => {
   const env = creerEnvironnement();
   const L = console.log; console.log = () => {}; const r = env.ctx.installer(); console.log = L;
   assert.strictEqual(r.dossiersDrive, 0); // créé dès la création de l'affaire
-  assert.match(env.ctx.Affaires_get_('KA-2026-001').lien_dce, /folders/);
+  assert.match(env.ctx.Affaires_get_('KI-2026-001').lien_dce, /folders/);
 });
 
 test('Pièces : dépôt depuis la fiche, rangement dans le sous-dossier, nom non écrasé, liste et journal', () => {
@@ -2322,11 +2360,11 @@ test('fiche : chaque champ saisissable a une aide ; exemples transmis à l\'inte
   assert.match(tranches.exemple, /^TF : /);
 });
 
-test('page : titre « Kompa Affaires » et icône Kompa dans l\'onglet', () => {
+test('page : titre « Kartes Affaires » et icône Kompa dans l\'onglet', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });
   const o = env.ctx.doGet();
-  assert.strictEqual(o.titre, 'Kompa Affaires');
+  assert.strictEqual(o.titre, 'Kartes Affaires');
   assert.match(o.favicon, /kompa-icone-192\.png$/);
   env.ctx.Params_enregistrer('app.favicon_url', 'https://exemple.fr/icone.png'); env.ctx.Params_cache_ = null;
   assert.strictEqual(env.ctx.doGet().favicon, 'https://exemple.fr/icone.png');

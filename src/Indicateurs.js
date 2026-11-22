@@ -9,7 +9,7 @@
  *   gagnées et perdues (même fenêtre). Les affaires « sans suite » sont exclues.
  * - Rang moyen : moyenne des rangs renseignés (résultats de la fenêtre).
  * - Écart de prix (affaire perdue) : (votre prix − prix attributaire) / prix attributaire.
- * - Écart de note technique (affaire perdue) : Σ notes Kompa − Σ notes attributaire sur les
+ * - Écart de note technique (affaire perdue) : Σ de nos notes − Σ notes attributaire sur les
  *   critères dont le nom contient « techni » (ex. « Valeur technique »).
  * - Coût de la réponse (année civile) : Σ jours passés à répondre (offres déposées dans l'année)
  *   / Σ montants notifiés (marchés notifiés dans l'année), affiché en jours pour 10 000 €.

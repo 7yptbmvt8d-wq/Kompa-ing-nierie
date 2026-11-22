@@ -7,7 +7,7 @@
  *
  * Ce fichier et les autres src/Est*.js sont assemblés dans dist/Estimation.gs, distinct de
  * dist/Code.gs (suivi des affaires) : une erreur de collage dans l'un ne casse pas l'autre.
- * Le module a son propre classeur (« Kompa Estimation — données »), relié aux affaires par le n° KA.
+ * Le module a son propre classeur (« Kartes Estimation — données »), relié aux affaires par leur n° (KI-…, KA- avant le 22/11/2026).
  * Plan : PLAN_ESTIMATION.md. Aucune valeur métier en dur : tout est paramétrable dans les tables EST_*.
  *
  * Règle de chargement : aucune référence aux variables de Code.gs au niveau global de ce fichier
@@ -999,7 +999,7 @@ function Est_formulaire_(idAffaire) {
 /**
  * Module Estimation — export .xlsx au format DPGF (étape 6).
  *
- * Le classeur est construit dans un Google Sheets temporaire (formules et mise en forme Kompa),
+ * Le classeur est construit dans un Google Sheets temporaire (formules et mise en forme de la charte),
  * exporté en .xlsx, déposé dans le sous-dossier « 09 Estimations » de l'affaire (paramètre est.dossier_export),
  * puis le classeur temporaire est mis à la corbeille. Aucun fichier existant n'est écrasé.
  */

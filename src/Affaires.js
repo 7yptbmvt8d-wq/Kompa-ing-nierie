@@ -140,7 +140,7 @@ var FICHE_BLOCS = [
  * L'exemple s'affiche en grisé dans le champ vide.
  */
 var AIDES_CHAMPS = {
-  id: ['Attribué automatiquement : KA-année-numéro.'],
+  id: ['Attribué automatiquement : KI-année-numéro (KA- pour les affaires créées avant le 22/11/2026).'],
   acheteur: ['Nom de l\'acheteur tel qu\'il figure sur l\'avis.', 'Commune de Digne-les-Bains'],
   type_acheteur: ['Sert aux indicateurs : taux de réussite par type d\'acheteur.'],
   departement: ['Département du lieu de la mission, en chiffres.', '04'],
@@ -231,15 +231,19 @@ function Affaires_fiche(id) {
 
 // ——— Création et modification ———
 
-/** N° interne suivant pour l'année : KA-AAAA-NNN. */
+/**
+ * N° interne suivant pour l'année : KI-AAAA-NNN (Kartes Ingénierie). Les affaires créées avant le renommage
+ * gardent leur n° KA- ; la numérotation de l'année continue à la suite des deux (pas de doublon de numéro).
+ */
+var AFFAIRE_PREFIXE = 'KI';
 function Affaires_prochainNumero_(annee) {
   var max = 0;
-  var re = new RegExp('^KA-' + annee + '-(\\d{3,})$');
+  var re = new RegExp('^K[AI]-' + annee + '-(\\d{3,})$');
   Affaires_lister().forEach(function (a) {
     var m = String(a.id).match(re);
     if (m) max = Math.max(max, Number(m[1]));
   });
-  return 'KA-' + annee + '-' + ('00' + (max + 1)).slice(-3);
+  return AFFAIRE_PREFIXE + '-' + annee + '-' + ('00' + (max + 1)).slice(-3);
 }
 
 /**

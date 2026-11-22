@@ -1,8 +1,8 @@
 /**
  * Dossiers Drive des affaires.
  *
- *   Kompa Affaires — Dossiers/            (racine, paramètre drive.dossier_racine)
- *     2026/                               (un dossier par année, d'après le n° KA-AAAA-NNN)
+ *   Kartes Affaires — Dossiers/           (racine, paramètre drive.dossier_racine)
+ *     2026/                               (un dossier par année, d'après le n° KI-AAAA-NNN ou KA-…)
  *       KA-2026-012 — Acheteur — Objet/   (un dossier par affaire, lien dans la fiche)
  *         01 DCE, 02 Questions et visite              → à la création (En étude)
  *         03 Candidature, 04 Offre, 05 Dépôt          → au passage en Go
@@ -31,7 +31,7 @@ function Drive_racine_() {
   if (id) {
     try { var d = DriveApp.getFolderById(id); if (!d.isTrashed()) return d; } catch (e) { /* recréé ci-dessous */ }
   }
-  var racine = DriveApp.createFolder(Params_texte('drive.nom_racine', 'Kompa Affaires — Dossiers'));
+  var racine = DriveApp.createFolder(Params_texte('drive.nom_racine', 'Kartes Affaires — Dossiers'));
   Params_enregistrer('drive.dossier_racine', racine.getUrl());
   return racine;
 }
@@ -61,7 +61,7 @@ function Drive_preparerAffaire(idAffaire) {
   var a = Affaires_get_(idAffaire);
   var dossier = Drive_dossierAffaire_(a);
   if (!dossier) {
-    var annee = (String(a.id).match(/^KA-(\d{4})-/) || [])[1] || Utilities.formatDate(new Date(), APP.FUSEAU, 'yyyy');
+    var annee = (String(a.id).match(/^K[AI]-(\d{4})-/) || [])[1] || Utilities.formatDate(new Date(), APP.FUSEAU, 'yyyy');
     dossier = Drive_sousDossier_(Drive_sousDossier_(Drive_racine_(), annee), Drive_nomAffaire_(a));
     Db_maj(TABLES.AFFAIRES, a.id, { lien_dce: dossier.getUrl() });
   }

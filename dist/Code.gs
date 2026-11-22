@@ -183,7 +183,8 @@ function sauvegardeHebdo() {
     var it = dossier.getFiles();
     while (it.hasNext()) {
       var f = it.next();
-      if (String(f.getName()).indexOf(def.nom + ' — ') === 0) copies.push(f);
+      var nomF = String(f.getName());
+      if (nomF.indexOf(def.nom + ' — ') === 0 || nomF.indexOf(def.nom.replace(/^Kartes/, APP.ANCIEN_NOM) + ' — ') === 0) copies.push(f);
     }
     copies.sort(function (a, b) { return b.getDateCreated() - a.getDateCreated(); });
     copies.slice(aGarder).forEach(function (f) { f.setTrashed(true); });
@@ -350,7 +351,7 @@ var FICHE_BLOCS = [
  * L'exemple s'affiche en grisé dans le champ vide.
  */
 var AIDES_CHAMPS = {
-  id: ['Attribué automatiquement : KA-année-numéro.'],
+  id: ['Attribué automatiquement : KI-année-numéro (KA- pour les affaires créées avant le 22/11/2026).'],
   acheteur: ['Nom de l\'acheteur tel qu\'il figure sur l\'avis.', 'Commune de Digne-les-Bains'],
   type_acheteur: ['Sert aux indicateurs : taux de réussite par type d\'acheteur.'],
   departement: ['Département du lieu de la mission, en chiffres.', '04'],
@@ -441,15 +442,19 @@ function Affaires_fiche(id) {
 
 // ——— Création et modification ———
 
-/** N° interne suivant pour l'année : KA-AAAA-NNN. */
+/**
+ * N° interne suivant pour l'année : KI-AAAA-NNN (Kartes Ingénierie). Les affaires créées avant le renommage
+ * gardent leur n° KA- ; la numérotation de l'année continue à la suite des deux (pas de doublon de numéro).
+ */
+var AFFAIRE_PREFIXE = 'KI';
 function Affaires_prochainNumero_(annee) {
   var max = 0;
-  var re = new RegExp('^KA-' + annee + '-(\\d{3,})$');
+  var re = new RegExp('^K[AI]-' + annee + '-(\\d{3,})$');
   Affaires_lister().forEach(function (a) {
     var m = String(a.id).match(re);
     if (m) max = Math.max(max, Number(m[1]));
   });
-  return 'KA-' + annee + '-' + ('00' + (max + 1)).slice(-3);
+  return AFFAIRE_PREFIXE + '-' + annee + '-' + ('00' + (max + 1)).slice(-3);
 }
 
 /**
@@ -1168,21 +1173,23 @@ function arrondi_(n) {
 // ════════ Config.js ════════
 
 /**
- * Kompa Affaires — configuration générale et schéma du classeur (§ 9).
+ * Kartes Affaires — configuration générale et schéma du classeur (§ 9).
  *
  * Toute colonne ajoutée ici est créée au prochain lancement de installer(),
  * à la fin de l'onglet, sans toucher aux données existantes.
  */
 
 var APP = {
-  NOM: 'Kompa Affaires',
+  NOM: 'Kartes Affaires',
+  ENTREPRISE: 'Kartes Ingénierie',
   VERSION: '1.5.0',
-  CLASSEUR: 'Kompa Affaires — données',
-  DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
+  CLASSEUR: 'Kartes Affaires — données',
+  DOSSIER_SAUVEGARDES: 'Kartes Affaires — sauvegardes',
+  ANCIEN_NOM: 'Kompa', // nom d'avant le 22/11/2026 : fichiers et dossiers renommés par la mise à jour automatique
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
   PROP_DOSSIER_SAUVEGARDES_ID: 'DOSSIER_SAUVEGARDES_ID',
   FUSEAU: 'Europe/Paris',
-  // Icône de l'onglet du navigateur : icône Kompa du kit, servie par le dépôt GitHub public
+  // Icône de l'onglet du navigateur : icône du kit (symbole compas), servie par le dépôt GitHub public
   // (l'adresse doit se terminer par .png). Remplaçable par le paramètre app.favicon_url.
   FAVICON: 'https://raw.githubusercontent.com/7yptbmvt8d-wq/Kompa-ing-nierie/claude/amazing-cray-l4l2w9/charte/kompa-kit/logos/png/kompa-icone-192.png'
 };
@@ -1218,7 +1225,7 @@ var TABLES = {
   AFFAIRES: {
     onglet: 'Affaires',
     cle: 'id',
-    prefixe: 'KA',
+    prefixe: 'KI',
     colonnes: [
       // Identification
       'id', 'acheteur', 'type_acheteur', 'departement', 'objet', 'reference_acheteur',
@@ -1337,7 +1344,7 @@ TABLES.AVIS_ARCHIVES = Object.assign({}, TABLES.AVIS, { onglet: 'Avis archivés'
  */
 var CLASSEURS = {
   SUIVI: { nom: APP.CLASSEUR, prop: APP.PROP_CLASSEUR_ID },
-  EST: { nom: 'Kompa Estimation — données', prop: 'CLASSEUR_EST_ID' }
+  EST: { nom: 'Kartes Estimation — données', prop: 'CLASSEUR_EST_ID' }
 };
 
 /**
@@ -1402,7 +1409,7 @@ function jourIso_(d) {
 
 /**
  * Modèles de courriers des relances (§ 5) : texte prêt à copier dans un e-mail ou un courrier.
- * Les informations manquantes restent entre crochets, à compléter (charte Kompa § 1.7).
+ * Les informations manquantes restent entre crochets, à compléter (charte § 1.7).
  */
 
 function Courriers_modele(idRelance) {
@@ -1414,7 +1421,10 @@ function Courriers_modele(idRelance) {
   var e = function (v) { return montant_(v) ? Courriers_euros_(montant_(v)) : '[montant]'; };
   var consultation = '« ' + (a.objet || '[objet de la consultation]') + ' »' + (a.reference_acheteur ? ' (référence ' + a.reference_acheteur + ')' : '');
   var ref = a.reference_acheteur ? a.reference_acheteur + ' — ' : '';
-  var signature = Params_texte('courrier.signature', 'Sébastien De Raedt EI\nKompa Ingénierie');
+  var entreprise = Params_texte('courrier.nom_entreprise', APP.ENTREPRISE);
+  var emailPublic = Params_texte('courrier.email_public', '');
+  var signature = Params_texte('courrier.signature', 'Sébastien De Raedt EI\n' + entreprise);
+  if (emailPublic) signature = signature.replace('[e-mail]', emailPublic);
   var politesse = 'Nous vous prions d\'agréer, Madame, Monsieur, l\'expression de nos salutations distinguées.';
   var corps, objet;
 
@@ -1428,7 +1438,7 @@ function Courriers_modele(idRelance) {
         (r.type === TYPES_RELANCE.MOTIFS_RAPPEL
           ? 'Notre demande du ' + j(Courriers_premiereDemande_(a.id)) + ' étant restée sans réponse, nous nous permettons de la renouveler.\n\n'
           : '') +
-        'Par courrier du ' + j(a.date_resultat) + ', vous nous avez informés du rejet de l\'offre remise par Kompa Ingénierie le ' + j(a.date_depot) +
+        'Par courrier du ' + j(a.date_resultat) + ', vous nous avez informés du rejet de l\'offre remise par ' + entreprise + ' le ' + j(a.date_depot) +
           ' pour la consultation ' + consultation + '.',
         '',
         'En application des articles R. 2181-1 à R. 2181-4 du code de la commande publique, nous vous remercions de bien vouloir nous communiquer :',
@@ -1446,7 +1456,7 @@ function Courriers_modele(idRelance) {
       corps = [
         'Madame, Monsieur,',
         '',
-        'Kompa Ingénierie a remis le ' + j(a.date_depot) + ' une offre pour la consultation ' + consultation + '.',
+        entreprise + ' a remis le ' + j(a.date_depot) + ' une offre pour la consultation ' + consultation + '.',
         '',
         'La durée de validité de notre offre (' + (montant_(a.validite_offre_jours) || Params_nombre('echeance.validite_defaut_j', 90)) +
           ' jours) étant arrivée à son terme, nous vous remercions de bien vouloir nous indiquer où en est la procédure et, le cas échéant, la date prévisionnelle d\'attribution.',
@@ -1511,7 +1521,7 @@ function Courriers_modele(idRelance) {
     case TYPE_RELANCE_URSSAF:
       return { type: r.type, destinataire: 'URSSAF — autoentrepreneur.urssaf.fr', objet: 'Déclaration de chiffre d\'affaires',
         corps: 'Pas de courrier : déclaration en ligne.\n\n1. Se connecter sur https://autoentrepreneur.urssaf.fr\n2. Déclarer et payer → période concernée\n3. ' +
-          (r.commentaire || 'Saisir le CA encaissé de la période.') + '\n4. Payer, puis marquer la période « déclarée » sur l\'accueil de Kompa Affaires.' };
+          (r.commentaire || 'Saisir le CA encaissé de la période.') + '\n4. Payer, puis marquer la période « déclarée » sur l\'accueil de ' + APP.NOM + '.' };
     default:
       objet = ref + (r.type || 'Relance');
       corps = ['Madame, Monsieur,', '', '[texte]', '', politesse];
@@ -1875,8 +1885,8 @@ function Db_viderCache_lignes_(table) {
 /**
  * Dossiers Drive des affaires.
  *
- *   Kompa Affaires — Dossiers/            (racine, paramètre drive.dossier_racine)
- *     2026/                               (un dossier par année, d'après le n° KA-AAAA-NNN)
+ *   Kartes Affaires — Dossiers/           (racine, paramètre drive.dossier_racine)
+ *     2026/                               (un dossier par année, d'après le n° KI-AAAA-NNN ou KA-…)
  *       KA-2026-012 — Acheteur — Objet/   (un dossier par affaire, lien dans la fiche)
  *         01 DCE, 02 Questions et visite              → à la création (En étude)
  *         03 Candidature, 04 Offre, 05 Dépôt          → au passage en Go
@@ -1905,7 +1915,7 @@ function Drive_racine_() {
   if (id) {
     try { var d = DriveApp.getFolderById(id); if (!d.isTrashed()) return d; } catch (e) { /* recréé ci-dessous */ }
   }
-  var racine = DriveApp.createFolder(Params_texte('drive.nom_racine', 'Kompa Affaires — Dossiers'));
+  var racine = DriveApp.createFolder(Params_texte('drive.nom_racine', 'Kartes Affaires — Dossiers'));
   Params_enregistrer('drive.dossier_racine', racine.getUrl());
   return racine;
 }
@@ -1935,7 +1945,7 @@ function Drive_preparerAffaire(idAffaire) {
   var a = Affaires_get_(idAffaire);
   var dossier = Drive_dossierAffaire_(a);
   if (!dossier) {
-    var annee = (String(a.id).match(/^KA-(\d{4})-/) || [])[1] || Utilities.formatDate(new Date(), APP.FUSEAU, 'yyyy');
+    var annee = (String(a.id).match(/^K[AI]-(\d{4})-/) || [])[1] || Utilities.formatDate(new Date(), APP.FUSEAU, 'yyyy');
     dossier = Drive_sousDossier_(Drive_sousDossier_(Drive_racine_(), annee), Drive_nomAffaire_(a));
     Db_maj(TABLES.AFFAIRES, a.id, { lien_dce: dossier.getUrl() });
   }
@@ -2350,7 +2360,7 @@ function Relances_changerStatut(idRelance, statut, quand) {
 // ════════ Email.js ════════
 
 /**
- * E-mail du matin (§ 6) : du lundi au vendredi à 7 h vers le compte Kompa.
+ * E-mail du matin (§ 6) : du lundi au vendredi à 7 h vers le compte de l'app.
  * Rubriques : nouveaux avis PACA, nouveaux avis France, échéances à 7 jours, relances à faire,
  * indicateurs. Rubriques vides masquées. Sans nouvel avis, échéance ni relance : e-mail « aucun nouvel avis »
  * avec le bilan de la collecte du matin (paramètre email.si_rien, oui par défaut — décision du 18/11/2026) ;
@@ -2535,9 +2545,9 @@ function Email_construire(quand, depuis) {
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:680px;background:' + C.blanc + ';border-radius:12px;overflow:hidden">' +
     '<tr><td style="background:' + C.ardoise + ';padding:18px 24px;color:' + C.inverse + '">' +
       '<div style="font-size:12px;letter-spacing:.14em;color:' + C.inverse2 + ';font-weight:600">KOMPA INGÉNIERIE</div>' +
-      '<div style="font-size:20px;font-weight:700">Kompa Affaires — ' + dateTxt + '</div></td></tr>' +
+      '<div style="font-size:20px;font-weight:700">' + APP.NOM + ' — ' + dateTxt + '</div></td></tr>' +
     corps +
-    '<tr><td style="padding:24px">' + bouton(url, 'Ouvrir Kompa Affaires') + '</td></tr>' +
+    '<tr><td style="padding:24px">' + bouton(url, 'Ouvrir ' + APP.NOM) + '</td></tr>' +
     '<tr><td style="padding:12px 24px;border-top:1px solid ' + C.filet + ';color:' + C.gris + ';font-size:12px;' + mono + '">E-mail automatique du lundi au vendredi à ' + Params_nombre('email.heure', 7) + ' h — paramètres email.* de l\'app.</td></tr>' +
     '</table></td></tr></table></body></html>';
 
@@ -3054,7 +3064,7 @@ function Fiscal_echeances_(debut, fin, quand) {
  *   gagnées et perdues (même fenêtre). Les affaires « sans suite » sont exclues.
  * - Rang moyen : moyenne des rangs renseignés (résultats de la fenêtre).
  * - Écart de prix (affaire perdue) : (votre prix − prix attributaire) / prix attributaire.
- * - Écart de note technique (affaire perdue) : Σ notes Kompa − Σ notes attributaire sur les
+ * - Écart de note technique (affaire perdue) : Σ de nos notes − Σ notes attributaire sur les
  *   critères dont le nom contient « techni » (ex. « Valeur technique »).
  * - Coût de la réponse (année civile) : Σ jours passés à répondre (offres déposées dans l'année)
  *   / Σ montants notifiés (marchés notifiés dans l'année), affiché en jours pour 10 000 €.
@@ -3284,7 +3294,7 @@ function Livrables_resume_(livrables) {
  *
  * Seulement des AJOUTS, jamais de suppression, de déplacement ni de modification d'une valeur saisie :
  * - onglets absents créés, colonnes absentes ajoutées en fin de ligne d'en-tête ;
- * - paramètres absents ajoutés avec leur valeur par défaut ;
+ * - paramètres absents ajoutés avec leur valeur par défaut ; valeur d'origine jamais modifiée → nouvelle valeur par défaut ;
  * - référentiels du module Estimation : lignes absentes ajoutées ;
  * - déclencheurs absents recréés (ceux qui existent ne sont pas touchés).
  * installer() reste disponible pour une remise à plat complète (migrations de valeurs, avis re-filtrés…).
@@ -3367,11 +3377,16 @@ function MiseAJour_appliquer_() {
   Db_viderCache_();
   var p = Params_initialiser_();
   if (p) changements.push(p + ' paramètre' + (p > 1 ? 's' : '') + ' ajouté' + (p > 1 ? 's' : ''));
+  // Valeurs par défaut d'origine remplacées par les nouvelles (une valeur que vous avez modifiée n'est jamais touchée)
+  var migres = Params_migrer_();
+  if (migres && migres.length) changements.push('paramètre' + (migres.length > 1 ? 's' : '') + ' mis à jour (valeur d\'origine) : ' + migres.join(', '));
   if (typeof Est_initialiserReferentiels_ === 'function') {
     var r = Est_initialiserReferentiels_();
     var nb = (r.parametres || 0) + (r.lots || 0) + (r.typologies || 0) + (Number(r.k) || 0);
     if (nb) changements.push('Estimation : ' + nb + ' ligne' + (nb > 1 ? 's' : '') + ' de référentiel ajoutée' + (nb > 1 ? 's' : ''));
   }
+  var renommes = MiseAJour_renommer_();
+  if (renommes.length) changements.push('renommé' + (renommes.length > 1 ? 's' : '') + ' : ' + renommes.join(', '));
   var existants = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
   var absents = MiseAJour_declencheursVoulus_().filter(function (n) { return existants.indexOf(n) < 0; });
   if (absents.length && existants.length) {
@@ -3384,6 +3399,37 @@ function MiseAJour_appliquer_() {
     erreurs: changements.length ? ('v' + APP.VERSION + ' : ' + changements.join(' ; ')).slice(0, 500) : ''
   });
   return { changements: changements };
+}
+
+/**
+ * Renommage Kompa → Kartes (22/11/2026) : classeurs, dossier racine des affaires et dossier des sauvegardes,
+ * seulement s'ils portent encore le nom d'origine « Kompa … ». L'app les retrouve par leur identifiant :
+ * le renommage ne change ni leur contenu ni leurs liens.
+ */
+function MiseAJour_renommer_() {
+  var faits = [];
+  var renommer = function (element, nouveau) {
+    if (!element) return;
+    var nom = String(element.getName());
+    if (nom.indexOf(APP.ANCIEN_NOM + ' ') !== 0 || nom === nouveau) return;
+    element.setName(nouveau);
+    faits.push('« ' + nom + ' » → « ' + nouveau + ' »');
+  };
+  var props = PropertiesService.getScriptProperties();
+  Object.keys(CLASSEURS).forEach(function (cle) {
+    var id = props.getProperty(CLASSEURS[cle].prop);
+    if (!id) return;
+    try { renommer(DriveApp.getFileById(id), CLASSEURS[cle].nom); } catch (e) { /* fichier inaccessible : laissé tel quel */ }
+  });
+  try {
+    var racine = Drive_id_(Params_texte('drive.dossier_racine', ''));
+    if (racine) renommer(DriveApp.getFolderById(racine), Params_texte('drive.nom_racine', 'Kartes Affaires — Dossiers'));
+  } catch (e) { /* sans effet */ }
+  try {
+    var sauv = props.getProperty(APP.PROP_DOSSIER_SAUVEGARDES_ID);
+    if (sauv) renommer(DriveApp.getFolderById(sauv), APP.DOSSIER_SAUVEGARDES);
+  } catch (e) { /* sans effet */ }
+  return faits;
 }
 
 /** Dernière mise à jour automatique (affichée sur l'accueil pendant 3 jours), ou null. */
@@ -3511,12 +3557,14 @@ var PARAMETRES_DEFAUT = [
   ['facture.mise_en_demeure_j', '30', 'Retard de paiement (jours après l\'échéance) à partir duquel le courrier de relance devient une mise en demeure'],
   ['facture.indemnite_recouvrement', '40', 'Indemnité forfaitaire pour frais de recouvrement (€), due en cas de retard de paiement (art. D. 2192-35 CCP)'],
   ['echeance.validite_defaut_j', '90', 'Validité de l\'offre si non renseignée dans l\'affaire (jours)'],
-  ['courrier.signature', 'Sébastien De Raedt EI\nKompa Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · kompa.ingenierie@gmail.com\nSIRET [n°] · TVA non applicable, art. 293 B du CGI',
-    'Signature des modèles de courriers (\\n = retour à la ligne)'],
+  ['courrier.nom_entreprise', 'Kartes Ingénierie', 'Nom de l\'entreprise dans les courriers et documents'],
+  ['courrier.email_public', '', 'Adresse e-mail publique (courriers, offres, DC1) : remplace [e-mail] dans la signature. À renseigner'],
+  ['courrier.signature', 'Sébastien De Raedt EI\nKartes Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · [e-mail]\nSIRET [n°] · TVA non applicable, art. 293 B du CGI',
+    'Signature des modèles de courriers (\\n = retour à la ligne ; [e-mail] = adresse publique ci-dessus)'],
 
   // E-mail (§ 6)
   ['email.heure', '7', 'Heure d\'envoi de l\'e-mail du matin (0-23)'],
-  ['email.destinataire', '', 'Adresse de réception (vide = compte Kompa : kompa.ingenierie@gmail.com)'],
+  ['email.destinataire', '', 'Adresse de réception (vide = compte Google de l\'app)'],
   ['email.jours', 'lun;mar;mer;jeu;ven', 'Jours d\'envoi (pas le week-end)'],
   ['email.recap_lundi', 'oui', 'Envoi le lundi même si toutes les rubriques sont vides'],
   ['email.si_rien', 'oui', 'Envoi chaque jour ouvré même sans nouvel avis, échéance ni relance (« aucun nouvel avis », avec le bilan de la collecte du matin)'],
@@ -3537,8 +3585,8 @@ var PARAMETRES_DEFAUT = [
 
   // Dossiers Drive des affaires
   ['drive.actif', 'oui', 'Créer un dossier Drive pour chaque affaire : oui ou non'],
-  ['drive.dossier_racine', '', 'Dossier racine (URL ou identifiant). Vide = créé automatiquement « Kompa Affaires — Dossiers »'],
-  ['drive.nom_racine', 'Kompa Affaires — Dossiers', 'Nom du dossier racine s\'il est créé automatiquement'],
+  ['drive.dossier_racine', '', 'Dossier racine (URL ou identifiant). Vide = créé automatiquement « Kartes Affaires — Dossiers »'],
+  ['drive.nom_racine', 'Kartes Affaires — Dossiers', 'Nom du dossier racine s\'il est créé automatiquement'],
   ['drive.sous_dossiers_etude', '01 DCE;02 Questions et visite', 'Sous-dossiers créés avec l\'affaire (En étude)'],
   ['drive.sous_dossiers_go', '03 Candidature;04 Offre;05 Dépôt', 'Sous-dossiers créés au passage en Go'],
   ['drive.sous_dossiers_resultat', '06 Résultat', 'Sous-dossiers créés au résultat (gagnée, perdue, sans suite)'],
@@ -3548,7 +3596,7 @@ var PARAMETRES_DEFAUT = [
   ['sauvegarde.nb_copies', '8', 'Nombre de copies hebdomadaires conservées dans Drive'],
 
   // Application
-  ['app.favicon_url', '', 'Icône de l\'onglet : URL publique se terminant par .png (vide = icône Kompa du kit)'],
+  ['app.favicon_url', '', 'Icône de l\'onglet : URL publique se terminant par .png (vide = icône du kit)'],
   ['app.url', '', 'Adresse /exec de l\'app pour les liens de l\'e-mail (vide = détectée automatiquement)']
 ];
 
@@ -3601,6 +3649,9 @@ function Params_enregistrer(cle, valeur) {
  * [clé, ancienne valeur par défaut, nouvelle]
  */
 var MIGRATIONS_PARAMETRES = [
+  ['drive.nom_racine', 'Kompa Affaires — Dossiers', null],
+  // Renommage Kompa → Kartes Ingénierie (22/11/2026) : seulement si la valeur d'origine n'a pas été modifiée
+  ['courrier.signature', 'Sébastien De Raedt EI\nKompa Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · kompa.ingenierie@gmail.com\nSIRET [n°] · TVA non applicable, art. 293 B du CGI', null],
   ['zone.departements_paca', '04;05;06;13;83;84', null],
   ['zone.libelle_paca', 'PACA', null],
   ['veille.exclusions', 'marché de travaux;AMO juridique;AMO financière;assurances', null]
@@ -4218,7 +4269,7 @@ function Previsionnel_alertes_(quand) {
  * La clé est gardée dans les propriétés du script, jamais dans le classeur.
  *
  * Rattachement d'une facture Qonto à une affaire : le n° KA dans le champ « Bon de commande » de la facture
- * (ex. « KA-2027-003 TF » : affaire et tranche), à défaut dans l'en-tête, le pied ou une ligne de la facture.
+ * (ex. « KI-2027-003 TF » : affaire et tranche), à défaut dans l'en-tête, le pied ou une ligne de la facture.
  * Une facture sans n° KA est gardée « à rattacher » (elle compte quand même dans le CA encaissé) ;
  * le rattachement se fait ensuite dans Finances › Encaissements.
  *
@@ -4287,9 +4338,9 @@ function Qonto_reference_(inv, affaires) {
   var sources = [inv.purchase_order, inv.header, inv.footer].concat((inv.items || []).map(function (i) { return (i.title || '') + ' ' + (i.description || ''); }));
   for (var i = 0; i < sources.length; i++) {
     var t = String(sources[i] || '');
-    var m = t.toUpperCase().match(/KA[-\s]?(\d{4})[-\s]?(\d{3})/);
+    var m = t.toUpperCase().match(/(K[AI])[-\s]?(\d{4})[-\s]?(\d{3})/);
     if (!m) continue;
-    var id = 'KA-' + m[1] + '-' + m[2];
+    var id = m[1] + '-' + m[2] + '-' + m[3];
     var a = affaires[id];
     if (!a) continue;
     var reste = t.toUpperCase().slice(t.toUpperCase().indexOf(m[0]) + m[0].length);
@@ -5076,7 +5127,7 @@ function verifierAcces_() {
   var proprietaire = Session.getEffectiveUser().getEmail();
   var visiteur = Session.getActiveUser().getEmail();
   if (proprietaire && visiteur && proprietaire !== visiteur) {
-    throw new Error('Accès réservé au compte Kompa.');
+    throw new Error('Accès réservé au compte de ' + APP.ENTREPRISE + '.');
   }
 }
 

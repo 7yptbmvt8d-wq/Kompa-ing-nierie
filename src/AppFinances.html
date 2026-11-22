@@ -1,5 +1,5 @@
 <script>
-/* Kompa Affaires — écran Finances (réorganisation du 21/11/2026) et frise chronologique partagée. */
+/* Kartes Affaires — écran Finances (réorganisation du 21/11/2026) et frise chronologique partagée. */
 (function () {
   'use strict';
   var K = window.KA;
@@ -210,7 +210,7 @@
       ' — exclue' + (q.annulees.length > 1 ? 's' : '') + ' du planning et des relances (rien n\'a été supprimé).</p>' : '';
     cible.innerHTML = '<div class="actions-ligne"><button type="button" class="bouton" data-qonto-synchro>Synchroniser Qonto</button>' +
       '<span class="legende">Qonto connecté · ' + (q.derniereSynchro ? 'dernière synchronisation le ' + quandIso(q.derniereSynchro) : 'jamais synchronisé') +
-      ' · automatique chaque matin. Dans Qonto, indiquez le n° de l\'affaire et la tranche dans « Bon de commande » (ex. KA-2027-003 TF).</span></div>' + annulees + aRatt;
+      ' · automatique chaque matin. Dans Qonto, indiquez le n° de l\'affaire et la tranche dans « Bon de commande » (ex. KI-2027-003 TF).</span></div>' + annulees + aRatt;
     $('[data-qonto-synchro]', cible).addEventListener('click', function () {
       var b = this; b.disabled = true; b.textContent = 'Synchronisation…';
       K.appel('apiQontoSynchroniser').then(function (r) {
@@ -249,7 +249,7 @@
       cible.innerHTML = tete + '<p><span class="statut statut--ok">Connecté</span> identifiant <span class="mono">' + esc(q.identifiant) + '</span>' +
         (q.derniereSynchro ? ' · dernière synchronisation le ' + quandIso(q.derniereSynchro) : '') + '</p>' +
         '<p class="legende">L\'app lit vos factures clients Qonto chaque matin (et à la demande dans Finances › Encaissements) : numéro, date, montant, échéance, paiement. Elle ne crée ni ne modifie rien dans Qonto. ' +
-        'Pour rattacher une facture à une affaire, indiquez dans Qonto, champ « Bon de commande » : le n° KA et la tranche (ex. KA-2027-003 TF).</p>' +
+        'Pour rattacher une facture à une affaire, indiquez dans Qonto, champ « Bon de commande » : le n° de l\'affaire et la tranche (ex. KI-2027-003 TF).</p>' +
         '<p><button type="button" class="bouton bouton--discret" data-qonto-oublier>Déconnecter Qonto</button></p>';
       $('[data-qonto-oublier]', cible).addEventListener('click', function () {
         if (!window.confirm('Déconnecter Qonto ? Les factures déjà récupérées restent dans l\'app.')) return;

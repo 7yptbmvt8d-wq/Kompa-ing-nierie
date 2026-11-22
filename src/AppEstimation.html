@@ -1,5 +1,5 @@
 <script>
-/* Kompa Affaires — module Estimation : estimations au ratio, bibliothèque, index Insee, référentiels. */
+/* Kartes Affaires — module Estimation : estimations au ratio, bibliothèque, index Insee, référentiels. */
 (function () {
   'use strict';
   var K = window.KA;
@@ -15,7 +15,7 @@
   function ecranEstimation(el, param) {
     param = String(param || '');
     var vue = ['referentiels', 'indices', 'bibliotheque'].indexOf(param) >= 0 ? param : '';
-    el.innerHTML = K.titre('Estimation des travaux', 'Estimations reliées aux affaires par le n° KA ; données dans le classeur « Kompa Estimation — données ».') +
+    el.innerHTML = K.titre('Estimation des travaux', 'Estimations reliées aux affaires par leur n° (KI-…) ; données dans le classeur « Kartes Estimation — données ».') +
       onglets(vue) + '<div id="est-contenu"><div class="chargement">Lecture…</div></div>';
     var zone = $('#est-contenu', el);
     if (param.indexOf('nouvelle') === 0) {

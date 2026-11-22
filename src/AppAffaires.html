@@ -1,5 +1,5 @@
 <script>
-/* Kompa Affaires — lot 2 : écrans Affaires (colonnes, liste) et fiche affaire. */
+/* Kartes Affaires — lot 2 : écrans Affaires (colonnes, liste) et fiche affaire. */
 (function () {
   'use strict';
   var K = window.KA;
@@ -929,7 +929,7 @@
     };
     var lignes = criteres.concat([{}, {}]);
     return '<form class="bloc-form" data-criteres novalidate><h3>Notes par critère</h3>' +
-      '<div class="tableau-conteneur"><table><thead><tr><th scope="col">Critère</th><th scope="col" class="num">Pondération</th><th scope="col" class="num">Note Kompa</th><th scope="col" class="num">Note attributaire</th></tr></thead><tbody>' +
+      '<div class="tableau-conteneur"><table><thead><tr><th scope="col">Critère</th><th scope="col" class="num">Pondération</th><th scope="col" class="num">Notre note</th><th scope="col" class="num">Note attributaire</th></tr></thead><tbody>' +
       lignes.map(ligne).join('') +
       '<tr class="ligne-total"><td>Total</td><td class="num mono">' + total('ponderation') + '</td><td class="num mono">' + total('note_kompa') + '</td><td class="num mono">' + total('note_attributaire') + '</td></tr>' +
       '</tbody></table></div><p class="legende">Critères et pondérations : ceux du règlement de consultation (ex. valeur technique 60, prix 40). Notes : celles de la lettre de rejet ou du rapport d\'analyse, sur le barème de l\'acheteur. Laisser le nom du critère vide pour supprimer une ligne.</p>' +

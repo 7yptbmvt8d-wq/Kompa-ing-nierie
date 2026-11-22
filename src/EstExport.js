@@ -1,7 +1,7 @@
 /**
  * Module Estimation — export .xlsx au format DPGF (étape 6).
  *
- * Le classeur est construit dans un Google Sheets temporaire (formules et mise en forme Kompa),
+ * Le classeur est construit dans un Google Sheets temporaire (formules et mise en forme de la charte),
  * exporté en .xlsx, déposé dans le sous-dossier « 09 Estimations » de l'affaire (paramètre est.dossier_export),
  * puis le classeur temporaire est mis à la corbeille. Aucun fichier existant n'est écrasé.
  */

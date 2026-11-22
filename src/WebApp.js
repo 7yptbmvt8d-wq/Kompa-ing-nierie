@@ -50,7 +50,7 @@ function verifierAcces_() {
   var proprietaire = Session.getEffectiveUser().getEmail();
   var visiteur = Session.getActiveUser().getEmail();
   if (proprietaire && visiteur && proprietaire !== visiteur) {
-    throw new Error('Accès réservé au compte Kompa.');
+    throw new Error('Accès réservé au compte de ' + APP.ENTREPRISE + '.');
   }
 }
 

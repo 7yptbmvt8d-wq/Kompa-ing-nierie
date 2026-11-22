@@ -1,19 +1,21 @@
 /**
- * Kompa Affaires — configuration générale et schéma du classeur (§ 9).
+ * Kartes Affaires — configuration générale et schéma du classeur (§ 9).
  *
  * Toute colonne ajoutée ici est créée au prochain lancement de installer(),
  * à la fin de l'onglet, sans toucher aux données existantes.
  */
 
 var APP = {
-  NOM: 'Kompa Affaires',
+  NOM: 'Kartes Affaires',
+  ENTREPRISE: 'Kartes Ingénierie',
   VERSION: '1.5.0',
-  CLASSEUR: 'Kompa Affaires — données',
-  DOSSIER_SAUVEGARDES: 'Kompa Affaires — sauvegardes',
+  CLASSEUR: 'Kartes Affaires — données',
+  DOSSIER_SAUVEGARDES: 'Kartes Affaires — sauvegardes',
+  ANCIEN_NOM: 'Kompa', // nom d'avant le 22/11/2026 : fichiers et dossiers renommés par la mise à jour automatique
   PROP_CLASSEUR_ID: 'CLASSEUR_ID',
   PROP_DOSSIER_SAUVEGARDES_ID: 'DOSSIER_SAUVEGARDES_ID',
   FUSEAU: 'Europe/Paris',
-  // Icône de l'onglet du navigateur : icône Kompa du kit, servie par le dépôt GitHub public
+  // Icône de l'onglet du navigateur : icône du kit (symbole compas), servie par le dépôt GitHub public
   // (l'adresse doit se terminer par .png). Remplaçable par le paramètre app.favicon_url.
   FAVICON: 'https://raw.githubusercontent.com/7yptbmvt8d-wq/Kompa-ing-nierie/claude/amazing-cray-l4l2w9/charte/kompa-kit/logos/png/kompa-icone-192.png'
 };
@@ -49,7 +51,7 @@ var TABLES = {
   AFFAIRES: {
     onglet: 'Affaires',
     cle: 'id',
-    prefixe: 'KA',
+    prefixe: 'KI',
     colonnes: [
       // Identification
       'id', 'acheteur', 'type_acheteur', 'departement', 'objet', 'reference_acheteur',
@@ -168,7 +170,7 @@ TABLES.AVIS_ARCHIVES = Object.assign({}, TABLES.AVIS, { onglet: 'Avis archivés'
  */
 var CLASSEURS = {
   SUIVI: { nom: APP.CLASSEUR, prop: APP.PROP_CLASSEUR_ID },
-  EST: { nom: 'Kompa Estimation — données', prop: 'CLASSEUR_EST_ID' }
+  EST: { nom: 'Kartes Estimation — données', prop: 'CLASSEUR_EST_ID' }
 };
 
 /**

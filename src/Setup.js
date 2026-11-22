@@ -179,7 +179,8 @@ function sauvegardeHebdo() {
     var it = dossier.getFiles();
     while (it.hasNext()) {
       var f = it.next();
-      if (String(f.getName()).indexOf(def.nom + ' — ') === 0) copies.push(f);
+      var nomF = String(f.getName());
+      if (nomF.indexOf(def.nom + ' — ') === 0 || nomF.indexOf(def.nom.replace(/^Kartes/, APP.ANCIEN_NOM) + ' — ') === 0) copies.push(f);
     }
     copies.sort(function (a, b) { return b.getDateCreated() - a.getDateCreated(); });
     copies.slice(aGarder).forEach(function (f) { f.setTrashed(true); });

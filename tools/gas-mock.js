@@ -292,6 +292,8 @@ function creerEnvironnement(options = {}) {
       corbeille: [],
       getFileById: (id) => ({
         getLastUpdated: () => new Date(1e12 + horloge.n),
+        getName: () => (classeurs[id] ? classeurs[id].nom : ''),
+        setName: (n) => { if (classeurs[id]) classeurs[id].nom = n; horloge.n++; },
         setTrashed: (v) => { if (v) gas.DriveApp.corbeille.push(id); },
         makeCopy: (nom, dossier) => {
           const f = {

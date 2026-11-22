@@ -6,7 +6,7 @@
  * La clé est gardée dans les propriétés du script, jamais dans le classeur.
  *
  * Rattachement d'une facture Qonto à une affaire : le n° KA dans le champ « Bon de commande » de la facture
- * (ex. « KA-2027-003 TF » : affaire et tranche), à défaut dans l'en-tête, le pied ou une ligne de la facture.
+ * (ex. « KI-2027-003 TF » : affaire et tranche), à défaut dans l'en-tête, le pied ou une ligne de la facture.
  * Une facture sans n° KA est gardée « à rattacher » (elle compte quand même dans le CA encaissé) ;
  * le rattachement se fait ensuite dans Finances › Encaissements.
  *
@@ -75,9 +75,9 @@ function Qonto_reference_(inv, affaires) {
   var sources = [inv.purchase_order, inv.header, inv.footer].concat((inv.items || []).map(function (i) { return (i.title || '') + ' ' + (i.description || ''); }));
   for (var i = 0; i < sources.length; i++) {
     var t = String(sources[i] || '');
-    var m = t.toUpperCase().match(/KA[-\s]?(\d{4})[-\s]?(\d{3})/);
+    var m = t.toUpperCase().match(/(K[AI])[-\s]?(\d{4})[-\s]?(\d{3})/);
     if (!m) continue;
-    var id = 'KA-' + m[1] + '-' + m[2];
+    var id = m[1] + '-' + m[2] + '-' + m[3];
     var a = affaires[id];
     if (!a) continue;
     var reste = t.toUpperCase().slice(t.toUpperCase().indexOf(m[0]) + m[0].length);

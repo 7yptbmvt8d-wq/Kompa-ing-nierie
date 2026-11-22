@@ -1,6 +1,6 @@
 /**
  * Modèles de courriers des relances (§ 5) : texte prêt à copier dans un e-mail ou un courrier.
- * Les informations manquantes restent entre crochets, à compléter (charte Kompa § 1.7).
+ * Les informations manquantes restent entre crochets, à compléter (charte § 1.7).
  */
 
 function Courriers_modele(idRelance) {
@@ -12,7 +12,10 @@ function Courriers_modele(idRelance) {
   var e = function (v) { return montant_(v) ? Courriers_euros_(montant_(v)) : '[montant]'; };
   var consultation = '« ' + (a.objet || '[objet de la consultation]') + ' »' + (a.reference_acheteur ? ' (référence ' + a.reference_acheteur + ')' : '');
   var ref = a.reference_acheteur ? a.reference_acheteur + ' — ' : '';
-  var signature = Params_texte('courrier.signature', 'Sébastien De Raedt EI\nKompa Ingénierie');
+  var entreprise = Params_texte('courrier.nom_entreprise', APP.ENTREPRISE);
+  var emailPublic = Params_texte('courrier.email_public', '');
+  var signature = Params_texte('courrier.signature', 'Sébastien De Raedt EI\n' + entreprise);
+  if (emailPublic) signature = signature.replace('[e-mail]', emailPublic);
   var politesse = 'Nous vous prions d\'agréer, Madame, Monsieur, l\'expression de nos salutations distinguées.';
   var corps, objet;
 
@@ -26,7 +29,7 @@ function Courriers_modele(idRelance) {
         (r.type === TYPES_RELANCE.MOTIFS_RAPPEL
           ? 'Notre demande du ' + j(Courriers_premiereDemande_(a.id)) + ' étant restée sans réponse, nous nous permettons de la renouveler.\n\n'
           : '') +
-        'Par courrier du ' + j(a.date_resultat) + ', vous nous avez informés du rejet de l\'offre remise par Kompa Ingénierie le ' + j(a.date_depot) +
+        'Par courrier du ' + j(a.date_resultat) + ', vous nous avez informés du rejet de l\'offre remise par ' + entreprise + ' le ' + j(a.date_depot) +
           ' pour la consultation ' + consultation + '.',
         '',
         'En application des articles R. 2181-1 à R. 2181-4 du code de la commande publique, nous vous remercions de bien vouloir nous communiquer :',
@@ -44,7 +47,7 @@ function Courriers_modele(idRelance) {
       corps = [
         'Madame, Monsieur,',
         '',
-        'Kompa Ingénierie a remis le ' + j(a.date_depot) + ' une offre pour la consultation ' + consultation + '.',
+        entreprise + ' a remis le ' + j(a.date_depot) + ' une offre pour la consultation ' + consultation + '.',
         '',
         'La durée de validité de notre offre (' + (montant_(a.validite_offre_jours) || Params_nombre('echeance.validite_defaut_j', 90)) +
           ' jours) étant arrivée à son terme, nous vous remercions de bien vouloir nous indiquer où en est la procédure et, le cas échéant, la date prévisionnelle d\'attribution.',
@@ -109,7 +112,7 @@ function Courriers_modele(idRelance) {
     case TYPE_RELANCE_URSSAF:
       return { type: r.type, destinataire: 'URSSAF — autoentrepreneur.urssaf.fr', objet: 'Déclaration de chiffre d\'affaires',
         corps: 'Pas de courrier : déclaration en ligne.\n\n1. Se connecter sur https://autoentrepreneur.urssaf.fr\n2. Déclarer et payer → période concernée\n3. ' +
-          (r.commentaire || 'Saisir le CA encaissé de la période.') + '\n4. Payer, puis marquer la période « déclarée » sur l\'accueil de Kompa Affaires.' };
+          (r.commentaire || 'Saisir le CA encaissé de la période.') + '\n4. Payer, puis marquer la période « déclarée » sur l\'accueil de ' + APP.NOM + '.' };
     default:
       objet = ref + (r.type || 'Relance');
       corps = ['Madame, Monsieur,', '', '[texte]', '', politesse];

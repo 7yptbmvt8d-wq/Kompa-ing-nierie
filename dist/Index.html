@@ -802,10 +802,10 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
   </script>
   <header class="entete">
     <div class="entete__barre">
-      <a class="marque" href="#accueil" aria-label="Kompa Affaires — accueil">
+      <a class="marque" href="#accueil" aria-label="Kartes Affaires — accueil">
         <!-- Symbole négatif du kit (charte/kompa-kit/logos/svg/kompa-symbole-negatif.svg), non modifié -->
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="6 -1 88 109" width="88" height="109" aria-hidden="true" focusable="false"><circle cx="50" cy="16" r="10" fill="none" stroke="#EEF2F8" stroke-width="6.0"/><path d="M44.5 25 L14 100" fill="none" stroke="#EEF2F8" stroke-width="7.0" stroke-linecap="round"/><path d="M21.5 86.5 Q50 97 79 83" fill="none" stroke="#EEF2F8" stroke-width="6.5" stroke-linecap="round"/><path d="M55.5 25 L86 100" fill="none" stroke="#E2733A" stroke-width="7.0" stroke-linecap="round"/></svg>
-        <span class="marque__nom">Kompa <span>Affaires</span></span>
+        <span class="marque__nom">Kartes <span>Affaires</span></span>
       </a>
       <nav class="nav" aria-label="Navigation principale">
         <a href="#accueil">Accueil</a>
@@ -832,7 +832,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
   <script>
-/* Kompa Affaires — interface (lot 1 : socle). */
+/* Kartes Affaires — interface (lot 1 : socle). */
 (function () {
   'use strict';
 
@@ -1187,11 +1187,11 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
         '<span class="apercu-theme apercu-theme--' + v + '"></span><span><strong>' + lib + '</strong><br><span class="legende">' + detail + '</span></span></label>';
     };
     return '<section class="groupe-param" id="apparence"><h2>Apparence</h2><div class="choix-theme">' +
-      opt('kompa', 'Kompa', 'Charte Kompa Ingénierie (par défaut)') + opt('neon', 'Néon Sunset', 'Fond nuit, coucher de soleil néon') +
-      '</div><p class="legende">Choix gardé sur votre compte (ordinateur et téléphone, même après une mise à jour de l\'app) ; les e-mails et les fichiers exportés gardent la charte Kompa.</p></section>';
+      opt('kompa', 'Kartes', 'Charte Kartes Ingénierie (par défaut)') + opt('neon', 'Néon Sunset', 'Fond nuit, coucher de soleil néon') +
+      '</div><p class="legende">Choix gardé sur votre compte (ordinateur et téléphone, même après une mise à jour de l\'app) ; les e-mails et les fichiers exportés gardent la charte Kartes.</p></section>';
   }
   document.addEventListener('change', function (ev) {
-    if (ev.target.matches && ev.target.matches('[data-theme-choix]')) { choisirTheme(ev.target.value); toast('Thème « ' + (ev.target.value === 'neon' ? 'Néon Sunset' : 'Kompa') + ' » appliqué.'); }
+    if (ev.target.matches && ev.target.matches('[data-theme-choix]')) { choisirTheme(ev.target.value); toast('Thème « ' + (ev.target.value === 'neon' ? 'Néon Sunset' : 'Kartes') + ' » appliqué.'); }
   });
 
   function paramsPC(params) {
@@ -1267,7 +1267,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       if (a.getAttribute('href') === '#' + onglet) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
     });
-    document.title = (param || ECRANS[nom].titre) + ' — Kompa Affaires';
+    document.title = (param || ECRANS[nom].titre) + ' — Kartes Affaires';
     jetonEcran++;
     var el = $('#ecran');
     ECRANS[nom].rendu(el, param);
@@ -1311,7 +1311,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     precharger();
   }
 
-  $('#pied').textContent = 'Kompa Affaires';
+  $('#pied').textContent = 'Kartes Affaires';
 
   // Utilitaires partagés avec les autres scripts de l'interface (AppAffaires…).
   window.KA = {
@@ -1375,7 +1375,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
 })();
 </script>
   <script>
-/* Kompa Affaires — lot 2 : écrans Affaires (colonnes, liste) et fiche affaire. */
+/* Kartes Affaires — lot 2 : écrans Affaires (colonnes, liste) et fiche affaire. */
 (function () {
   'use strict';
   var K = window.KA;
@@ -2305,7 +2305,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     };
     var lignes = criteres.concat([{}, {}]);
     return '<form class="bloc-form" data-criteres novalidate><h3>Notes par critère</h3>' +
-      '<div class="tableau-conteneur"><table><thead><tr><th scope="col">Critère</th><th scope="col" class="num">Pondération</th><th scope="col" class="num">Note Kompa</th><th scope="col" class="num">Note attributaire</th></tr></thead><tbody>' +
+      '<div class="tableau-conteneur"><table><thead><tr><th scope="col">Critère</th><th scope="col" class="num">Pondération</th><th scope="col" class="num">Notre note</th><th scope="col" class="num">Note attributaire</th></tr></thead><tbody>' +
       lignes.map(ligne).join('') +
       '<tr class="ligne-total"><td>Total</td><td class="num mono">' + total('ponderation') + '</td><td class="num mono">' + total('note_kompa') + '</td><td class="num mono">' + total('note_attributaire') + '</td></tr>' +
       '</tbody></table></div><p class="legende">Critères et pondérations : ceux du règlement de consultation (ex. valeur technique 60, prix 40). Notes : celles de la lettre de rejet ou du rapport d\'analyse, sur le barème de l\'acheteur. Laisser le nom du critère vide pour supprimer une ligne.</p>' +
@@ -2581,7 +2581,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
 })();
 </script>
   <script>
-/* Kompa Affaires — lot 3 : écran Veille (avis collectés, Étudier / Ignorer, journal du moteur). */
+/* Kartes Affaires — lot 3 : écran Veille (avis collectés, Étudier / Ignorer, journal du moteur). */
 (function () {
   'use strict';
   var K = window.KA;
@@ -2745,7 +2745,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
 })();
 </script>
   <script>
-/* Kompa Affaires — lot 4 : échéancier (calendrier, relances, modèles de courriers, e-mail du matin). */
+/* Kartes Affaires — lot 4 : échéancier (calendrier, relances, modèles de courriers, e-mail du matin). */
 (function () {
   'use strict';
   var K = window.KA;
@@ -2958,7 +2958,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
 })();
 </script>
   <script>
-/* Kompa Affaires — lot 5 : tableau de bord (accueil) et écran Enseignements. */
+/* Kartes Affaires — lot 5 : tableau de bord (accueil) et écran Enseignements. */
 (function () {
   'use strict';
   var K = window.KA;
@@ -3270,7 +3270,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
 })();
 </script>
   <script>
-/* Kompa Affaires — module Estimation : estimations au ratio, bibliothèque, index Insee, référentiels. */
+/* Kartes Affaires — module Estimation : estimations au ratio, bibliothèque, index Insee, référentiels. */
 (function () {
   'use strict';
   var K = window.KA;
@@ -3286,7 +3286,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
   function ecranEstimation(el, param) {
     param = String(param || '');
     var vue = ['referentiels', 'indices', 'bibliotheque'].indexOf(param) >= 0 ? param : '';
-    el.innerHTML = K.titre('Estimation des travaux', 'Estimations reliées aux affaires par le n° KA ; données dans le classeur « Kompa Estimation — données ».') +
+    el.innerHTML = K.titre('Estimation des travaux', 'Estimations reliées aux affaires par leur n° (KI-…) ; données dans le classeur « Kartes Estimation — données ».') +
       onglets(vue) + '<div id="est-contenu"><div class="chargement">Lecture…</div></div>';
     var zone = $('#est-contenu', el);
     if (param.indexOf('nouvelle') === 0) {
@@ -3867,7 +3867,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
 })();
 </script>
   <script>
-/* Kompa Affaires — écran Finances (réorganisation du 21/11/2026) et frise chronologique partagée. */
+/* Kartes Affaires — écran Finances (réorganisation du 21/11/2026) et frise chronologique partagée. */
 (function () {
   'use strict';
   var K = window.KA;
@@ -4078,7 +4078,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       ' — exclue' + (q.annulees.length > 1 ? 's' : '') + ' du planning et des relances (rien n\'a été supprimé).</p>' : '';
     cible.innerHTML = '<div class="actions-ligne"><button type="button" class="bouton" data-qonto-synchro>Synchroniser Qonto</button>' +
       '<span class="legende">Qonto connecté · ' + (q.derniereSynchro ? 'dernière synchronisation le ' + quandIso(q.derniereSynchro) : 'jamais synchronisé') +
-      ' · automatique chaque matin. Dans Qonto, indiquez le n° de l\'affaire et la tranche dans « Bon de commande » (ex. KA-2027-003 TF).</span></div>' + annulees + aRatt;
+      ' · automatique chaque matin. Dans Qonto, indiquez le n° de l\'affaire et la tranche dans « Bon de commande » (ex. KI-2027-003 TF).</span></div>' + annulees + aRatt;
     $('[data-qonto-synchro]', cible).addEventListener('click', function () {
       var b = this; b.disabled = true; b.textContent = 'Synchronisation…';
       K.appel('apiQontoSynchroniser').then(function (r) {
@@ -4117,7 +4117,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       cible.innerHTML = tete + '<p><span class="statut statut--ok">Connecté</span> identifiant <span class="mono">' + esc(q.identifiant) + '</span>' +
         (q.derniereSynchro ? ' · dernière synchronisation le ' + quandIso(q.derniereSynchro) : '') + '</p>' +
         '<p class="legende">L\'app lit vos factures clients Qonto chaque matin (et à la demande dans Finances › Encaissements) : numéro, date, montant, échéance, paiement. Elle ne crée ni ne modifie rien dans Qonto. ' +
-        'Pour rattacher une facture à une affaire, indiquez dans Qonto, champ « Bon de commande » : le n° KA et la tranche (ex. KA-2027-003 TF).</p>' +
+        'Pour rattacher une facture à une affaire, indiquez dans Qonto, champ « Bon de commande » : le n° de l\'affaire et la tranche (ex. KI-2027-003 TF).</p>' +
         '<p><button type="button" class="bouton bouton--discret" data-qonto-oublier>Déconnecter Qonto</button></p>';
       $('[data-qonto-oublier]', cible).addEventListener('click', function () {
         if (!window.confirm('Déconnecter Qonto ? Les factures déjà récupérées restent dans l\'app.')) return;
@@ -4148,7 +4148,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
 </script>
   <script>
 /*
- * Kompa Affaires — vue smartphone (décision du 19/11/2026) : sur téléphone, l'app n'affiche que
+ * Kartes Affaires — vue smartphone (décision du 19/11/2026) : sur téléphone, l'app n'affiche que
  * ce tableau de bord, en une colonne, sans tableau ni défilement horizontal. Lecture seule.
  * Les autres écrans restent sur ordinateur (lien « Version ordinateur » en bas de page).
  */
@@ -4289,14 +4289,14 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       carte('URSSAF ' + f.annee, urssaf) +
       '<p class="mob-pied">' + esc(d.etat ? d.etat.app + ' · v' + d.etat.version : '') + ' · données du ' + String(maintenant.getHours()).padStart(2, '0') + ':' + String(maintenant.getMinutes()).padStart(2, '0') + '<br>' +
         '<button type="button" class="mob-lien" data-vue-ordinateur>Version ordinateur</button> · ' +
-        '<button type="button" class="mob-lien" data-theme-mobile>Thème : ' + (K.themeActuel() === 'neon' ? 'Néon Sunset' : 'Kompa') + '</button></p>' +
+        '<button type="button" class="mob-lien" data-theme-mobile>Thème : ' + (K.themeActuel() === 'neon' ? 'Néon Sunset' : 'Kartes') + '</button></p>' +
       '</div>';
 
     $('[data-actualiser]', el).addEventListener('click', function () { K.viderMemoire(); K.mobile(el); });
     $('[data-vue-ordinateur]', el).addEventListener('click', function () { K.basculerVue('ordinateur'); });
     $('[data-theme-mobile]', el).addEventListener('click', function () {
       K.choisirTheme(K.themeActuel() === 'neon' ? 'kompa' : 'neon');
-      this.textContent = 'Thème : ' + (K.themeActuel() === 'neon' ? 'Néon Sunset' : 'Kompa');
+      this.textContent = 'Thème : ' + (K.themeActuel() === 'neon' ? 'Néon Sunset' : 'Kartes');
     });
   }
 

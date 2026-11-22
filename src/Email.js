@@ -1,5 +1,5 @@
 /**
- * E-mail du matin (§ 6) : du lundi au vendredi à 7 h vers le compte Kompa.
+ * E-mail du matin (§ 6) : du lundi au vendredi à 7 h vers le compte de l'app.
  * Rubriques : nouveaux avis PACA, nouveaux avis France, échéances à 7 jours, relances à faire,
  * indicateurs. Rubriques vides masquées. Sans nouvel avis, échéance ni relance : e-mail « aucun nouvel avis »
  * avec le bilan de la collecte du matin (paramètre email.si_rien, oui par défaut — décision du 18/11/2026) ;
@@ -184,9 +184,9 @@ function Email_construire(quand, depuis) {
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:680px;background:' + C.blanc + ';border-radius:12px;overflow:hidden">' +
     '<tr><td style="background:' + C.ardoise + ';padding:18px 24px;color:' + C.inverse + '">' +
       '<div style="font-size:12px;letter-spacing:.14em;color:' + C.inverse2 + ';font-weight:600">KOMPA INGÉNIERIE</div>' +
-      '<div style="font-size:20px;font-weight:700">Kompa Affaires — ' + dateTxt + '</div></td></tr>' +
+      '<div style="font-size:20px;font-weight:700">' + APP.NOM + ' — ' + dateTxt + '</div></td></tr>' +
     corps +
-    '<tr><td style="padding:24px">' + bouton(url, 'Ouvrir Kompa Affaires') + '</td></tr>' +
+    '<tr><td style="padding:24px">' + bouton(url, 'Ouvrir ' + APP.NOM) + '</td></tr>' +
     '<tr><td style="padding:12px 24px;border-top:1px solid ' + C.filet + ';color:' + C.gris + ';font-size:12px;' + mono + '">E-mail automatique du lundi au vendredi à ' + Params_nombre('email.heure', 7) + ' h — paramètres email.* de l\'app.</td></tr>' +
     '</table></td></tr></table></body></html>';
 

@@ -1,6 +1,6 @@
 <script>
 /*
- * Kompa Affaires — vue smartphone (décision du 19/11/2026) : sur téléphone, l'app n'affiche que
+ * Kartes Affaires — vue smartphone (décision du 19/11/2026) : sur téléphone, l'app n'affiche que
  * ce tableau de bord, en une colonne, sans tableau ni défilement horizontal. Lecture seule.
  * Les autres écrans restent sur ordinateur (lien « Version ordinateur » en bas de page).
  */
@@ -141,14 +141,14 @@
       carte('URSSAF ' + f.annee, urssaf) +
       '<p class="mob-pied">' + esc(d.etat ? d.etat.app + ' · v' + d.etat.version : '') + ' · données du ' + String(maintenant.getHours()).padStart(2, '0') + ':' + String(maintenant.getMinutes()).padStart(2, '0') + '<br>' +
         '<button type="button" class="mob-lien" data-vue-ordinateur>Version ordinateur</button> · ' +
-        '<button type="button" class="mob-lien" data-theme-mobile>Thème : ' + (K.themeActuel() === 'neon' ? 'Néon Sunset' : 'Kompa') + '</button></p>' +
+        '<button type="button" class="mob-lien" data-theme-mobile>Thème : ' + (K.themeActuel() === 'neon' ? 'Néon Sunset' : 'Kartes') + '</button></p>' +
       '</div>';
 
     $('[data-actualiser]', el).addEventListener('click', function () { K.viderMemoire(); K.mobile(el); });
     $('[data-vue-ordinateur]', el).addEventListener('click', function () { K.basculerVue('ordinateur'); });
     $('[data-theme-mobile]', el).addEventListener('click', function () {
       K.choisirTheme(K.themeActuel() === 'neon' ? 'kompa' : 'neon');
-      this.textContent = 'Thème : ' + (K.themeActuel() === 'neon' ? 'Néon Sunset' : 'Kompa');
+      this.textContent = 'Thème : ' + (K.themeActuel() === 'neon' ? 'Néon Sunset' : 'Kartes');
     });
   }
 
