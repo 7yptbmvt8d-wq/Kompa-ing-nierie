@@ -2365,7 +2365,7 @@ test('page : titre « Kartes Affaires » et icône Kompa dans l\'onglet', () => 
   env.ctx.installer({ exercice: false });
   const o = env.ctx.doGet();
   assert.strictEqual(o.titre, 'Kartes Affaires');
-  assert.match(o.favicon, /kompa-icone-192\.png$/);
+  assert.match(o.favicon, /kartes-icone-192\.png$/);
   env.ctx.Params_enregistrer('app.favicon_url', 'https://exemple.fr/icone.png'); env.ctx.Params_cache_ = null;
   assert.strictEqual(env.ctx.doGet().favicon, 'https://exemple.fr/icone.png');
 });

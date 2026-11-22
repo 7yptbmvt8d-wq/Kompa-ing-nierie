@@ -38,7 +38,7 @@ src/            code serveur (*.js) et interface (*.html)
 dist/           version assemblée à coller dans Apps Script
 tools/          build, simulation Google, tests, aperçu
 docs/           cahier des charges, recettes des lots 1 à 5, notes
-skills/         skill Claude « reponse-amo-kompa » (hors app)
+skills/         skill Claude « reponse-amo-kartes » (hors app)
 charte/         charte graphique Kompa (tokens, logos)
 ```
 

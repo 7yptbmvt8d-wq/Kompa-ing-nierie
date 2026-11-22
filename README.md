@@ -1,7 +1,7 @@
-# Kompa Affaires
+# Kartes Affaires
 
-Veille et suivi des marchés publics d'AMO de Kompa Ingénierie.
-Google Apps Script + Google Sheets + web app, dans le compte Google Kompa.
+Veille et suivi des marchés publics d'AMO de Kartes Ingénierie (anciennement Kompa ; renommage du 22/11/2026, numéros d'affaire KI- à la suite des KA-).
+Google Apps Script + Google Sheets + web app, dans le compte Google de l'entreprise (kompa.ingenierie@gmail.com, compte technique conservé).
 
 Spécification : [docs/cahier-des-charges-v1.md](docs/cahier-des-charges-v1.md) ·
 Déclarations URSSAF : [docs/declarations-urssaf.md](docs/declarations-urssaf.md) · Dossiers Drive et fluidité : [docs/dossiers-drive.md](docs/dossiers-drive.md) · Recette : [lot 1](docs/recette-lot-1.md) · [lot 2](docs/recette-lot-2.md) · [lot 3](docs/recette-lot-3.md) · [lot 4](docs/recette-lot-4.md) · [lot 5](docs/recette-lot-5.md)
@@ -10,7 +10,7 @@ Déclarations URSSAF : [docs/declarations-urssaf.md](docs/declarations-urssaf.md
 
 | Lot | Contenu | État |
 |---|---|---|
-| 1. Socle | Classeur et onglets, web app aux couleurs Kompa, connexion Google, Paramètres, compteur de CA | Installé |
+| 1. Socle | Classeur et onglets, web app aux couleurs de la charte, connexion Google, Paramètres, compteur de CA | Installé |
 | 2. Affaires | Fiche affaire, statuts et règles de passage, historique, vues colonnes et liste, affaire d'exercice Mouthe | Livré |
 | 3. Veille | Collecte BOAMP + boîte de veille, filtres, dédoublonnage, pré-score, écran Veille | Installé — en recette ([recette-lot-3.md](docs/recette-lot-3.md)) |
 | 4. Échéances et e-mail | Échéancier (calendrier), relances automatiques, modèles de courriers, e-mail de 7 h du lundi au vendredi vers kompa.ingenierie@gmail.com | Installé |
@@ -26,7 +26,7 @@ Sans outil : [docs/installation.md](docs/installation.md) — trois fichiers de 
 npm run build
 ```
 
-Avec [clasp](https://github.com/google/clasp) (optionnel, pour un développeur) : `clasp create --type standalone --title "Kompa Affaires" --rootDir src`, restaurer `src/appsscript.json` s'il a été écrasé, puis `clasp push`.
+Avec [clasp](https://github.com/google/clasp) (optionnel, pour un développeur) : `clasp create --type standalone --title "Kartes Affaires" --rootDir src`, restaurer `src/appsscript.json` s'il a été écrasé, puis `clasp push`.
 
 ## Structure
 

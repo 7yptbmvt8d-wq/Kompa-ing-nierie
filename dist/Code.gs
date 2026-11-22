@@ -1191,7 +1191,7 @@ var APP = {
   FUSEAU: 'Europe/Paris',
   // Icône de l'onglet du navigateur : icône du kit (symbole compas), servie par le dépôt GitHub public
   // (l'adresse doit se terminer par .png). Remplaçable par le paramètre app.favicon_url.
-  FAVICON: 'https://raw.githubusercontent.com/7yptbmvt8d-wq/Kompa-ing-nierie/claude/amazing-cray-l4l2w9/charte/kompa-kit/logos/png/kompa-icone-192.png'
+  FAVICON: 'https://raw.githubusercontent.com/7yptbmvt8d-wq/Kompa-ing-nierie/claude/amazing-cray-l4l2w9/charte/kartes-kit/logos/png/kartes-icone-192.png'
 };
 
 /** Couleurs de mise en forme du classeur (reprises des tokens de l'app). */
