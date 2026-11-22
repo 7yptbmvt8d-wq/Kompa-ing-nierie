@@ -39,16 +39,16 @@ function Veille_contexte_() {
   return {
     aujourdhui: (function () { var d = new Date(); d.setHours(0, 0, 0, 0); return d; })(),
     cpv: Params_liste('veille.cpv'),
-    motsCles: Params_liste('veille.mots_cles').map(Veille_norm_),
-    motsCoeur: Params_liste('veille.mots_cles_coeur').map(Veille_norm_),
-    exclusions: Params_liste('veille.exclusions').map(Veille_norm_),
+    motsCles: Veille_termes_('veille.mots_cles'),
+    motsCoeur: Veille_termes_('veille.mots_cles_coeur'),
+    exclusions: Veille_termes_('veille.exclusions'),
     acheteursExclus: Veille_motsEntiers_(Params_liste('veille.acheteurs_exclus')),
-    exclusionsSouples: Params_liste('veille.exclusions_souples').map(Veille_norm_),
-    motsBatiment: Params_liste('veille.mots_batiment').map(Veille_norm_),
-    equipements: Params_liste('veille.equipements').map(Veille_norm_),
+    exclusionsSouples: Veille_termes_('veille.exclusions_souples'),
+    motsBatiment: Veille_termes_('veille.mots_batiment'),
+    equipements: Veille_termes_('veille.equipements'),
     batimentRequis: Params_texte('veille.batiment_requis', 'oui').toLowerCase() === 'oui',
     batimentAmoSouple: Params_texte('veille.batiment_amo_souple', 'oui').toLowerCase() === 'oui',
-    exclusionsAVerifier: Params_liste('veille.exclusions_a_verifier').map(Veille_norm_),
+    exclusionsAVerifier: Veille_termes_('veille.exclusions_a_verifier'),
     horsZone: Params_texte('veille.hors_zone', 'non').toLowerCase() === 'oui',
     exclusionMoe: Veille_norm_(Params_texte('veille.exclusion_moe', '')),
     exceptionMoe: Veille_norm_(Params_texte('veille.exception_moe', '')),
@@ -310,6 +310,17 @@ function Veille_acheteurExclu_(a, ctx) {
   var cible = Veille_norm_(a.acheteur) + ' | ' + Veille_norm_(a.objet);
   if (!a.acheteur) cible += ' | ' + Veille_norm_(String(a.texte || '').slice(0, 600));
   return Veille_contientMot_(cible, ctx.acheteursExclus);
+}
+
+/**
+ * Liste de termes de veille, normalisés. Un terme saisi avec une espace finale (« plu », « dsp », « opc »)
+ * la garde : il ne correspond qu'au mot entier (« plu » ≠ « plusieurs »). Params_liste la retirait.
+ */
+function Veille_termes_(cle) {
+  return Params_texte(cle, '').split(SEP_LISTE).map(function (t) {
+    var n = Veille_norm_(t);
+    return n && /\s$/.test(t) ? n + ' ' : n;
+  }).filter(String);
 }
 
 /** Termes comparés en mot entier (« sid » ≠ « Sidiailles », « armées » ≠ « armement »). */

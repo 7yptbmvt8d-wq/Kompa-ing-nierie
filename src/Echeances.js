@@ -139,6 +139,17 @@ function Echeances_calculer(debut, fin, quand) {
     });
   });
 
+  // Autorisation de cumul d'activités (agent public) : avant la création de l'entreprise
+  var cu = Fiscal_cumul(auj);
+  if (cu.etat === 'en retard' || (['à venir', 'à faire'].indexOf(cu.etat) >= 0 && aujourdhui_(date_(cu.avant)) >= debut && aujourdhui_(date_(cu.avant)) <= fin)) {
+    var jCu = ecartJours_(date_(cu.avant), auj);
+    out.push({
+      date: aujourdhui_(date_(cu.avant)), type: 'Déclaration', libelle: 'Demander l\'autorisation de cumul d\'activités',
+      id_affaire: '', acheteur: 'Employeur (cumul d\'activités)', objet: 'Demande écrite à l\'employeur avant la création de l\'entreprise (activité accessoire : expertise et consultation). À marquer « faite » sur la carte de l\'accueil',
+      statut: cu.etat, jours: jCu, urgent: jCu <= 7, depassee: cu.etat === 'en retard'
+    });
+  }
+
   // Déclaration de revenus (printemps) : CA encaissé de l'année précédente, à partir de la 1re année d'activité
   var ir = Fiscal_declarationRevenus(auj.getFullYear(), auj);
   if (['à venir', 'à faire', 'en retard'].indexOf(ir.etat) >= 0) {

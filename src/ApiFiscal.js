@@ -15,6 +15,10 @@ function apiRevenusDeclares(annee, dateDeclaration) {
   return repondre_(function () { Fiscal_revenusDeclares(annee, dateDeclaration); return Fiscal_declarations(Number(annee)); });
 }
 
+function apiCumulFait(dateDemande) {
+  return repondre_(function () { Fiscal_cumulFait(dateDemande); return Fiscal_declarations(); });
+}
+
 function apiCfePayee(annee, montant, datePaiement) {
   return repondre_(function () { Fiscal_cfePayee(annee, montant, datePaiement); return Fiscal_declarations(Number(annee)); });
 }

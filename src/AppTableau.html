@@ -94,9 +94,19 @@
       '</tbody></table></div>' +
       '<p class="legende">Estimations calculées avec les taux de l\'onglet Paramètres, à vérifier chaque année sur votre espace URSSAF. ' +
       'Une relance « Déclaration URSSAF » apparaît dans l\'échéancier et l\'e-mail du matin tant qu\'une période terminée n\'est pas marquée déclarée.</p>' +
-      blocCfe(d) + blocRevenus(d);
+      blocCumul(d) + blocCfe(d) + blocRevenus(d);
 
     brancherCfe(el, d);
+    var bc = el.querySelector('[data-cumul-fait]');
+    if (bc) bc.addEventListener('click', function () {
+      K.appel('apiCumulFait', '').then(function (r) { K.toast('Autorisation de cumul marquée demandée.'); rendreFiscal(el, r); })
+        .catch(function (e) { K.toast(e.message, true); });
+    });
+    var ac = el.querySelector('[data-cumul-annuler]');
+    if (ac) ac.addEventListener('click', function () {
+      K.appel('apiAnnulerDeclaration', 'CUMUL').then(function (r) { K.toast('Annulé.'); rendreFiscal(el, r); })
+        .catch(function (e) { K.toast(e.message, true); });
+    });
     var br = el.querySelector('[data-revenus-faite]');
     if (br) br.addEventListener('click', function () {
       K.appel('apiRevenusDeclares', d.revenus.annee, '').then(function (r) { K.toast('Déclaration de revenus ' + d.revenus.annee + ' marquée faite.'); rendreFiscal(el, r); })
@@ -115,6 +125,18 @@
 
   // ——— CFE (cotisation foncière des entreprises) ———
   var ETATS_CFE = { 'payée': 'statut--ok', 'en retard': 'statut--ko', 'à payer': 'statut--alerte', 'à venir': 'statut--encours', 'exonérée': 'statut--neutre', 'non due': 'statut--neutre' };
+
+  function blocCumul(d) {
+    var c = d.cumul;
+    if (!c || !c.afficher) return '';
+    var cls = { 'à venir': 'statut--neutre', 'à faire': 'statut--alerte', 'en retard': 'statut--ko', 'faite': 'statut--ok' }[c.etat] || 'statut--neutre';
+    return '<div class="bloc-cfe"><div class="bloc-cfe__tete"><h3>Autorisation de cumul d\'activités</h3>' +
+      '<span class="statut ' + cls + '">' + esc(c.etat) + '</span>' +
+      '<span class="legende">' + (c.etat === 'faite' ? 'demandée le <span class="mono">' + jour(c.date_demande) + '</span>' : 'à demander avant le <span class="mono">' + jour(c.avant) + '</span>') + '</span>' +
+      (c.etat === 'faite' ? '<button type="button" class="bouton bouton--discret" data-cumul-annuler>Annuler</button>' : '<button type="button" class="bouton" data-cumul-fait>Faite</button>') + '</div>' +
+      '<p class="legende">Agent public : demande écrite à l\'employeur avant de créer l\'entreprise (activité accessoire : expertise et consultation). ' +
+      'Aucun marché avec le Ministère des Armées (la veille les écarte). Date modifiable : Paramètres › <span class="mono">fiscal.cumul_avant</span>.</p></div>';
+  }
 
   function blocRevenus(d) {
     var r = d.revenus;

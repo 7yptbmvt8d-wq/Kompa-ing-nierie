@@ -932,6 +932,10 @@ function apiRevenusDeclares(annee, dateDeclaration) {
   return repondre_(function () { Fiscal_revenusDeclares(annee, dateDeclaration); return Fiscal_declarations(Number(annee)); });
 }
 
+function apiCumulFait(dateDemande) {
+  return repondre_(function () { Fiscal_cumulFait(dateDemande); return Fiscal_declarations(); });
+}
+
 function apiCfePayee(annee, montant, datePaiement) {
   return repondre_(function () { Fiscal_cfePayee(annee, montant, datePaiement); return Fiscal_declarations(Number(annee)); });
 }
@@ -2237,6 +2241,17 @@ function Echeances_calculer(debut, fin, quand) {
     });
   });
 
+  // Autorisation de cumul d'activités (agent public) : avant la création de l'entreprise
+  var cu = Fiscal_cumul(auj);
+  if (cu.etat === 'en retard' || (['à venir', 'à faire'].indexOf(cu.etat) >= 0 && aujourdhui_(date_(cu.avant)) >= debut && aujourdhui_(date_(cu.avant)) <= fin)) {
+    var jCu = ecartJours_(date_(cu.avant), auj);
+    out.push({
+      date: aujourdhui_(date_(cu.avant)), type: 'Déclaration', libelle: 'Demander l\'autorisation de cumul d\'activités',
+      id_affaire: '', acheteur: 'Employeur (cumul d\'activités)', objet: 'Demande écrite à l\'employeur avant la création de l\'entreprise (activité accessoire : expertise et consultation). À marquer « faite » sur la carte de l\'accueil',
+      statut: cu.etat, jours: jCu, urgent: jCu <= 7, depassee: cu.etat === 'en retard'
+    });
+  }
+
   // Déclaration de revenus (printemps) : CA encaissé de l'année précédente, à partir de la 1re année d'activité
   var ir = Fiscal_declarationRevenus(auj.getFullYear(), auj);
   if (['à venir', 'à faire', 'en retard'].indexOf(ir.etat) >= 0) {
@@ -2937,6 +2952,7 @@ function Fiscal_declarations(annee, quand) {
     tauxManquants: taux.cotisations === null || taux.cfp === null || taux.impot === null,
     periodes: periodes,
     cfe: Fiscal_cfe(annee, quand),
+    cumul: Fiscal_cumul(quand),
     revenus: Fiscal_declarationRevenus(annee, quand),
     cfeProchaine: (function () {
       for (var an = annee + 1; an <= annee + 4; an++) {
@@ -3020,6 +3036,36 @@ function Fiscal_revenusDeclares(annee, dateDeclaration) {
   var champs = { ca_declare: r.ca, date_declaration: date_(dateDeclaration) || aujourdhui_(), commentaire: 'Déclaration de revenus (CA ' + r.anneeCa + ')' };
   if (Db_trouver(TABLES.DECLARATIONS, id)) return Db_maj(TABLES.DECLARATIONS, id, champs);
   return Db_inserer(TABLES.DECLARATIONS, Object.assign({ id: id }, champs));
+}
+
+/**
+ * Autorisation de cumul d'activités (agent public) : à demander à l'employeur avant fiscal.cumul_avant,
+ * avant la création de l'entreprise. Rappel dans l'échéancier et l'e-mail du matin (30 jours avant)
+ * jusqu'à ce qu'elle soit marquée faite (onglet Déclarations, id « CUMUL »).
+ * Renvoie { id, avant, etat: 'non due'|'à venir'|'à faire'|'en retard'|'faite', date_demande, afficher }.
+ */
+function Fiscal_cumul(quand) {
+  var auj = aujourdhui_(quand);
+  var avant = date_(Params_texte('fiscal.cumul_avant', ''));
+  var dec = Db_trouver(TABLES.DECLARATIONS, 'CUMUL');
+  var creation = date_(Params_texte('fiscal.date_creation', ''));
+  var r = { id: 'CUMUL', avant: avant ? jourIso_(avant) : '', etat: 'non due', date_demande: '', afficher: false, joursAvantEcheance: avant ? ecartJours_(avant, auj) : null };
+  if (dec && date_(dec.date_declaration)) {
+    r.etat = 'faite'; r.date_demande = jourIso_(date_(dec.date_declaration));
+    r.afficher = !creation || auj <= ajouterJours_(creation, 90); // carte gardée jusqu'à 3 mois après la création
+    return r;
+  }
+  if (!avant) return r;
+  if (creation && auj > ajouterJours_(creation, 90)) return r; // entreprise en activité depuis plus de 3 mois : plus de rappel
+  r.etat = auj > avant ? 'en retard' : (ecartJours_(avant, auj) <= 30 ? 'à faire' : 'à venir');
+  r.afficher = true;
+  return r;
+}
+
+function Fiscal_cumulFait(dateDemande) {
+  var champs = { ca_declare: '', date_declaration: date_(dateDemande) || aujourdhui_(), commentaire: 'Autorisation de cumul d\'activités demandée' };
+  if (Db_trouver(TABLES.DECLARATIONS, 'CUMUL')) return Db_maj(TABLES.DECLARATIONS, 'CUMUL', champs);
+  return Db_inserer(TABLES.DECLARATIONS, Object.assign({ id: 'CUMUL' }, champs));
 }
 
 function Fiscal_cfePayee(annee, montant, datePaiement) {
@@ -3558,6 +3604,7 @@ var PARAMETRES_DEFAUT = [
   // Déclarations URSSAF (micro-entreprise)
   ['fiscal.debut_suivi', '', 'Début du suivi des déclarations (aaaa-mm-jj) : les périodes terminées avant ne sont ni affichées en retard ni relancées. Rempli à l\'installation'],
   ['fiscal.date_creation', '2027-01-04', 'Date de création de l\'entreprise (aaaa-mm-jj) : CFE exonérée l\'année de création, base réduite de moitié l\'année suivante. Modifiable depuis la carte URSSAF de l\'accueil'],
+  ['fiscal.cumul_avant', '2026-12-01', 'Agent public : demander l\'autorisation de cumul d\'activités à l\'employeur avant cette date (aaaa-mm-jj), avant la création de l\'entreprise. Vide : pas de rappel'],
   ['fiscal.cfe_montant', '', 'CFE estimée pour une année pleine (€) : à remplacer par le montant de l\'avis (impots.gouv, vers la mi-novembre). Modifiable depuis la carte URSSAF de l\'accueil'],
   ['fiscal.declaration_revenus_ouverture', '04-10', 'Déclaration de revenus (impots.gouv) : date d\'ouverture du service en ligne (mois-jour), à vérifier chaque printemps'],
   ['fiscal.declaration_revenus_limite', '05-28', 'Déclaration de revenus : date limite en ligne (mois-jour), selon le département (Corse : zone 2), à vérifier chaque printemps sur impots.gouv.fr'],
@@ -4531,16 +4578,16 @@ function Veille_contexte_() {
   return {
     aujourdhui: (function () { var d = new Date(); d.setHours(0, 0, 0, 0); return d; })(),
     cpv: Params_liste('veille.cpv'),
-    motsCles: Params_liste('veille.mots_cles').map(Veille_norm_),
-    motsCoeur: Params_liste('veille.mots_cles_coeur').map(Veille_norm_),
-    exclusions: Params_liste('veille.exclusions').map(Veille_norm_),
+    motsCles: Veille_termes_('veille.mots_cles'),
+    motsCoeur: Veille_termes_('veille.mots_cles_coeur'),
+    exclusions: Veille_termes_('veille.exclusions'),
     acheteursExclus: Veille_motsEntiers_(Params_liste('veille.acheteurs_exclus')),
-    exclusionsSouples: Params_liste('veille.exclusions_souples').map(Veille_norm_),
-    motsBatiment: Params_liste('veille.mots_batiment').map(Veille_norm_),
-    equipements: Params_liste('veille.equipements').map(Veille_norm_),
+    exclusionsSouples: Veille_termes_('veille.exclusions_souples'),
+    motsBatiment: Veille_termes_('veille.mots_batiment'),
+    equipements: Veille_termes_('veille.equipements'),
     batimentRequis: Params_texte('veille.batiment_requis', 'oui').toLowerCase() === 'oui',
     batimentAmoSouple: Params_texte('veille.batiment_amo_souple', 'oui').toLowerCase() === 'oui',
-    exclusionsAVerifier: Params_liste('veille.exclusions_a_verifier').map(Veille_norm_),
+    exclusionsAVerifier: Veille_termes_('veille.exclusions_a_verifier'),
     horsZone: Params_texte('veille.hors_zone', 'non').toLowerCase() === 'oui',
     exclusionMoe: Veille_norm_(Params_texte('veille.exclusion_moe', '')),
     exceptionMoe: Veille_norm_(Params_texte('veille.exception_moe', '')),
@@ -4802,6 +4849,17 @@ function Veille_acheteurExclu_(a, ctx) {
   var cible = Veille_norm_(a.acheteur) + ' | ' + Veille_norm_(a.objet);
   if (!a.acheteur) cible += ' | ' + Veille_norm_(String(a.texte || '').slice(0, 600));
   return Veille_contientMot_(cible, ctx.acheteursExclus);
+}
+
+/**
+ * Liste de termes de veille, normalisés. Un terme saisi avec une espace finale (« plu », « dsp », « opc »)
+ * la garde : il ne correspond qu'au mot entier (« plu » ≠ « plusieurs »). Params_liste la retirait.
+ */
+function Veille_termes_(cle) {
+  return Params_texte(cle, '').split(SEP_LISTE).map(function (t) {
+    var n = Veille_norm_(t);
+    return n && /\s$/.test(t) ? n + ' ' : n;
+  }).filter(String);
 }
 
 /** Termes comparés en mot entier (« sid » ≠ « Sidiailles », « armées » ≠ « armement »). */

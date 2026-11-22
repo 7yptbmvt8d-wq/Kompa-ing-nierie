@@ -89,6 +89,7 @@ function Fiscal_declarations(annee, quand) {
     tauxManquants: taux.cotisations === null || taux.cfp === null || taux.impot === null,
     periodes: periodes,
     cfe: Fiscal_cfe(annee, quand),
+    cumul: Fiscal_cumul(quand),
     revenus: Fiscal_declarationRevenus(annee, quand),
     cfeProchaine: (function () {
       for (var an = annee + 1; an <= annee + 4; an++) {
@@ -172,6 +173,36 @@ function Fiscal_revenusDeclares(annee, dateDeclaration) {
   var champs = { ca_declare: r.ca, date_declaration: date_(dateDeclaration) || aujourdhui_(), commentaire: 'Déclaration de revenus (CA ' + r.anneeCa + ')' };
   if (Db_trouver(TABLES.DECLARATIONS, id)) return Db_maj(TABLES.DECLARATIONS, id, champs);
   return Db_inserer(TABLES.DECLARATIONS, Object.assign({ id: id }, champs));
+}
+
+/**
+ * Autorisation de cumul d'activités (agent public) : à demander à l'employeur avant fiscal.cumul_avant,
+ * avant la création de l'entreprise. Rappel dans l'échéancier et l'e-mail du matin (30 jours avant)
+ * jusqu'à ce qu'elle soit marquée faite (onglet Déclarations, id « CUMUL »).
+ * Renvoie { id, avant, etat: 'non due'|'à venir'|'à faire'|'en retard'|'faite', date_demande, afficher }.
+ */
+function Fiscal_cumul(quand) {
+  var auj = aujourdhui_(quand);
+  var avant = date_(Params_texte('fiscal.cumul_avant', ''));
+  var dec = Db_trouver(TABLES.DECLARATIONS, 'CUMUL');
+  var creation = date_(Params_texte('fiscal.date_creation', ''));
+  var r = { id: 'CUMUL', avant: avant ? jourIso_(avant) : '', etat: 'non due', date_demande: '', afficher: false, joursAvantEcheance: avant ? ecartJours_(avant, auj) : null };
+  if (dec && date_(dec.date_declaration)) {
+    r.etat = 'faite'; r.date_demande = jourIso_(date_(dec.date_declaration));
+    r.afficher = !creation || auj <= ajouterJours_(creation, 90); // carte gardée jusqu'à 3 mois après la création
+    return r;
+  }
+  if (!avant) return r;
+  if (creation && auj > ajouterJours_(creation, 90)) return r; // entreprise en activité depuis plus de 3 mois : plus de rappel
+  r.etat = auj > avant ? 'en retard' : (ecartJours_(avant, auj) <= 30 ? 'à faire' : 'à venir');
+  r.afficher = true;
+  return r;
+}
+
+function Fiscal_cumulFait(dateDemande) {
+  var champs = { ca_declare: '', date_declaration: date_(dateDemande) || aujourdhui_(), commentaire: 'Autorisation de cumul d\'activités demandée' };
+  if (Db_trouver(TABLES.DECLARATIONS, 'CUMUL')) return Db_maj(TABLES.DECLARATIONS, 'CUMUL', champs);
+  return Db_inserer(TABLES.DECLARATIONS, Object.assign({ id: 'CUMUL' }, champs));
 }
 
 function Fiscal_cfePayee(annee, montant, datePaiement) {

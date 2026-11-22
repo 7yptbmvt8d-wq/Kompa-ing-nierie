@@ -2164,6 +2164,29 @@ test('URSSAF : taux de cotisations non renseigné → estimation absente, CA pr�
   assert.strictEqual(d.periodes[0].ca, 0);
 });
 
+test('autorisation de cumul : rappel 7 jours avant, en retard ensuite, plus rien une fois faite', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  A.installer({ exercice: false });
+  const cumul = (q) => brut(A.Echeances_calculer(q, A.ajouterJours_(q, 7), q)).filter((e) => e.acheteur === 'Employeur (cumul d\'activités)');
+  assert.strictEqual(brut(A.Fiscal_cumul(new Date(2026, 10, 10))).etat, 'à faire');
+  assert.strictEqual(cumul(new Date(2026, 10, 10)).length, 0);           // 1er décembre hors de la semaine
+  assert.strictEqual(cumul(new Date(2026, 10, 26)).length, 1);           // dans la semaine
+  const retard = cumul(new Date(2026, 11, 5));
+  assert.strictEqual(retard.length, 1);
+  assert.ok(retard[0].depassee);
+  assert.match(A.Email_construire(new Date(2026, 10, 26)).html, /autorisation de cumul/);
+  assert.ok(A.apiCumulFait('2026-11-28').ok);
+  assert.strictEqual(brut(A.Fiscal_cumul(new Date(2026, 11, 5))).etat, 'faite');
+  assert.strictEqual(cumul(new Date(2026, 11, 5)).length, 0);
+  assert.strictEqual(brut(A.Fiscal_declarations(2026, new Date(2026, 11, 5))).cumul.afficher, true);
+  // Entreprise en activité depuis plus de 3 mois : aucun rappel
+  A.apiAnnulerDeclaration('CUMUL');
+  A.Params_enregistrer('fiscal.date_creation', '2026-01-01');
+  A.Params_cache_ = null;
+  assert.strictEqual(brut(A.Fiscal_cumul(new Date(2026, 11, 5))).etat, 'non due');
+});
+
 test('URSSAF : relance et échéance tant que non déclaré ; déclaration → sans objet', () => {
   const { A } = jeuFiscal();
   const quand = new Date(2026, 10, 12);
@@ -2467,6 +2490,13 @@ test('filtres : mot entier et début de mot (graphique ≠ muséographique, plu 
   assert.strictEqual(m('services graphiques', ['graphique']), 'graphique');
   assert.strictEqual(m('revision du plu', ['plu ']), 'plu');
   assert.strictEqual(m('plus de surfaces', ['plu ']), '');
+  // Via les paramètres : l'espace finale de « plu », « dsp », « opc » est conservée (mot entier)
+  const ctx = env.ctx.Veille_contexte_();
+  const f = (objet) => env.ctx.Veille_filtrer_({ objet: objet, cpv: '71241000', departement: '13', departements: ['13'] }, ctx);
+  assert.strictEqual(f('AMO pour plusieurs bâtiments scolaires').garde, true);
+  assert.strictEqual(f('AMO pour la révision du PLU de la commune').garde, false);
+  assert.strictEqual(f('AMO OPC pour la construction d\'une école').garde, false);
+  assert.strictEqual(f('AMO école, opcvm').garde, true);
 });
 
 test('migration : anciennes valeurs par défaut mises à jour, valeurs modifiées respectées ; avis re-filtrés', () => {
