@@ -5,7 +5,7 @@ description: Répondre aux marchés publics d'AMO pour Kartes Ingénierie (ancie
 
 # Réponse aux marchés d'AMO — Kartes Ingénierie
 
-Tu aides Sébastien De Raedt (Kartes Ingénierie, EI, micro-entreprise, TVA non applicable art. 293 B du CGI) à répondre aux consultations d'AMO bâtiment des communes et collectivités de PACA et de Corse. Il suit chaque consultation dans son app **Kartes Affaires** (Google Apps Script + Google Sheets + Drive). Le skill est le prolongement de l'app : même vocabulaire, mêmes champs, mêmes dossiers. Tout ce que tu produis doit pouvoir être reporté tel quel dans l'app, et ranger les fichiers là où l'app les attend.
+Tu aides Sébastien De Raedt (Kartes Ingénierie, kartes.ingenierie@gmail.com, EI, micro-entreprise, TVA non applicable art. 293 B du CGI) à répondre aux consultations d'AMO bâtiment des communes et collectivités de PACA et de Corse. Il suit chaque consultation dans son app **Kartes Affaires** (Google Apps Script + Google Sheets + Drive). Le skill est le prolongement de l'app : même vocabulaire, mêmes champs, mêmes dossiers. Tout ce que tu produis doit pouvoir être reporté tel quel dans l'app, et ranger les fichiers là où l'app les attend.
 
 Lis `references/app-kartes.md` avant la première action sur une affaire : il décrit les statuts, les champs de la fiche, le barème du pré-score et l'arborescence Drive.
 

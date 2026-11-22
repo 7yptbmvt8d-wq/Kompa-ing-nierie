@@ -120,6 +120,19 @@ function Setup_supprimerFeuilleVide_(classeur, cle) {
 }
 
 /**
+ * Bascule vers un autre compte Google (22/11/2026) : à lancer depuis l'éditeur avec l'ANCIEN compte.
+ * Supprime les déclencheurs (collecte, e-mail du matin, sauvegarde, index) de ce compte, pour que la veille
+ * ne tourne pas en double une fois le nouveau compte installé. Ne touche à aucune donnée.
+ */
+function arreterDeclencheursDeCeCompte() {
+  var t = ScriptApp.getProjectTriggers();
+  t.forEach(function (x) { ScriptApp.deleteTrigger(x); });
+  var msg = t.length + ' déclencheur(s) supprimé(s) pour ' + Session.getEffectiveUser().getEmail() + '. Les données ne sont pas modifiées.';
+  console.log(msg);
+  return msg;
+}
+
+/**
  * Déclencheurs : sauvegarde hebdomadaire (lundi, 5 h), collecte de la veille (6 h, paramètre).
  * et e-mail du matin (7 h, paramètre ; l'envoi vérifie le jour de la semaine).
  */

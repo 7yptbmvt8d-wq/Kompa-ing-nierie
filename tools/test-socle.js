@@ -354,6 +354,20 @@ test('renommage Kompa → Kartes : fichiers renommés et signature d\'origine mi
   assert.doesNotMatch(c.corps, /Kompa/);
 });
 
+test('bascule de compte : arrêt des déclencheurs de l\'ancien compte, sans toucher aux données', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  console.log = () => {};
+  A.installer({ exercice: false });
+  const n = A.Db_lire(A.TABLES.PARAMETRES).length;
+  assert.ok(A.ScriptApp.getProjectTriggers().length >= 4);
+  assert.match(A.arreterDeclencheursDeCeCompte(), /supprimé/);
+  console.log = journal;
+  assert.strictEqual(A.ScriptApp.getProjectTriggers().length, 0);
+  assert.strictEqual(A.Db_lire(A.TABLES.PARAMETRES).length, n);
+  assert.strictEqual(A.Params_texte('courrier.email_public'), 'kartes.ingenierie@gmail.com');
+});
+
 test('chaque onglet a id/clé en 1re colonne et cree_le, modifie_le en fin', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });

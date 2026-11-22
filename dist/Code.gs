@@ -124,6 +124,19 @@ function Setup_supprimerFeuilleVide_(classeur, cle) {
 }
 
 /**
+ * Bascule vers un autre compte Google (22/11/2026) : à lancer depuis l'éditeur avec l'ANCIEN compte.
+ * Supprime les déclencheurs (collecte, e-mail du matin, sauvegarde, index) de ce compte, pour que la veille
+ * ne tourne pas en double une fois le nouveau compte installé. Ne touche à aucune donnée.
+ */
+function arreterDeclencheursDeCeCompte() {
+  var t = ScriptApp.getProjectTriggers();
+  t.forEach(function (x) { ScriptApp.deleteTrigger(x); });
+  var msg = t.length + ' déclencheur(s) supprimé(s) pour ' + Session.getEffectiveUser().getEmail() + '. Les données ne sont pas modifiées.';
+  console.log(msg);
+  return msg;
+}
+
+/**
  * Déclencheurs : sauvegarde hebdomadaire (lundi, 5 h), collecte de la veille (6 h, paramètre).
  * et e-mail du matin (7 h, paramètre ; l'envoi vérifie le jour de la semaine).
  */
@@ -3558,7 +3571,7 @@ var PARAMETRES_DEFAUT = [
   ['facture.indemnite_recouvrement', '40', 'Indemnité forfaitaire pour frais de recouvrement (€), due en cas de retard de paiement (art. D. 2192-35 CCP)'],
   ['echeance.validite_defaut_j', '90', 'Validité de l\'offre si non renseignée dans l\'affaire (jours)'],
   ['courrier.nom_entreprise', 'Kartes Ingénierie', 'Nom de l\'entreprise dans les courriers et documents'],
-  ['courrier.email_public', '', 'Adresse e-mail publique (courriers, offres, DC1) : remplace [e-mail] dans la signature. À renseigner'],
+  ['courrier.email_public', 'kartes.ingenierie@gmail.com', 'Adresse e-mail publique (courriers, offres, DC1) : remplace [e-mail] dans la signature. À renseigner'],
   ['courrier.signature', 'Sébastien De Raedt EI\nKartes Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · [e-mail]\nSIRET [n°] · TVA non applicable, art. 293 B du CGI',
     'Signature des modèles de courriers (\\n = retour à la ligne ; [e-mail] = adresse publique ci-dessus)'],
 
@@ -3649,6 +3662,7 @@ function Params_enregistrer(cle, valeur) {
  * [clé, ancienne valeur par défaut, nouvelle]
  */
 var MIGRATIONS_PARAMETRES = [
+  ['courrier.email_public', '', 'kartes.ingenierie@gmail.com'],
   ['drive.nom_racine', 'Kompa Affaires — Dossiers', null],
   // Renommage Kompa → Kartes Ingénierie (22/11/2026) : seulement si la valeur d'origine n'a pas été modifiée
   ['courrier.signature', 'Sébastien De Raedt EI\nKompa Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · kompa.ingenierie@gmail.com\nSIRET [n°] · TVA non applicable, art. 293 B du CGI', null],
