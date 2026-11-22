@@ -59,6 +59,8 @@ jobs:
         run: |
           # Jeton copié depuis un terminal : les retours à la ligne ajoutés à l'affichage sont retirés (JSON sur une ligne)
           printf '%s' "$CLASPRC_JSON" | tr -d '\r\n' > "$HOME/.clasprc.json"
+          # Texte collé avec le prompt du terminal ou des espaces autour : seul le bloc { … } est gardé
+          node -e "const f=process.env.HOME+'/.clasprc.json',fs=require('fs');let s=fs.readFileSync(f,'utf8');const i=s.indexOf('{'),j=s.lastIndexOf('}');if(i>=0&&j>i)fs.writeFileSync(f,s.slice(i,j+1));"
           node -e "JSON.parse(require('fs').readFileSync(process.env.HOME + '/.clasprc.json', 'utf8'))" || {
             echo "::error::Le secret CLASPRC_JSON n'est pas un JSON lisible : recopier tout le texte de cat ~/.clasprc.json (de { à })."; exit 1; }
           # Identifiants copiés à la main : espaces et retours à la ligne retirés, format contrôlé (valeurs jamais affichées)
