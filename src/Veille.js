@@ -197,11 +197,22 @@ function Veille_montantBoamp_(d) {
   return n > 1 ? n : '';
 }
 
-// ——— Source Gmail (alertes des plateformes, libellé « Veille ») ———
+// ——— Source Gmail (alertes des plateformes : libellé « Veille » ou expéditeur connu) ———
+
+/**
+ * Alertes lues : libellé « Veille » OU expéditeur d'une plateforme connue (veille.plateformes_domaines).
+ * Aucun filtre Gmail n'est donc nécessaire (changement de boîte du 23/11/2026) ; le libellé reste utile
+ * pour une plateforme absente de la liste. Les alertes transférées depuis une autre boîte gardent leur expéditeur.
+ */
+function Veille_requeteGmail_(ctx) {
+  var libelle = Params_texte('veille.libelle_gmail', 'Veille');
+  var domaines = Params_liste('veille.plateformes_domaines').filter(function (d) { return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(d); });
+  var qui = 'label:"' + libelle + '"' + (domaines.length ? ' OR from:(' + domaines.join(' OR ') + ')' : '');
+  return '(' + qui + ') newer_than:' + Math.max(ctx.jours, 1) + 'd';
+}
 
 function Veille_lireGmail_(ctx) {
-  var libelle = Params_texte('veille.libelle_gmail', 'Veille');
-  var threads = GmailApp.search('label:"' + libelle + '" newer_than:' + Math.max(ctx.jours, 1) + 'd', 0, 100);
+  var threads = GmailApp.search(Veille_requeteGmail_(ctx), 0, 100);
   var props = PropertiesService.getScriptProperties();
   var traites = JSON.parse(props.getProperty('GMAIL_TRAITES') || '[]');
   var connus = {};

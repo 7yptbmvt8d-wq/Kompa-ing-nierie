@@ -2164,6 +2164,15 @@ test('URSSAF : taux de cotisations non renseigné → estimation absente, CA pr�
   assert.strictEqual(d.periodes[0].ca, 0);
 });
 
+test('veille Gmail : libellé « Veille » ou expéditeur d\'une plateforme (pas de filtre Gmail à créer)', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const q = env.ctx.Veille_requeteGmail_({ jours: 3 });
+  assert.match(q, /^\(label:"Veille" OR from:\(marches-publics\.gouv\.fr OR /);
+  assert.match(q, / OR achatpublic\.com /);
+  assert.match(q, /\) newer_than:3d$/);
+});
+
 test('autorisation de cumul : rappel 7 jours avant, en retard ensuite, plus rien une fois faite', () => {
   const env = creerEnvironnement();
   const A = env.ctx;

@@ -224,12 +224,12 @@ function creerEnvironnement(options = {}) {
     },
     // Gmail simulé : options.gmail = [{ id, sujet, de, corps, date }]
     GmailApp: {
-      search: () => [{
+      search: (q) => { (options.requetesGmail || (options.requetesGmail = [])).push(q); return [{
         getMessages: () => (options.gmail || []).map((m) => ({
           getId: () => m.id, getSubject: () => m.sujet, getFrom: () => m.de,
           getPlainBody: () => m.corps, getDate: () => m.date || new Date()
         }))
-      }]
+      }]; }
     },
     ScriptApp: {
       WeekDay: { MONDAY: 'MONDAY' },
