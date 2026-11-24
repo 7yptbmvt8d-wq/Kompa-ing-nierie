@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Kartes Affaires 1.6.2 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
+<!-- Kartes Affaires 1.6.3 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
 <html lang="fr">
 <head>
   <base target="_top">
@@ -3067,9 +3067,15 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       '</tbody></table></div>' +
       '<p class="legende">Estimations calculées avec les taux de l\'onglet Paramètres, à vérifier chaque année sur votre espace URSSAF. ' +
       'Une relance « Déclaration URSSAF » apparaît dans l\'échéancier et l\'e-mail du matin tant qu\'une période terminée n\'est pas marquée déclarée.</p>' +
-      blocCumul(d) + blocCfe(d) + blocRevenus(d);
+      formReglagesUrssaf(d) + blocCumul(d) + blocCfe(d) + blocRevenus(d);
 
     brancherCfe(el, d);
+    var fu = el.querySelector('[data-urssaf-reglages]');
+    if (fu) fu.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      K.appel('apiFiscalReglages', fu.querySelector('#urssaf-vl').value, fu.querySelector('#urssaf-cot').value, fu.querySelector('#urssaf-tvl').value, d.annee)
+        .then(function (r) { K.toast('Réglages URSSAF enregistrés.'); rendreFiscal(el, r); }).catch(function (e) { K.toast(e.message, true); });
+    });
     var bc = el.querySelector('[data-cumul-fait]');
     if (bc) bc.addEventListener('click', function () {
       K.appel('apiCumulFait', '').then(function (r) { K.toast('Autorisation de cumul marquée demandée.'); rendreFiscal(el, r); })
@@ -3099,6 +3105,18 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
   // ——— CFE (cotisation foncière des entreprises) ———
   var ETATS_CFE = { 'payée': 'statut--ok', 'en retard': 'statut--ko', 'à payer': 'statut--alerte', 'à venir': 'statut--encours', 'exonérée': 'statut--neutre', 'non due': 'statut--neutre' };
 
+  function formReglagesUrssaf(d) {
+    var pc = function (x) { return x === null || x === undefined ? '' : String(Math.round(x * 10000) / 100).replace('.', ','); };
+    var vl = d.taux.versementLiberatoire;
+    return '<form class="bloc-cfe__reglages" data-urssaf-reglages novalidate>' +
+      '<div class="champ-bloc"><label for="urssaf-vl">Versement libératoire de l\'impôt</label><select class="champ" id="urssaf-vl">' +
+        '<option value="oui"' + (vl ? ' selected' : '') + '>Oui (impôt payé avec les cotisations)</option>' +
+        '<option value="non"' + (vl ? '' : ' selected') + '>Non (impôt au barème)</option></select></div>' +
+      '<div class="champ-bloc"><label for="urssaf-cot">Taux des cotisations (%)</label><input class="champ mono num" id="urssaf-cot" inputmode="decimal" value="' + esc(pc(d.taux.cotisations)) + '" placeholder="ex. 24,2"></div>' +
+      '<div class="champ-bloc"><label for="urssaf-tvl">Taux du versement libératoire (%)</label><input class="champ mono num" id="urssaf-tvl" inputmode="decimal" value="' + esc(d.taux.tauxVl === null || d.taux.tauxVl === undefined ? '' : String(d.taux.tauxVl).replace('.', ',')) + '" placeholder="2,2"></div>' +
+      '<div class="bloc-form__actions"><button type="submit" class="bouton bouton--discret">Enregistrer</button></div></form>';
+  }
+
   function blocCumul(d) {
     var c = d.cumul;
     if (!c || !c.afficher) return '';
@@ -3120,7 +3138,8 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       '<span>CA ' + r.anneeCa + ' à reporter : <strong class="mono">' + K.euros(r.ca) + '</strong></span>' +
       '<span class="legende">' + (r.etat === 'faite' ? 'faite le <span class="mono">' + jour(r.date_declaration) + '</span>' : 'du <span class="mono">' + jour(r.ouverture) + '</span> au <span class="mono">' + jour(r.echeance) + '</span>') + '</span>' +
       (r.etat !== 'faite' ? '<button type="button" class="bouton" data-revenus-faite>Faite</button>' : '') + '</div>' +
-      '<p class="legende">Sur impots.gouv.fr, déclaration en ligne : CA encaissé de l\'année ' + r.anneeCa + ' dans la partie micro-entrepreneur (déclaration complémentaire 2042-C-PRO). ' +
+      '<p class="legende">Sur impots.gouv.fr, déclaration en ligne : CA encaissé de l\'année ' + r.anneeCa + ' dans la partie micro-entrepreneur (déclaration complémentaire 2042-C-PRO' +
+        (d.taux.versementLiberatoire ? ', case « versement libératoire » : l\'impôt est déjà payé, le CA sert seulement au calcul du taux du foyer' : '') + '). ' +
       'Dates à vérifier chaque printemps (Paramètres › Finances).</p></div>';
   }
 

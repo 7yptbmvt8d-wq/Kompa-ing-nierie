@@ -2156,6 +2156,25 @@ test('URSSAF trimestriel : CA encaissé par trimestre, échéances, estimation, 
   assert.strictEqual(d.tauxManquants, false);
 });
 
+test('URSSAF : réglages depuis l\'onglet (versement libératoire, taux)', () => {
+  const { A } = jeuFiscal();
+  A.Params_enregistrer('fiscal.versement_liberatoire', 'non'); A.Params_cache_ = null;
+  let d = brut(A.Fiscal_declarations(2026, new Date(2026, 10, 12)));
+  assert.strictEqual(d.taux.versementLiberatoire, false);
+  assert.strictEqual(d.periodes[2].impot, 0);
+  const r = brut(A.apiFiscalReglages('oui', '24,2', '2,2', 2026));
+  assert.ok(r.ok, r.erreur);
+  assert.strictEqual(r.data.taux.versementLiberatoire, true);
+  assert.strictEqual(r.data.taux.tauxVl, 2.2);
+  assert.strictEqual(r.data.periodes[2].impot, 286);      // 13 000 × 2,2 %
+  assert.strictEqual(r.data.periodes[2].cotisations, 3146); // 13 000 × 24,2 %
+  assert.strictEqual(A.Params_texte('fiscal.taux_cotisations'), '24.2');
+  // Taux vide : inchangé ; valeur absurde : refusée
+  assert.ok(brut(A.apiFiscalReglages('oui', '', '', 2026)).ok);
+  assert.strictEqual(A.Params_texte('fiscal.taux_cotisations'), '24.2');
+  assert.match(brut(A.apiFiscalReglages('oui', 'abc', '', 2026)).erreur, /pourcentage attendu/);
+});
+
 test('URSSAF : taux de cotisations non renseigné → estimation absente, CA présent', () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });
