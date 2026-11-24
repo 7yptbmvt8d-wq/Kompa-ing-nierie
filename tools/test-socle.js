@@ -1836,6 +1836,7 @@ const jeuEcheances = () => {
   const env = creerEnvironnement();
   env.ctx.installer({ exercice: false });
   const A = env.ctx;
+  A.Params_enregistrer('fiscal.cumul_avant', ''); A.Params_cache_ = null; // jeu relatif à aujourd'hui : pas de rappel de cumul (testé à part)
   const etude = A.Affaires_creer({ acheteur: 'Commune de Gap', objet: 'AMO programmation école', date_limite_remise: iso(J(3)), date_limite_questions: iso(J(3)), date_visite: iso(J(2)) }).id;
   const deposee = A.Affaires_creer({ acheteur: 'Commune de Digne', objet: 'Faisabilité gymnase', validite_offre_jours: 90 }, { date: iso(J(-120)) }).id;
   A.Affaires_changerStatut(deposee, 'Go', {}, { date: iso(J(-115)) });
@@ -2388,6 +2389,28 @@ test('Pièces : dépôt depuis la fiche, rangement dans le sous-dossier, nom non
   assert.strictEqual(brut(A.apiPieces(id)).data.parDefaut, '04 Offre');
   A.Affaires_changerStatut(id, 'Déposée', { montant_ht: 1000, jours_reponse: 1 });
   assert.strictEqual(brut(A.apiPieces(id)).data.parDefaut, '05 Dépôt');
+});
+
+test('Pièces : suppression d\'un fichier (corbeille Drive), seulement dans le dossier de l\'affaire', () => {
+  const env = creerEnvironnement();
+  env.ctx.installer({ exercice: false });
+  const A = env.ctx;
+  const b64 = (t) => Buffer.from(t).toString('base64');
+  const id = A.Affaires_creer({ acheteur: 'Commune de Gap', objet: 'AMO programmation école' }).id;
+  const autre = A.Affaires_creer({ acheteur: 'Commune de Digne', objet: 'AMO cantine' }).id;
+  A.apiPieceDeposer(id, '01 DCE', { nom: 'RC.pdf', donnees: b64('rc') });
+  let r = brut(A.apiPieceDeposer(id, '01 DCE', { nom: 'CCTP.pdf', donnees: b64('cctp') }));
+  const fichier = r.data.dossiers.find((d) => d.nom === '01 DCE').fichiers.find((f) => f.nom === 'RC.pdf');
+  assert.ok(fichier.id);
+  // Depuis une autre affaire : refusé
+  assert.match(brut(A.apiPieceSupprimer(autre, fichier.id)).erreur, /introuvable/);
+  // Depuis la bonne affaire : à la corbeille, liste à jour, note au journal
+  r = brut(A.apiPieceSupprimer(id, fichier.id));
+  assert.ok(r.ok, r.erreur);
+  assert.deepStrictEqual(r.data.dossiers.find((d) => d.nom === '01 DCE').fichiers.map((f) => f.nom), ['CCTP.pdf']);
+  assert.match(A.Affaires_get_(id).notes, /Pièce supprimée \(corbeille Drive\) : 01 DCE \/ RC\.pdf/);
+  // Déjà supprimé
+  assert.match(brut(A.apiPieceSupprimer(id, fichier.id)).erreur, /introuvable/);
 });
 
 test('Pièces : fichier trop lourd refusé ; dossier créé au premier dépôt s\'il manque', () => {

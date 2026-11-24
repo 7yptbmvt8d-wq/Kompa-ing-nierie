@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Kartes Affaires 1.6.1 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
+<!-- Kartes Affaires 1.6.2 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
 <html lang="fr">
 <head>
   <base target="_top">
@@ -368,7 +368,9 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .pieces__dossier h3 { margin: 0 0 var(--kompa-s1); font-size: var(--kompa-fs-body); font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--kompa-ardoise); }
 .pieces__dossier h3 .legende { font-weight: 400; margin-left: var(--kompa-s1); }
 .pieces__liste { list-style: none; margin: 0; padding: 0; border-top: var(--kompa-filet-fin); }
-.pieces__liste li { padding: var(--kompa-s2) 0; border-bottom: var(--kompa-filet-fin); overflow-wrap: anywhere; }
+.pieces__liste li { padding: var(--kompa-s2) 0; border-bottom: var(--kompa-filet-fin); overflow-wrap: anywhere; display: flex; align-items: center; justify-content: space-between; gap: var(--kompa-s2); }
+.pieces__fichier { min-width: 0; }
+.pieces__suppr { flex: none; padding-block: 2px; font-size: .85em; }
 
 /* Module Estimation */
 .sous-nav { display: flex; gap: var(--kompa-s4); border-bottom: var(--kompa-filet-fin); margin-bottom: var(--kompa-s5); }
@@ -2201,13 +2203,25 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
         return '<details class="pieces__dossier"' + (d.fichiers.length && d.fichiers.length <= 6 ? ' open' : '') + '><summary><a href="' + esc(d.url) + '" target="_blank" rel="noopener" data-externe>' +
           esc(d.nom || 'Dossier de l\'affaire') + '</a> <span class="legende">' + d.fichiers.length + ' fichier' + (d.fichiers.length > 1 ? 's' : '') + '</span></summary>' +
           (d.fichiers.length ? '<ul class="pieces__liste">' + d.fichiers.map(function (x) {
-            return '<li><a href="' + esc(x.url) + '" target="_blank" rel="noopener" data-externe>' + esc(x.nom) + '</a>' +
-              ' <span class="legende mono">' + esc(x.date) + ' · ' + taille(x.taille) + '</span></li>';
+            return '<li><span class="pieces__fichier"><a href="' + esc(x.url) + '" target="_blank" rel="noopener" data-externe>' + esc(x.nom) + '</a>' +
+              ' <span class="legende mono">' + esc(x.date) + ' · ' + taille(x.taille) + '</span></span>' +
+              (x.id ? '<button type="button" class="bouton bouton--discret pieces__suppr" data-suppr-piece="' + esc(x.id) + '" data-nom="' + esc(x.nom) + '" aria-label="Supprimer ' + esc(x.nom) + '">Supprimer</button>' : '') + '</li>';
           }).join('') + '</ul>' : '') + '</details>';
       }).join('') + '</section>';
     }).join('');
     zone.innerHTML = formDepot('tous', p.dossiers, p, choixActuel || dossierPropose(p)) + '<div class="pieces">' + groupes + '</div>';
     brancherDepot(zone, a, p, el);
+    $$('[data-suppr-piece]', zone).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var nom = b.getAttribute('data-nom');
+        if (!window.confirm('Supprimer « ' + nom + ' » ?\n\nLe fichier part dans la corbeille Drive : récupérable pendant 30 jours.')) return;
+        b.disabled = true;
+        K.appel('apiPieceSupprimer', a.id, b.getAttribute('data-suppr-piece')).then(function (r) {
+          K.toast('« ' + nom + ' » supprimé (corbeille Drive, 30 jours).');
+          rendreToutesPieces(el, a, r);
+        }).catch(function (e) { b.disabled = false; K.toast(e.message, true); });
+      });
+    });
   }
 
   function formDepot(id, dossiers, p, choixActuel) {

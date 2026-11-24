@@ -130,6 +130,16 @@ function apiPieceDeposer(id, sousDossier, fichier) {
   });
 }
 
+/** Fichier du dossier Drive de l'affaire mis à la corbeille Drive (30 jours) → liste des pièces à jour. */
+function apiPieceSupprimer(id, idFichier) {
+  return repondre_(function () {
+    var r = Drive_supprimer(id, idFichier);
+    var p = Drive_pieces(id);
+    p.supprime = r;
+    return p;
+  });
+}
+
 // ——— Pièces de l'offre ———
 
 function apiPieceOffreAjouter(id, champs) {

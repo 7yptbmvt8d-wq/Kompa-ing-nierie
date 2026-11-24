@@ -134,7 +134,7 @@ function Drive_fichiers_(dossier) {
   var liste = [], it = dossier.getFiles();
   while (it.hasNext()) {
     var f = it.next();
-    liste.push({ nom: f.getName(), url: f.getUrl(), taille: f.getSize(), date: f.getDateCreated() });
+    liste.push({ id: f.getId(), nom: f.getName(), url: f.getUrl(), taille: f.getSize(), date: f.getDateCreated() });
   }
   liste.sort(function (x, y) { return y.date - x.date; });
   return liste.map(function (f) { f.date = Utilities.formatDate(f.date, APP.FUSEAU, 'dd/MM/yyyy'); return f; });
@@ -183,6 +183,35 @@ function Drive_deposer(idAffaire, sousDossier, fichier) {
   var cree = cible.createFile(Utilities.newBlob(octets, fichier.type || 'application/octet-stream', nom));
   Affaires_ajouterNote(a.id, 'Pièce déposée : ' + (nomDossier ? nomDossier + ' / ' : '') + nom);
   return { nom: nom, url: cree.getUrl(), dossier: nomDossier };
+}
+
+/**
+ * Met à la corbeille Drive un fichier du dossier de l'affaire (récupérable 30 jours dans la corbeille Drive).
+ * Seul un fichier rangé dans le dossier de l'affaire ou l'un de ses sous-dossiers peut être mis à la corbeille ;
+ * les dossiers eux-mêmes ne sont jamais touchés.
+ */
+function Drive_supprimer(idAffaire, idFichier) {
+  var a = Affaires_get_(idAffaire);
+  var dossier = Drive_dossierAffaire_(a);
+  if (!dossier || !idFichier) throw new Error('Fichier introuvable dans le dossier de l\'affaire.');
+  var trouve = null, ou = '';
+  var chercher = function (d, nom) {
+    var it = d.getFiles();
+    while (!trouve && it.hasNext()) { var f = it.next(); if (f.getId() === idFichier) { trouve = f; ou = nom; } }
+  };
+  chercher(dossier, '');
+  var sd = dossier.getFolders();
+  while (!trouve && sd.hasNext()) { var d = sd.next(); chercher(d, d.getName()); }
+  if (!trouve) throw new Error('Fichier introuvable dans le dossier de l\'affaire (déjà supprimé ou déplacé ?).');
+  var nom = trouve.getName();
+  try {
+    trouve.setTrashed(true);
+  } catch (e) {
+    throw new Error('« ' + nom + ' » ne peut pas être supprimé depuis l\'app : il appartient sans doute à l\'ancien compte Kompa. ' +
+      'Supprimez-le dans Drive avec ce compte, ou transférez-en la propriété au compte Kartes.');
+  }
+  Affaires_ajouterNote(a.id, 'Pièce supprimée (corbeille Drive) : ' + (ou ? ou + ' / ' : '') + nom);
+  return { nom: nom, dossier: ou };
 }
 
 function Drive_nomLibre_(dossier, nom) {
