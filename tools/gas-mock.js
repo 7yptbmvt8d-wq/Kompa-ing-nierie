@@ -295,6 +295,7 @@ function creerEnvironnement(options = {}) {
         getName: () => (classeurs[id] ? classeurs[id].nom : ''),
         setName: (n) => { if (classeurs[id]) classeurs[id].nom = n; horloge.n++; },
         setTrashed: (v) => { if (v) gas.DriveApp.corbeille.push(id); },
+        moveTo: (dossier) => { (gas.DriveApp.deplaces || (gas.DriveApp.deplaces = [])).push({ id, dossier: dossier.getName() }); },
         makeCopy: (nom, dossier) => {
           const f = {
             nom, dossier, corbeille: false, cree: new Date(Date.now() + fichiersDrive.length),
@@ -340,7 +341,7 @@ function creerEnvironnement(options = {}) {
       .forEach((f) => vm.runInContext(fs.readFileSync(path.join(dossierSrc, f), 'utf8'), contexte, { filename: f }));
   }
 
-  return { ctx: contexte, classeurs, proprietes, declencheurs, fichiersDrive, cache: gas.CacheService, horloge };
+  return { ctx: contexte, classeurs, proprietes, declencheurs, fichiersDrive, cache: gas.CacheService, horloge, gas };
 }
 
 module.exports = { creerEnvironnement, inseeSimule };

@@ -8,7 +8,7 @@
 var APP = {
   NOM: 'Kartes Affaires',
   ENTREPRISE: 'Kartes Ingénierie',
-  VERSION: '1.6.3',
+  VERSION: '1.6.4',
   CLASSEUR: 'Kartes Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kartes Affaires — sauvegardes',
   ANCIEN_NOM: 'Kompa', // nom d'avant le 22/11/2026 : fichiers et dossiers renommés par la mise à jour automatique
@@ -117,7 +117,7 @@ var TABLES = {
     prefixe: 'FA',
     colonnes: [
       'id', 'id_affaire', 'numero', 'date', 'montant', 'date_echeance',
-      'date_encaissement', 'montant_encaisse', 'tranche', 'qonto_id', 'qonto_statut', 'lien_facture'
+      'date_encaissement', 'montant_encaisse', 'tranche', 'qonto_id', 'qonto_statut', 'lien_facture', 'mode_reglement'
     ],
     nombres: ['montant', 'montant_encaisse'],
     texteBrut: ['tranche', 'qonto_id', 'numero']

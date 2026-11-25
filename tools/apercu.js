@@ -370,6 +370,12 @@ function assembler() {
   await p.click('.sous-nav a[href="#finances/encaissements"]');
   await p.waitForSelector('.frise .frise-piste');
   await p.screenshot({ path: path.join(sortie, 'pc-finances-encaissements.png'), fullPage: true });
+  // ——— Livre des recettes ———
+  await p.click('.sous-nav a[href="#finances/livre"]');
+  await p.waitForSelector('#livre-annee');
+  await p.screenshot({ path: path.join(sortie, 'pc-livre-recettes.png'), fullPage: true });
+  await p.click('.sous-nav a[href="#finances/encaissements"]');
+  await p.waitForSelector('.frise .frise-piste');
   // ——— Qonto : connexion (Paramètres › Finances), synchronisation et rattachement (Finances › Encaissements) ———
   qontoFactures.push(
     { id: 'q1', number: 'F-2026-10', purchase_order: w1 + ' TO1', status: 'paid', issue_date: '2026-11-02', due_date: '2026-12-02', paid_at: '2026-11-18T09:00:00Z',

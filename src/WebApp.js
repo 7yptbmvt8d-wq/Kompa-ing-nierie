@@ -104,6 +104,20 @@ function apiFinancesPaiement(idFacture, champs) {
   return repondre_(function () { Factures_maj(idFacture, champs); Relances_synchroniser(); return Finances_synthese(); });
 }
 
+/** Livre des recettes de l'année (Finances › Livre des recettes). */
+function apiLivreRecettes(annee) {
+  return repondre_(function () { return Livre_recettes(annee); });
+}
+
+function apiLivreMode(idFacture, mode, annee) {
+  return repondre_(function () { Livre_modeReglement(idFacture, mode); return Livre_recettes(annee); });
+}
+
+/** Export Google Sheets de l'année dans le Drive (dossier des sauvegardes › Livre des recettes). */
+function apiLivreExporter(annee) {
+  return repondre_(function () { return Livre_exporter(annee); });
+}
+
 /** CA prévisionnel par année d'encaissement (écran « CA prévisionnel »). */
 function apiPrevisionnel() {
   return repondre_(function () { return Previsionnel_ca(); });

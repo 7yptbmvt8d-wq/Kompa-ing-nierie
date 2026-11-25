@@ -1,4 +1,4 @@
-/* Kartes Affaires 1.6.3 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
+/* Kartes Affaires 1.6.4 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
 
 // ════════ Setup.js ════════
 
@@ -1229,7 +1229,7 @@ function arrondi_(n) {
 var APP = {
   NOM: 'Kartes Affaires',
   ENTREPRISE: 'Kartes Ingénierie',
-  VERSION: '1.6.3',
+  VERSION: '1.6.4',
   CLASSEUR: 'Kartes Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kartes Affaires — sauvegardes',
   ANCIEN_NOM: 'Kompa', // nom d'avant le 22/11/2026 : fichiers et dossiers renommés par la mise à jour automatique
@@ -1338,7 +1338,7 @@ var TABLES = {
     prefixe: 'FA',
     colonnes: [
       'id', 'id_affaire', 'numero', 'date', 'montant', 'date_echeance',
-      'date_encaissement', 'montant_encaisse', 'tranche', 'qonto_id', 'qonto_statut', 'lien_facture'
+      'date_encaissement', 'montant_encaisse', 'tranche', 'qonto_id', 'qonto_statut', 'lien_facture', 'mode_reglement'
     ],
     nombres: ['montant', 'montant_encaisse'],
     texteBrut: ['tranche', 'qonto_id', 'numero']
@@ -3405,6 +3405,99 @@ function Livrables_resume_(livrables) {
 }
 
 
+// ════════ LivreRecettes.js ════════
+
+/**
+ * Livre des recettes (micro-entreprise, BNC) : registre chronologique des sommes encaissées, tenu
+ * automatiquement à partir des factures (encaissement saisi à la main ou relevé par Qonto).
+ * Mentions : date d'encaissement, client, nature de la prestation, montant, mode de règlement,
+ * référence du justificatif (n° de facture). Mode de règlement : colonne mode_reglement de l'onglet
+ * Factures, « virement » par défaut (paramètre livre.mode_defaut). Export annuel en Google Sheets dans
+ * le dossier des sauvegardes, sous-dossier « Livre des recettes » (un nouveau fichier par export,
+ * aucun fichier n'est écrasé).
+ */
+
+var LIVRE_MODES = ['virement', 'chèque', 'carte', 'prélèvement', 'espèces', 'autre'];
+var LIVRE_SOUS_DOSSIER = 'Livre des recettes';
+
+/** Registre de l'année (année en cours par défaut). */
+function Livre_recettes(annee, quand) {
+  var auj = aujourdhui_(quand);
+  annee = Number(annee) || auj.getFullYear();
+  var modeDefaut = Params_texte('livre.mode_defaut', 'virement');
+  var affaires = {};
+  Affaires_lister().forEach(function (a) { affaires[a.id] = a; });
+  var annees = {};
+  annees[auj.getFullYear()] = true;
+  var lignes = [];
+  Db_lire(TABLES.FACTURES).forEach(function (f) {
+    var d = date_(f.date_encaissement);
+    var m = montant_(f.montant_encaisse);
+    if (!d || !m || f.qonto_statut === 'annulée') return;
+    annees[d.getFullYear()] = true;
+    if (d.getFullYear() !== annee) return;
+    var a = affaires[f.id_affaire] || {};
+    var tranche = f.tranche ? (f.tranche === PLANNING_MISSION ? 'mission' : 'tranche ' + f.tranche) : '';
+    lignes.push({
+      id: f.id, date: jourIso_(d), numero: String(f.numero || ''), id_affaire: f.id_affaire || '',
+      client: a.acheteur || '',
+      nature: 'Assistance à maîtrise d\'ouvrage' + (tranche ? ' — ' + tranche : '') + (a.objet ? ' — ' + String(a.objet).slice(0, 90) : ''),
+      montant: arrondi_(m),
+      mode: f.mode_reglement || modeDefaut,
+      modeSaisi: !!f.mode_reglement
+    });
+  });
+  lignes.sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : (x.numero < y.numero ? -1 : 1); });
+  var cumul = 0;
+  lignes.forEach(function (l) { cumul = arrondi_(cumul + l.montant); l.cumul = cumul; });
+  return {
+    annee: annee, lignes: lignes, total: cumul, modes: LIVRE_MODES,
+    annees: Object.keys(annees).map(Number).sort(function (x, y) { return y - x; })
+  };
+}
+
+function Livre_modeReglement(idFacture, mode) {
+  mode = String(mode || '').trim().toLowerCase();
+  if (LIVRE_MODES.indexOf(mode) < 0) throw new Error('Mode de règlement inconnu : ' + mode);
+  if (!Db_trouver(TABLES.FACTURES, idFacture)) throw new Error('Facture introuvable : ' + idFacture);
+  return Db_maj(TABLES.FACTURES, idFacture, { mode_reglement: mode });
+}
+
+/** Export de l'année en Google Sheets (nouveau fichier daté) → { nom, url }. */
+function Livre_exporter(annee, quand) {
+  var l = Livre_recettes(annee, quand);
+  var entreprise = Params_texte('courrier.nom_entreprise', APP.ENTREPRISE);
+  var nom = 'Livre des recettes ' + l.annee + ' — ' + entreprise + ' — export du ' + Utilities.formatDate(aujourdhui_(quand), APP.FUSEAU, 'yyyy-MM-dd');
+  var classeur = SpreadsheetApp.create(nom);
+  classeur.setSpreadsheetTimeZone(APP.FUSEAU);
+  classeur.setSpreadsheetLocale('fr_FR');
+  var f = classeur.getSheets()[0];
+  f.setName('Recettes ' + l.annee);
+  var entete = ['Date d\'encaissement', 'N° de facture', 'Client', 'Nature de la prestation', 'Montant encaissé (€)', 'Mode de règlement', 'Cumul (€)'];
+  var titre = [['Livre des recettes ' + l.annee + ' — ' + entreprise, '', '', '', '', '', '']];
+  var sous = [['Micro-entreprise (BNC) — recettes encaissées, par ordre chronologique. Justificatifs : factures correspondantes.', '', '', '', '', '', '']];
+  f.getRange(1, 1, 1, 7).setValues(titre).setFontWeight('bold');
+  f.getRange(2, 1, 1, 7).setValues(sous);
+  f.getRange(4, 1, 1, 7).setValues([entete]).setFontWeight('bold');
+  if (l.lignes.length) {
+    f.getRange(5, 2, l.lignes.length, 1).setNumberFormat('@');
+    f.getRange(5, 1, l.lignes.length, 7).setValues(l.lignes.map(function (x) {
+      return [date_(x.date), x.numero, x.client, x.nature, x.montant, x.mode, x.cumul];
+    }));
+    f.getRange(5, 1, l.lignes.length, 1).setNumberFormat('dd/MM/yyyy');
+    f.getRange(5, 5, l.lignes.length + 1, 1).setNumberFormat('#,##0.00');
+    f.getRange(5, 7, l.lignes.length, 1).setNumberFormat('#,##0.00');
+  }
+  f.getRange(5 + l.lignes.length, 1, 1, 7).setValues([['Total ' + l.annee, '', '', '', l.total, '', '']]).setFontWeight('bold');
+  f.setFrozenRows(4);
+  try {
+    var dossier = Drive_sousDossier_(Setup_dossierSauvegardes_(), LIVRE_SOUS_DOSSIER);
+    DriveApp.getFileById(classeur.getId()).moveTo(dossier);
+  } catch (e) { /* reste à la racine du Drive : sans effet sur le contenu */ }
+  return { nom: nom, url: classeur.getUrl(), lignes: l.lignes.length, total: l.total };
+}
+
+
 // ════════ MiseAJour.js ════════
 
 /** Déployé automatiquement depuis GitHub (workflow « Déployer dans Apps Script »).
@@ -3665,6 +3758,7 @@ var PARAMETRES_DEFAUT = [
   ['fiscal.debut_suivi', '', 'Début du suivi des déclarations (aaaa-mm-jj) : les périodes terminées avant ne sont ni affichées en retard ni relancées. Rempli à l\'installation'],
   ['fiscal.date_creation', '2027-01-04', 'Date de création de l\'entreprise (aaaa-mm-jj) : CFE exonérée l\'année de création, base réduite de moitié l\'année suivante. Modifiable depuis la carte URSSAF de l\'accueil'],
   ['fiscal.cumul_avant', '2026-12-01', 'Agent public : demander l\'autorisation de cumul d\'activités à l\'employeur avant cette date (aaaa-mm-jj), avant la création de l\'entreprise. Vide : pas de rappel'],
+  ['livre.mode_defaut', 'virement', 'Livre des recettes : mode de règlement affiché par défaut (virement, chèque, carte, prélèvement, espèces, autre), modifiable ligne par ligne'],
   ['fiscal.cfe_montant', '', 'CFE estimée pour une année pleine (€) : à remplacer par le montant de l\'avis (impots.gouv, vers la mi-novembre). Modifiable depuis la carte URSSAF de l\'accueil'],
   ['fiscal.declaration_revenus_ouverture', '04-10', 'Déclaration de revenus (impots.gouv) : date d\'ouverture du service en ligne (mois-jour), à vérifier chaque printemps'],
   ['fiscal.declaration_revenus_limite', '05-28', 'Déclaration de revenus : date limite en ligne (mois-jour), selon le département (Corse : zone 2), à vérifier chaque printemps sur impots.gouv.fr'],
@@ -5360,6 +5454,20 @@ function apiFinancesFacturer(idAffaire, tranche, facture) {
 
 function apiFinancesPaiement(idFacture, champs) {
   return repondre_(function () { Factures_maj(idFacture, champs); Relances_synchroniser(); return Finances_synthese(); });
+}
+
+/** Livre des recettes de l'année (Finances › Livre des recettes). */
+function apiLivreRecettes(annee) {
+  return repondre_(function () { return Livre_recettes(annee); });
+}
+
+function apiLivreMode(idFacture, mode, annee) {
+  return repondre_(function () { Livre_modeReglement(idFacture, mode); return Livre_recettes(annee); });
+}
+
+/** Export Google Sheets de l'année dans le Drive (dossier des sauvegardes › Livre des recettes). */
+function apiLivreExporter(annee) {
+  return repondre_(function () { return Livre_exporter(annee); });
 }
 
 /** CA prévisionnel par année d'encaissement (écran « CA prévisionnel »). */

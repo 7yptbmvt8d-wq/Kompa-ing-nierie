@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Kartes Affaires 1.6.3 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
+<!-- Kartes Affaires 1.6.4 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
 <html lang="fr">
 <head>
   <base target="_top">
@@ -370,6 +370,10 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .pieces__liste { list-style: none; margin: 0; padding: 0; border-top: var(--kompa-filet-fin); }
 .pieces__liste li { padding: var(--kompa-s2) 0; border-bottom: var(--kompa-filet-fin); overflow-wrap: anywhere; display: flex; align-items: center; justify-content: space-between; gap: var(--kompa-s2); }
 .pieces__fichier { min-width: 0; }
+.champ--petit { padding-block: 2px; min-width: 8rem; width: auto; }
+.livre-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kompa-s2); }
+.livre-actions .champ { width: auto; min-width: 7rem; }
+.livre-nowrap { white-space: nowrap; }
 .pieces__suppr { flex: none; padding-block: 2px; font-size: .85em; }
 
 /* Module Estimation */
@@ -3993,7 +3997,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
   };
 
   // ——— Écran Finances ———
-  var ONGLETS = [['', 'Vue d\'ensemble'], ['previsionnel', 'Prévisionnel'], ['encaissements', 'Encaissements'], ['urssaf', 'URSSAF et CFE']];
+  var ONGLETS = [['', 'Vue d\'ensemble'], ['previsionnel', 'Prévisionnel'], ['encaissements', 'Encaissements'], ['livre', 'Livre des recettes'], ['urssaf', 'URSSAF et CFE']];
   var ETATS = { 'à planifier': 'statut--neutre', 'prévue': 'statut--encours', 'facturée': 'statut--alerte', 'en retard': 'statut--ko', 'payée': 'statut--ok' };
 
   function ecranFinances(el, param) {
@@ -4009,6 +4013,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
   function rendre(zone, s, vue) {
     if (vue === 'previsionnel') { K.rendrePrevisionnel(zone, s.previsionnel); return; }
     if (vue === 'encaissements') { rendreEncaissements(zone, s); return; }
+    if (vue === 'livre') { chargerLivre(zone, null); return; }
     if (vue === 'urssaf') { zone.innerHTML = '<section class="carte" id="carte-urssaf"></section>'; K.fiscalAccueil($('#carte-urssaf', zone), s.fiscal); return; }
     var r = s.resume, an = s.previsionnel.annees;
     var ligne = function (lib, val, rouge) { return '<div class="ligne-fin' + (rouge ? ' ligne-fin--ko' : '') + '"><span>' + lib + '</span><strong class="mono">' + val + '</strong></div>'; };
@@ -4100,6 +4105,51 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
         K.afficher('affaire/' + l.id_affaire, true);
         K.toast('Affermissement : fiche › Mission › Marché, tranche ' + l.tranche + '.');
       });
+    });
+  }
+
+  // ——— Livre des recettes (registre chronologique des encaissements) ———
+  function chargerLivre(zone, annee) {
+    zone.innerHTML = '<div class="chargement">Lecture des encaissements…</div>';
+    K.appel('apiLivreRecettes', annee || '').then(function (l) { rendreLivre(zone, l); })
+      .catch(function (er) { zone.innerHTML = K.bandeauErreur(er); });
+  }
+
+  function rendreLivre(zone, l) {
+    var choixAn = '<label for="livre-annee">Année</label> <select class="champ" id="livre-annee">' + l.annees.map(function (a) {
+      return '<option' + (a === l.annee ? ' selected' : '') + '>' + a + '</option>';
+    }).join('') + '</select>';
+    var lignes = l.lignes.map(function (x) {
+      return '<tr><td class="mono livre-nowrap">' + jour(x.date) + '</td><td class="mono livre-nowrap">' + esc(x.numero) + '</td>' +
+        '<td>' + esc(x.client) + (x.id_affaire ? ' <a href="#affaire/' + esc(x.id_affaire) + '" class="legende mono">' + esc(x.id_affaire) + '</a>' : '') + '</td>' +
+        '<td>' + esc(x.nature) + '</td><td class="num mono">' + K.euros(x.montant) + '</td>' +
+        '<td><select class="champ champ--petit" data-livre-mode="' + esc(x.id) + '" aria-label="Mode de règlement de la facture ' + esc(x.numero) + '">' + l.modes.map(function (m) {
+          return '<option' + (m === x.mode ? ' selected' : '') + '>' + esc(m) + '</option>';
+        }).join('') + '</select></td><td class="num mono">' + K.euros(x.cumul) + '</td></tr>';
+    }).join('');
+    zone.innerHTML = '<section class="carte"><div class="tableau-tete"><h2>Livre des recettes ' + l.annee + '</h2>' +
+        '<div class="livre-actions">' + choixAn + ' <button type="button" class="bouton" data-livre-export' + (l.lignes.length ? '' : ' disabled') + '>Exporter (Google Sheets)</button></div></div>' +
+      (l.lignes.length ? '<div class="tableau-conteneur"><table><thead><tr><th scope="col">Encaissé le</th><th scope="col">Facture</th><th scope="col">Client</th><th scope="col">Nature de la prestation</th>' +
+        '<th scope="col" class="num">Montant</th><th scope="col">Règlement</th><th scope="col" class="num">Cumul</th></tr></thead><tbody>' + lignes +
+        '<tr class="ligne-total"><td colspan="4">Total ' + l.annee + '</td><td class="num mono">' + K.euros(l.total) + '</td><td colspan="2"></td></tr></tbody></table></div>'
+        : '<p class="vide">Aucun encaissement en ' + l.annee + '.</p>') +
+      '<p class="legende">Tenu automatiquement : chaque paiement enregistré (bouton « Paiement reçu » ou Qonto) s\'ajoute ici, par date d\'encaissement. ' +
+      'Justificatifs : les factures correspondantes. Exportez l\'année en fin d\'exercice et conservez-la 10 ans avec les factures.</p></section>';
+    $('#livre-annee', zone).addEventListener('change', function () { chargerLivre(zone, this.value); });
+    $$('[data-livre-mode]', zone).forEach(function (s) {
+      s.addEventListener('change', function () {
+        K.appel('apiLivreMode', s.getAttribute('data-livre-mode'), s.value, l.annee).then(function () { K.toast('Mode de règlement enregistré.'); })
+          .catch(function (er) { K.toast(er.message, true); });
+      });
+    });
+    var bx = $('[data-livre-export]', zone);
+    if (bx) bx.addEventListener('click', function () {
+      bx.disabled = true; bx.textContent = 'Export…';
+      K.appel('apiLivreExporter', l.annee).then(function (r) {
+        bx.disabled = false; bx.textContent = 'Exporter (Google Sheets)';
+        K.toast('Livre des recettes ' + l.annee + ' exporté dans Drive (sauvegardes › Livre des recettes).');
+        window.open(r.url, '_blank', 'noopener');
+      }).catch(function (er) { bx.disabled = false; bx.textContent = 'Exporter (Google Sheets)'; K.toast(er.message, true); });
     });
   }
 

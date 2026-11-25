@@ -95,6 +95,7 @@ var PARAMETRES_DEFAUT = [
   ['fiscal.debut_suivi', '', 'Début du suivi des déclarations (aaaa-mm-jj) : les périodes terminées avant ne sont ni affichées en retard ni relancées. Rempli à l\'installation'],
   ['fiscal.date_creation', '2027-01-04', 'Date de création de l\'entreprise (aaaa-mm-jj) : CFE exonérée l\'année de création, base réduite de moitié l\'année suivante. Modifiable depuis la carte URSSAF de l\'accueil'],
   ['fiscal.cumul_avant', '2026-12-01', 'Agent public : demander l\'autorisation de cumul d\'activités à l\'employeur avant cette date (aaaa-mm-jj), avant la création de l\'entreprise. Vide : pas de rappel'],
+  ['livre.mode_defaut', 'virement', 'Livre des recettes : mode de règlement affiché par défaut (virement, chèque, carte, prélèvement, espèces, autre), modifiable ligne par ligne'],
   ['fiscal.cfe_montant', '', 'CFE estimée pour une année pleine (€) : à remplacer par le montant de l\'avis (impots.gouv, vers la mi-novembre). Modifiable depuis la carte URSSAF de l\'accueil'],
   ['fiscal.declaration_revenus_ouverture', '04-10', 'Déclaration de revenus (impots.gouv) : date d\'ouverture du service en ligne (mois-jour), à vérifier chaque printemps'],
   ['fiscal.declaration_revenus_limite', '05-28', 'Déclaration de revenus : date limite en ligne (mois-jour), selon le département (Corse : zone 2), à vérifier chaque printemps sur impots.gouv.fr'],

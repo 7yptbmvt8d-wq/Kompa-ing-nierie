@@ -2156,6 +2156,36 @@ test('URSSAF trimestriel : CA encaissé par trimestre, échéances, estimation, 
   assert.strictEqual(d.tauxManquants, false);
 });
 
+test('livre des recettes : encaissements de l\'année par date, mode de règlement, export Google Sheets', () => {
+  const { A, env } = jeuFiscal();
+  // F4 non encaissée : absente ; une facture annulée dans Qonto : absente
+  const id = A.Affaires_lister()[0].id;
+  A.Factures_ajouter(id, { numero: 'F5', date: '2026-10-20', montant: 1000, date_encaissement: '2026-10-25', montant_encaisse: 1000, qonto_statut: 'annulée' });
+  let l = brut(A.Livre_recettes(2026, new Date(2026, 10, 12)));
+  assert.deepStrictEqual(l.lignes.map((x) => x.numero), ['F1', 'F2', 'F3']);
+  assert.deepStrictEqual(l.lignes.map((x) => x.date), ['2026-03-20', '2026-07-10', '2026-09-30']);
+  assert.deepStrictEqual(l.lignes.map((x) => x.cumul), [10000, 18000, 23000]);
+  assert.strictEqual(l.total, 23000);
+  assert.strictEqual(l.lignes[0].client, 'Commune de Gap');
+  assert.match(l.lignes[0].nature, /^Assistance à maîtrise d'ouvrage/);
+  assert.ok(l.lignes.every((x) => x.mode === 'virement' && !x.modeSaisi));
+  assert.deepStrictEqual(l.annees, [2026]);
+  // Mode de règlement modifié ; valeur inconnue refusée
+  const r = brut(A.apiLivreMode(l.lignes[1].id, 'chèque', 2026));
+  assert.ok(r.ok, r.erreur);
+  assert.strictEqual(r.data.lignes[1].mode, 'chèque');
+  assert.match(brut(A.apiLivreMode(l.lignes[1].id, 'bitcoin', 2026)).erreur, /inconnu/);
+  // Autre année : vide
+  assert.strictEqual(brut(A.Livre_recettes(2025, new Date(2026, 10, 12))).lignes.length, 0);
+  // Export : nouveau classeur, rangé dans sauvegardes › Livre des recettes
+  const x = brut(A.apiLivreExporter(2026));
+  assert.ok(x.ok, x.erreur);
+  assert.match(x.data.nom, /^Livre des recettes 2026 — Kartes Ingénierie — export du \d{4}-\d{2}-\d{2}$/);
+  assert.strictEqual(x.data.lignes, 3);
+  assert.strictEqual(x.data.total, 23000);
+  assert.ok((env.gas.DriveApp.deplaces || []).some((d) => d.dossier === 'Livre des recettes'));
+});
+
 test('URSSAF : réglages depuis l\'onglet (versement libératoire, taux)', () => {
   const { A } = jeuFiscal();
   A.Params_enregistrer('fiscal.versement_liberatoire', 'non'); A.Params_cache_ = null;
