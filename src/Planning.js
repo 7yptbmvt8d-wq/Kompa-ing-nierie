@@ -105,8 +105,12 @@ function Planning_affaire(idAffaire, quand) {
   var gagnee = ['Gagnée', 'Soldée'].indexOf(String(a.statut)) >= 0;
   var base = montant_(gagnee ? (a.montant_notifie || a.montant_ht) : a.montant_ht);
   var delai = Params_nombre('echeance.paiement_public_j', 30);
-  var tranches = Planning_tranches_(a.jours_par_tranche);
-  if (!tranches.length) tranches = [{ tranche: PLANNING_MISSION, jours: Affaires_joursTotal_(a.jours_par_tranche) }];
+  var ac = AC_est_(a);
+  var tranches = ac
+    ? AC_bons(idAffaire).map(function (b) { return { tranche: b.code, jours: 0, texte: '', montantFixe: b.montant, bc: b }; })
+    : Planning_tranches_(a.jours_par_tranche);
+  if (ac) base = tranches.reduce(function (s, t) { return s + t.montantFixe; }, 0);
+  if (!tranches.length && !ac) tranches = [{ tranche: PLANNING_MISSION, jours: Affaires_joursTotal_(a.jours_par_tranche) }];
   var totalJours = tranches.reduce(function (s, t) { return s + t.jours; }, 0);
   var livrables = Livrables_lister(idAffaire);
   var factures = Db_lire(TABLES.FACTURES).filter(function (f) { return String(f.id_affaire) === String(idAffaire) && f.qonto_statut !== 'annulée'; });
@@ -118,13 +122,14 @@ function Planning_affaire(idAffaire, quand) {
       var c = Planning_codeTranche_(l.tranche);
       return c === t.tranche || (unique && (!c || codes.indexOf(c) < 0));
     });
-    var montant = arrondi_(totalJours > 0 ? base * t.jours / totalJours : base);
+    var montant = t.bc ? t.montantFixe : arrondi_(totalJours > 0 ? base * t.jours / totalJours : base);
     var ligne = {
       tranche: t.tranche, jours: t.jours, montant: montant,
       livrables: liv.map(function (l) { return { libelle: String(l.libelle), date: date_(l.date_echeance) ? jourIso_(date_(l.date_echeance)) : '', etat: String(l.etat) }; }),
       etat: 'à planifier', dateFacture: '', dateEcheance: '', dateEncaissement: '', montantEncaisse: 0, facture: null, retard: null,
-      optionnelle: Planning_trancheOptionnelle_(t, etatsT),
-      affermissement: Planning_trancheOptionnelle_(t, etatsT)
+      bc: t.bc || null,
+      optionnelle: !t.bc && Planning_trancheOptionnelle_(t, etatsT),
+      affermissement: !t.bc && Planning_trancheOptionnelle_(t, etatsT)
         ? (etatsT[t.tranche] && ETATS_AFFERMISSEMENT.indexOf(etatsT[t.tranche].etat) >= 0 ? etatsT[t.tranche].etat : 'optionnelle') : 'ferme',
       dateAffermissement: etatsT[t.tranche] && etatsT[t.tranche].etat !== 'ferme' ? etatsT[t.tranche].date : ''
     };
@@ -149,6 +154,7 @@ function Planning_affaire(idAffaire, quand) {
       return ligne;
     }
     var dates = liv.map(function (l) { return date_(l.date_echeance); }).filter(Boolean).sort(function (x, y) { return x - y; });
+    if (!dates.length && t.bc && t.bc.date_delai) dates = [date_(t.bc.date_delai)]; // bon sans livrable : facture au délai d'exécution
     if (dates.length) {
       var dFac = dates[dates.length - 1];
       var dEch = new Date(dFac.getTime()); dEch.setDate(dEch.getDate() + delai);
@@ -177,6 +183,7 @@ function Planning_affaire(idAffaire, quand) {
   });
   toutes.sort();
   return {
+    accordCadre: ac,
     base: arrondi_(base), delai: delai, lignes: lignes,
     debut: toutes[0] || '', fin: toutes[toutes.length - 1] || '', aujourdhui: jourIso_(auj),
     aPlanifier: lignes.filter(function (l) { return l.etat === 'à planifier' && l.affermissement !== 'non affermie'; }).length,

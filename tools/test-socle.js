@@ -19,7 +19,7 @@ test('installer() crée le classeur, les 11 onglets et supprime la feuille par d
   const ss = Object.values(env.classeurs)[0];
   assert.strictEqual(ss.getName(), 'Kartes Affaires — données');
   const noms = ss.getSheets().map((f) => f.getName());
-  assert.deepStrictEqual(noms, ['Avis', 'Affaires', 'Historique', 'Pièces de l\'offre', 'Livrables', 'Critères', 'Factures', 'Relances', 'Acheteurs', 'Paramètres', 'Déclarations', 'Journal moteur', 'Avis archivés']);
+  assert.deepStrictEqual(noms, ['Avis', 'Affaires', 'Historique', 'Pièces de l\'offre', 'Livrables', 'BPU', 'Bons de commande', 'Critères', 'Factures', 'Relances', 'Acheteurs', 'Paramètres', 'Déclarations', 'Journal moteur', 'Avis archivés']);
   assert.ok(rapport.parametresAjoutes > 40);
   assert.deepStrictEqual(brut(rapport.declencheurs), ['sauvegardeHebdo', 'collecteQuotidienne', 'envoyerEmailMatin', 'estIndicesMensuel']);
 });
@@ -457,7 +457,7 @@ test('apiEtat renvoie l\'état du classeur, sérialisable', () => {
   env.ctx.installer({ exercice: false });
   const r = env.ctx.apiEtat();
   assert.ok(r.ok, r.erreur);
-  assert.strictEqual(r.data.onglets.length, 25); // 13 onglets du suivi + 12 du module Estimation
+  assert.strictEqual(r.data.onglets.length, 27); // 15 onglets du suivi + 12 du module Estimation
   assert.ok(r.data.onglets.every((o) => o.present));
   assert.strictEqual(r.data.onglets.find((o) => o.nom === 'Paramètres').lignes, env.ctx.PARAMETRES_DEFAUT.length);
 });
@@ -981,7 +981,7 @@ test('estimation (étape 1) : écran Estimation et onglet de la fiche affaire', 
   assert.strictEqual(acc.estimations[0].acheteur, 'Commune de Digne-les-Bains');
   assert.strictEqual(A.apiEstAffaire(id).data.length, 1);
   assert.strictEqual(A.apiEstAffaire('KI-2099-999').data.length, 0);
-  assert.strictEqual(A.apiEtat().data.onglets.length, 13 + 12);
+  assert.strictEqual(A.apiEtat().data.onglets.length, 15 + 12);
 });
 
 // ——— Module Estimation, étapes 4 à 6 : bibliothèque, estimation au ratio, export ———
@@ -2315,6 +2315,80 @@ test('URSSAF : 1re déclaration pour un début d\'activité le 01/12/2026 (du 01
   assert.match(r[0].commentaire, /3\s000,00\s€, avant le 30\/04\/2027/);
 });
 
+test('accord-cadre : BPU collé depuis Excel, DQE = offre, bons de commande au planning, facturation, Qonto, reconduction, CA', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  A.installer({ exercice: false });
+  const id = A.Affaires_creer({ acheteur: 'Commune de Gap', objet: 'AC AMO équipements' }, { date: '2027-01-05' }).id;
+  A.Affaires_maj(id, { type_marche: 'Accord-cadre à bons de commande', prix_jour: 550 });
+  // BPU collé depuis Excel (n° en tête, titre ignoré, nombres à la française)
+  const texte = 'N°\tDésignation\tUnité\tPrix unitaire HT\tQuantité\n1\tÉtude de faisabilité / programme\tforfait\t6 600,00\t2\n2\tRéunion\tréunion\t330\t12\n3\tAnalyse des offres de MOE\tconsultation\t2 200 €\t2\n4\tJournée d\'assistance\tjour\t550\t10';
+  let r = brut(A.apiBpuColler(id, texte));
+  assert.ok(r.ok, r.erreur);
+  assert.strictEqual(r.data.ajoutees, 4);
+  assert.deepStrictEqual(r.data.bpu.map((l) => l.montant), [13200, 3960, 4400, 5500]);
+  assert.strictEqual(A.Affaires_get_(id).montant_ht, 27060);
+  assert.match(brut(A.apiBpuColler(id, 'rien d\'utile')).erreur, /Aucune ligne reconnue/);
+  // Modification ligne par ligne
+  const bpu = r.data.bpu.map((l) => ({ designation: l.designation, unite: l.unite, prix_unitaire: l.prix_unitaire, quantite_dqe: l.quantite_dqe }));
+  bpu[1].quantite_dqe = 10;
+  r = brut(A.apiBpuEnregistrer(id, bpu));
+  assert.strictEqual(r.data.affaire.montant_ht, 26400);
+  assert.strictEqual(r.data.accordCadre.dqe, 26400);
+  // Gagnée : période de 12 mois, 3 reconductions, max 40 000 €
+  A.Affaires_changerStatut(id, 'Go', {}, { date: '2027-01-10' });
+  A.Affaires_changerStatut(id, 'Déposée', { montant_ht: 26400, jours_reponse: 2, date_depot: '2027-01-20' }, { date: '2027-01-20' });
+  A.Affaires_changerStatut(id, 'Gagnée', { date_notification: '2027-03-01', montant_notifie: 26400 }, { date: '2027-03-01' });
+  A.Affaires_maj(id, { ac_duree_mois: 12, ac_reconductions: 3, ac_minimum: 5000, ac_maximum: 40000 });
+  const quand = new Date(2027, 3, 1);
+  let s = brut(A.AC_synthese(id, quand));
+  assert.strictEqual(s.periodes.length, 4);
+  assert.deepStrictEqual([s.periodes[0].debut, s.periodes[0].fin, s.fin], ['2027-03-01', '2028-02-29', '2031-02-28']);
+  assert.strictEqual(s.prochainNumero, 'BC-01');
+  // Bon de commande à partir des quantités du BPU
+  const ids = s.bpu.map((l) => l.id);
+  const q = {}; q[ids[0]] = 1; q[ids[1]] = 2;
+  r = brut(A.apiBonAjouter(id, { date: '2027-03-15', date_delai: '2027-05-31', objet: 'Programme école', quantites: q }));
+  assert.ok(r.ok, r.erreur);
+  const bc = r.data.accordCadre.bons[0];
+  assert.deepStrictEqual([bc.numero, bc.montant, bc.lignes.length], ['BC-01', 7260, 2]);
+  assert.match(brut(A.apiBonAjouter(id, { numero: 'bc-01', montant: 100 })).erreur, /existe déjà/);
+  assert.match(brut(A.apiBonAjouter(id, { numero: 'BC-09' })).erreur, /quantités du BPU, ou le montant/);
+  // Planning : une ligne par bon, facture au délai d'exécution sans livrable
+  let p = r.data.planning;
+  assert.strictEqual(p.accordCadre, true);
+  assert.deepStrictEqual(p.lignes.map((l) => [l.tranche, l.montant, l.etat, l.dateFacture]), [['BC-01', 7260, 'prévue', '2027-05-31']]);
+  assert.strictEqual(p.lignes[0].bc.objet, 'Programme école');
+  // Second bon (montant libre), au-delà du maximum : signalé
+  r = brut(A.apiBonAjouter(id, { numero: 'BC-02', date: '2027-09-02', montant: 35000, objet: 'Recrutement MOE gymnase' }));
+  assert.ok(r.data.accordCadre.depasse);
+  assert.match(A.Affaires_get_(id).notes, /BC-02.*maximum de la période dépassé/);
+  // Facturation du bon 1, rattachement Qonto par « KI-… BC-01 »
+  A.Planning_facturer(id, 'BC-01', { numero: 'F-2027-03', date: '2027-05-31', montant: 7260 });
+  p = A.Planning_affaire(id, quand);
+  assert.strictEqual(p.lignes.find((l) => l.tranche === 'BC-01').etat, 'facturée');
+  const ref = A.Qonto_reference_({ purchase_order: id + ' BC-02' }, (() => { const o = {}; A.Affaires_lister().forEach((a) => { o[a.id] = a; }); return o; })());
+  assert.deepStrictEqual(brut(ref), { id_affaire: id, tranche: 'BC-02' });
+  // Bon facturé : suppression refusée ; bon non facturé : supprimé
+  const b1 = A.AC_bons(id).find((b) => b.numero === 'BC-01').id;
+  assert.match(brut(A.apiBonSupprimer(id, b1)).erreur, /déjà facturé/);
+  const b2 = A.AC_bons(id).find((b) => b.numero === 'BC-02').id;
+  assert.ok(brut(A.apiBonSupprimer(id, b2)).ok);
+  // Pas de solde automatique même si tout est encaissé
+  A.Factures_maj(A.Db_lire(A.TABLES.FACTURES).find((f) => f.numero === 'F-2027-03').id, { date_encaissement: '2027-06-20', montant_encaisse: 26400 });
+  assert.strictEqual(A.Affaires_get_(id).statut, 'Gagnée');
+  // Échéancier : reconduction 2 mois avant la fin de la période
+  const ech = brut(A.Echeances_calculer(new Date(2027, 11, 1), new Date(2028, 0, 31), new Date(2027, 11, 1))).filter((e) => e.type === 'Reconduction');
+  assert.strictEqual(ech.length, 1);
+  assert.match(String(ech[0].date), /^2027-12-29/); // 2 mois avant la fin de la période (29/02/2028)
+  assert.match(ech[0].libelle, /Reconduction de l'accord-cadre au 01\/03\/2028/);
+  // CA prévisionnel : potentiel = reste du DQE par période
+  const pot = brut(A.AC_potentiel_(A.Affaires_get_(id), quand));
+  assert.strictEqual(pot[2027], 26400 - 7260);
+  assert.strictEqual(pot[2028], 26400);
+  assert.strictEqual(pot[2030], 26400);
+});
+
 test('URSSAF : périodes antérieures au début du suivi non relancées', () => {
   const { A } = jeuFiscal();
   A.Params_enregistrer('fiscal.debut_suivi', '2026-11-01');
@@ -2372,7 +2446,7 @@ test('fluidité : l\'accueil en un seul appel', () => {
   assert.ok(r.ok, r.erreur);
   assert.deepStrictEqual(Object.keys(r.data).sort(), ['alertes', 'ca', 'etat', 'fiscal', 'previsionnel', 'suivi', 'tableau']);
   assert.strictEqual(r.data.etat.onglets, undefined); // accueil : état léger, les onglets ne sont pas relus
-  assert.strictEqual(brut(env.ctx.apiEtat()).data.onglets.length, 25); // 13 onglets du suivi + 12 du module Estimation
+  assert.strictEqual(brut(env.ctx.apiEtat()).data.onglets.length, 27); // 15 onglets du suivi + 12 du module Estimation
 });
 
 test('fluidité : relances recalculées après un changement de statut, pas à la lecture', () => {

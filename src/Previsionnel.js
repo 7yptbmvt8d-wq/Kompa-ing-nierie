@@ -119,6 +119,12 @@ function Previsionnel_ca(quand) {
     var rep = Previsionnel_repartir_(base, deja, a.repartition_ca, anneeCourante);
     var plan = Planning_parAnnee_(a.id, auj, pl);
     var potOptions = plan ? plan.potentiel : (pl.montantOptionnel > 0 ? (function () { var o = {}; o[anneeCourante] = pl.montantOptionnel; return o; })() : {});
+    if (gagnee && pl.accordCadre) {
+      // Accord-cadre : seuls les bons de commande sont certains ; le reste du DQE de chaque période est potentiel
+      base = pl.base;
+      var potAC = AC_potentiel_(a, auj);
+      Object.keys(potAC).forEach(function (k) { potentiel[k] = (potentiel[k] || 0) + potAC[k]; annees[k] = true; });
+    }
     Object.keys(potOptions).forEach(function (k) { potentiel[k] = (potentiel[k] || 0) + potOptions[k]; annees[k] = true; });
     if (plan) {
       // Planning de facturation (livrables) : prioritaire sur la répartition saisie, plafonné au reste à encaisser

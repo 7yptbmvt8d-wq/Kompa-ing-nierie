@@ -43,8 +43,32 @@ function ficheClient_(id) {
     livrablesResume: Livrables_resume_(f.livrables),
     totaux: f.totaux,
     transitions: f.transitions,
-    planning: Planning_affaire(id)
+    planning: Planning_affaire(id),
+    accordCadre: AC_synthese(id),
+    bpu: AC_bpu(id)
   };
+}
+
+// ——— Accord-cadre : BPU et bons de commande ———
+
+function apiBpuEnregistrer(id, lignes) {
+  return repondre_(function () { AC_bpuEnregistrer(id, lignes); return ficheClient_(id); });
+}
+
+function apiBpuColler(id, texte) {
+  return repondre_(function () { var r = AC_bpuColler(id, texte); var f = ficheClient_(id); f.ajoutees = r.ajoutees; return f; });
+}
+
+function apiBonAjouter(id, champs) {
+  return repondre_(function () { AC_bonAjouter(id, champs); Relances_synchroniser(); return ficheClient_(id); });
+}
+
+function apiBonMaj(id, idBon, champs) {
+  return repondre_(function () { AC_bonMaj(id, idBon, champs); Relances_synchroniser(); return ficheClient_(id); });
+}
+
+function apiBonSupprimer(id, idBon) {
+  return repondre_(function () { AC_bonSupprimer(id, idBon); Relances_synchroniser(); return ficheClient_(id); });
 }
 
 /** Liste des affaires (résumé) + méta. */

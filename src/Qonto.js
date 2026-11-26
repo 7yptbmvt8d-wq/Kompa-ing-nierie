@@ -81,7 +81,7 @@ function Qonto_reference_(inv, affaires) {
     var a = affaires[id];
     if (!a) continue;
     var reste = t.toUpperCase().slice(t.toUpperCase().indexOf(m[0]) + m[0].length);
-    var codes = Planning_tranches_(a.jours_par_tranche).map(function (x) { return x.tranche; });
+    var codes = AC_est_(a) ? AC_bons(a.id).map(function (b) { return b.code; }) : Planning_tranches_(a.jours_par_tranche).map(function (x) { return x.tranche; });
     var tranche = codes.filter(function (c) { return new RegExp('(^|[^A-Z0-9])' + c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^A-Z0-9]|$)').test(reste); })[0] || '';
     return { id_affaire: id, tranche: tranche };
   }

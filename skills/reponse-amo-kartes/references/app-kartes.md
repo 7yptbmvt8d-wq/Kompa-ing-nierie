@@ -44,7 +44,9 @@ Les blocs s'affichent en lecture ; le bouton **Modifier** ouvre leur formulaire.
 | Dépôt (Offre) | Candidature (Seul / Groupement), Cotraitant, Date de dépôt, Jours passés à répondre |
 | Résultat | Statut final, Date de la décision, Attributaire, Prix de l'attributaire HT, Rang, Motifs du rejet ; tableau Notes par critère (Critère, Pondération, Note Kartes, Note attributaire) |
 | Enseignements | Points faibles constatés, Action corrective, Pièce-type à améliorer (note méthodologique, CV, références, prix) |
-| Notification (Mission › Marché) | Date de notification, Montant notifié HT ; tranches et affermissement |
+| Accord-cadre (Offre, si Type de marché = « Accord-cadre à bons de commande ») | Durée d'une période (mois), Nombre de reconductions, Minimum et Maximum HT par période, Début de la 1re période ; tableau BPU / DQE (N°, Désignation, Unité, Prix unitaire HT, Qté DQE, Montant) collable depuis Excel ; le DQE devient le Montant HT |
+| Notification (Mission › Marché) | Date de notification, Montant notifié HT ; tranches et affermissement (marché ordinaire) ou périodes et reconductions (accord-cadre) |
+| Bons de commande (Mission › Planning, accord-cadre) | N° du bon (BC-01…), Date, Délai d'exécution, Objet, quantités des prestations du BPU → montant ; chaque bon est une ligne du planning (livrables, facture, paiement) ; dans Qonto, « KI-AAAA-NNN BC-01 » dans « Bon de commande » |
 | Livrables (Mission › Planning) | Tranche, Livrable, Échéance, État (à faire, en cours, remis, validé) ; factures dans « Toutes les factures » |
 
 Quand tu donnes des valeurs « à reporter dans l'app », utilise ces libellés et cet onglet, dans cet ordre.

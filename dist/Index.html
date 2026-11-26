@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Kartes Affaires 1.6.7 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
+<!-- Kartes Affaires 1.7.0 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
 <html lang="fr">
 <head>
   <base target="_top">
@@ -382,6 +382,18 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .pieces__liste { list-style: none; margin: 0; padding: 0; border-top: var(--kompa-filet-fin); }
 .pieces__liste li { padding: var(--kompa-s2) 0; border-bottom: var(--kompa-filet-fin); overflow-wrap: anywhere; display: flex; align-items: center; justify-content: space-between; gap: var(--kompa-s2); }
 .pieces__fichier { min-width: 0; }
+.table-bpu input.champ { width: 100%; min-width: 0; }
+.table-bpu td:nth-child(2) { min-width: 16rem; }
+.table-bpu td:nth-child(4), .table-bpu td:nth-child(5) { width: 8rem; }
+.table-bc td:nth-child(3) { width: 6rem; }
+.table-bc input.champ { width: 100%; min-width: 0; }
+.bpu-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kompa-s2); margin: var(--kompa-s3) 0; }
+.entete-ac { margin-bottom: var(--kompa-s4); }
+.entete-ac__ligne { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--kompa-s2) var(--kompa-s4); }
+.jauge-ac { position: relative; height: 14px; background: var(--kompa-brume); border-radius: var(--kompa-radius-sm); margin: var(--kompa-s2) 0 var(--kompa-s1); }
+.jauge-ac__cmd { position: absolute; left: 0; top: 0; bottom: 0; background: var(--kompa-ardoise); border-radius: var(--kompa-radius-sm); }
+.jauge-ac__min { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--kompa-rouille); }
+.lignes-bc { margin: 0 0 var(--kompa-s2); padding-left: 18px; }
 .champ--petit { padding-block: 2px; min-width: 8rem; width: auto; }
 .livre-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kompa-s2); }
 .livre-actions .champ { width: auto; min-width: 7rem; }
@@ -1766,7 +1778,8 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       if (lr.prochain.date) ech = ['Livrable', lr.prochain.date];
     }
     var p = f.planning;
-    if (EN_MISSION.indexOf(s) >= 0) avancement = ['Encaissé', K.euros(f.totaux.encaisse) + ' <span class="jours">/ ' + K.euros(a.montant_notifie || a.montant_ht || 0) + '</span>' +
+    if (EN_MISSION.indexOf(s) >= 0 && f.accordCadre) avancement = ['Encaissé', K.euros(f.totaux.encaisse) + ' <span class="jours">/ ' + K.euros(f.accordCadre.commandeTotal) + ' commandés</span>'];
+    else if (EN_MISSION.indexOf(s) >= 0) avancement = ['Encaissé', K.euros(f.totaux.encaisse) + ' <span class="jours">/ ' + K.euros(a.montant_notifie || a.montant_ht || 0) + '</span>' +
       (p && p.montantOptionnel ? ' <span class="jours">dont ' + K.euros(p.montantOptionnel) + ' en option</span>' : '')];
     else if (s === 'Déposée' || s === 'Perdue' || s === 'Sans suite') avancement = ['Offre', a.montant_ht ? K.euros(a.montant_ht) + ' HT' : '—'];
     else if ((s === 'Go' || s === 'Abandonnée') && f.piecesResume && f.piecesResume.total) avancement = ['Pièces de l\'offre', f.piecesResume.pretes + ' sur ' + f.piecesResume.total + ' prêtes'];
@@ -1897,9 +1910,15 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     var bloc = function (id, o) { return blocsParId[id] ? blocFiche(blocsParId[id], a, o) : ''; };
     var contenu = {
       consultation: function () { return '<div class="fiche-deux">' + '<div>' + bloc('identification') + '</div><div>' + bloc('echeances') + bloc('decision') + '</div></div>'; },
-      offre: function () { return '<div class="fiche-deux"><div>' + bloc('offre') + bloc('depot') + '</div><div>' + blocPiecesOffre(f) + '</div></div>'; },
+      offre: function () {
+        var ac = f.accordCadre, bO = blocsParId.offre;
+        // Accord-cadre : pas de tranches ni de jours par tranche, le BPU les remplace
+        if (ac && bO) bO = Object.assign({}, bO, { champs: bO.champs.filter(function (c) { return ['tranches', 'jours_par_tranche'].indexOf(c.nom) < 0; }) });
+        return '<div class="fiche-deux"><div>' + (bO ? blocFiche(bO, a) : '') + (ac ? bloc('accordcadre') : '') + bloc('depot') + '</div><div>' + blocPiecesOffre(f) + '</div></div>' +
+          (ac ? blocBpu(f) : '');
+      },
       resultat: function () { return bloc('resultat') + '<section class="fiche-bloc">' + tableCriteres(f.criteres) + '</section>' + bloc('enseignements'); },
-      marche: function () { return bloc('execution') + blocTranches(f); },
+      marche: function () { return bloc('execution') + (f.accordCadre ? bloc('accordcadre') + blocPeriodesAC(f) : blocTranches(f)); },
       planning: function () { return planningMission(f); },
       estimations: function () { return '<section class="fiche-bloc"><h2 class="fiche-bloc__titre">Estimations des travaux</h2><div data-estimations><div class="chargement">Lecture des estimations…</div></div></section>'; }
     };
@@ -1935,6 +1954,164 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     chargerPieces(el, a);
     var zoneEst = $('[data-estimations]', el);
     if (zoneEst && K.estimationsAffaire) K.estimationsAffaire(zoneEst, a.id);
+  }
+
+  // ——— Accord-cadre à bons de commande : BPU (offre), périodes (marché), bons de commande (planning) ———
+  function nb(v) { var n = Number(String(v === undefined || v === null ? '' : v).replace(/[\s\u00a0\u202f€]/g, '').replace(',', '.')); return isNaN(n) ? 0 : n; }
+  function decimal(v) { return v === '' || v === null || v === undefined ? '' : String(v).replace('.', ','); }
+
+  function ligneBpu(l, i) {
+    return '<tr data-bpu-ligne><td class="mono">' + (i + 1) + '</td>' +
+      '<td><input class="champ champ--compact" data-bpu="designation" value="' + esc(l.designation || '') + '" aria-label="Désignation, ligne ' + (i + 1) + '"></td>' +
+      '<td><input class="champ champ--compact" data-bpu="unite" value="' + esc(l.unite || '') + '" aria-label="Unité, ligne ' + (i + 1) + '"></td>' +
+      '<td><input class="champ champ--compact mono num" inputmode="decimal" data-bpu="prix_unitaire" value="' + esc(decimal(l.prix_unitaire)) + '" aria-label="Prix unitaire HT, ligne ' + (i + 1) + '"></td>' +
+      '<td><input class="champ champ--compact mono num" inputmode="decimal" data-bpu="quantite_dqe" value="' + esc(decimal(l.quantite_dqe)) + '" aria-label="Quantité du DQE, ligne ' + (i + 1) + '"></td>' +
+      '<td class="num mono" data-bpu-montant>' + K.euros(nb(l.prix_unitaire) * nb(l.quantite_dqe)) + '</td>' +
+      '<td><button type="button" class="bouton bouton--petit bouton--discret" data-bpu-retirer aria-label="Retirer la ligne ' + (i + 1) + '">✕</button></td></tr>';
+  }
+
+  function blocBpu(f) {
+    var a = f.affaire, bpu = f.bpu || [];
+    var pj = Number(a.prix_jour) || 0;
+    return '<section class="fiche-bloc" id="bpu">' +
+      '<h2 class="fiche-bloc__titre">Bordereau des prix unitaires (BPU) et détail quantitatif estimatif (DQE)</h2>' +
+      '<div class="tableau-conteneur"><table class="table-bpu"><thead><tr><th scope="col">N°</th><th scope="col">Désignation (prestation du BPU)</th><th scope="col">Unité</th>' +
+        '<th scope="col" class="num">Prix unitaire HT</th><th scope="col" class="num">Qté DQE</th><th scope="col" class="num">Montant DQE</th><th scope="col"><span class="seul-lecteur">Retirer</span></th></tr></thead>' +
+        '<tbody data-bpu-corps>' + (bpu.length ? bpu.map(ligneBpu).join('') : ligneBpu({}, 0)) + '</tbody>' +
+        '<tfoot><tr class="ligne-total"><td colspan="5">Montant du DQE (montant de l\'offre)</td><td class="num mono" data-bpu-total>' + K.euros(f.accordCadre ? f.accordCadre.dqe : 0) + '</td><td></td></tr></tfoot></table></div>' +
+      '<div class="bpu-actions"><button type="button" class="bouton bouton--petit bouton--discret" data-bpu-ajouter>+ Ligne</button>' +
+        '<button type="button" class="bouton bouton--petit bouton--discret" data-bpu-coller>Coller depuis le BPU Excel du DCE</button>' +
+        '<button type="button" class="bouton bouton--petit" data-bpu-enregistrer>Enregistrer le BPU</button>' +
+        '<span class="legende" data-bpu-etat></span></div>' +
+      '<p class="legende">Le montant du DQE devient le montant HT de l\'offre (celui que l\'acheteur compare)' +
+        (pj ? '. Repère : prix de journée ' + K.euros(pj) + ' HT — <span data-bpu-jours></span>' : '') + '.</p></section>';
+  }
+
+  function brancherBpu(el, f, recharger) {
+    var zone = $('#bpu', el);
+    if (!zone) return;
+    var a = f.affaire, corps = $('[data-bpu-corps]', zone), etatTxt = $('[data-bpu-etat]', zone);
+    var pj = Number(a.prix_jour) || 0;
+    var lire = function () {
+      return $$('[data-bpu-ligne]', corps).map(function (tr) {
+        var o = {};
+        $$('[data-bpu]', tr).forEach(function (c) { o[c.getAttribute('data-bpu')] = c.value; });
+        return o;
+      });
+    };
+    var calculer = function (modifie) {
+      var total = 0;
+      $$('[data-bpu-ligne]', corps).forEach(function (tr, i) {
+        var pu = nb($('[data-bpu="prix_unitaire"]', tr).value), q = nb($('[data-bpu="quantite_dqe"]', tr).value);
+        total += pu * q;
+        $('[data-bpu-montant]', tr).textContent = K.euros(pu * q);
+        $('.mono', tr).textContent = i + 1;
+      });
+      $('[data-bpu-total]', zone).textContent = K.euros(total);
+      var j = $('[data-bpu-jours]', zone);
+      if (j && pj) j.textContent = 'DQE ≈ ' + String(Math.round(total / pj * 10) / 10).replace('.', ',') + ' jours';
+      if (modifie) etatTxt.textContent = 'Modifications non enregistrées.';
+    };
+    var brancherLigne = function (tr) {
+      $$('input', tr).forEach(function (c) { c.addEventListener('input', function () { calculer(true); }); });
+      $('[data-bpu-retirer]', tr).addEventListener('click', function () {
+        tr.remove();
+        if (!$('[data-bpu-ligne]', corps)) { corps.insertAdjacentHTML('beforeend', ligneBpu({}, 0)); brancherLigne(corps.lastElementChild); }
+        calculer(true);
+      });
+    };
+    $$('[data-bpu-ligne]', corps).forEach(brancherLigne);
+    calculer(false);
+    $('[data-bpu-ajouter]', zone).addEventListener('click', function () {
+      corps.insertAdjacentHTML('beforeend', ligneBpu({}, corps.children.length));
+      brancherLigne(corps.lastElementChild);
+      $('input', corps.lastElementChild).focus();
+    });
+    $('[data-bpu-enregistrer]', zone).addEventListener('click', function () {
+      var b = this; b.disabled = true;
+      K.appel('apiBpuEnregistrer', a.id, lire()).then(function (fiche) { K.toast('BPU enregistré : DQE ' + K.euros(fiche.accordCadre ? fiche.accordCadre.dqe : 0) + ' HT = montant de l\'offre.'); recharger(fiche); })
+        .catch(function (e) { b.disabled = false; K.toast(e.message, true); });
+    });
+    $('[data-bpu-coller]', zone).addEventListener('click', function () {
+      var corpsD = '<p class="legende">Dans le BPU Excel du DCE, sélectionnez les colonnes <strong>désignation, unité, prix unitaire et quantité</strong> (le n° de ligne en tête est accepté), copiez, puis collez ici. Les lignes sont ajoutées à la suite ; les titres sans prix sont ignorés.</p>' +
+        '<label for="bpu-colle" class="seul-lecteur">Lignes copiées depuis Excel</label><textarea class="champ mono" id="bpu-colle" rows="10" data-champ="texte" required placeholder="1\tÉtude de faisabilité\tforfait\t6600\t2"></textarea>';
+      dialogue('Coller le BPU depuis Excel', corpsD, 'Ajouter les lignes', function (form) {
+        return K.appel('apiBpuColler', a.id, lireChamps(form).texte).then(function (fiche) { K.toast(fiche.ajoutees + ' ligne' + (fiche.ajoutees > 1 ? 's' : '') + ' ajoutée' + (fiche.ajoutees > 1 ? 's' : '') + ' au BPU.'); recharger(fiche); });
+      });
+    });
+  }
+
+  function blocPeriodesAC(f) {
+    var s = f.accordCadre;
+    if (!s.periodes.length) return '<section class="fiche-bloc"><h2 class="fiche-bloc__titre">Périodes</h2><p class="vide">Renseignez la date de notification (bloc Exécution) ou le début de la 1re période (bloc Accord-cadre).</p></section>';
+    return '<section class="fiche-bloc"><h2 class="fiche-bloc__titre">Périodes</h2><div class="tableau-conteneur"><table><thead><tr><th scope="col">Période</th><th scope="col">Du</th><th scope="col">Au</th><th scope="col" class="num">Commandé HT</th><th scope="col">État</th></tr></thead><tbody>' +
+      s.periodes.map(function (p) {
+        var etatP = p.courante ? '<span class="statut statut--encours">en cours</span>' : (p.fin < aujourdhuiIso() ? '<span class="statut statut--neutre">terminée</span>' : '<span class="statut statut--neutre">à venir' + (p.n > 1 ? ' (reconduction)' : '') + '</span>');
+        return '<tr><td>' + (p.n === 1 ? 'Initiale' : 'Reconduction ' + (p.n - 1)) + '</td><td class="mono">' + jour(p.debut) + '</td><td class="mono">' + jour(p.fin) + '</td>' +
+          '<td class="num mono">' + K.euros(p.commande) + (p.depasse ? ' <span class="statut statut--ko">maximum dépassé</span>' : '') + '</td><td>' + etatP + '</td></tr>';
+      }).join('') + '</tbody></table></div>' +
+      '<p class="legende">Rappel de la reconduction dans l\'échéancier et l\'e-mail du matin, 2 mois avant la fin de la période (paramètre ac.rappel_reconduction_mois).</p></section>';
+  }
+
+  function enteteAC(f) {
+    var s = f.accordCadre, r = s.reference;
+    if (!r) return '<p class="bandeau">Accord-cadre : renseignez la date de notification (Mission › Marché) pour calculer les périodes.</p>';
+    var max = s.maximum, cmd = s.commandePeriode;
+    var enc = (f.totaux && f.totaux.encaisse) || 0;
+    var pct = function (x) { return max ? Math.min(100, Math.round(x / max * 1000) / 10) : 0; };
+    return '<div class="entete-ac"><div class="entete-ac__ligne"><strong>Accord-cadre — ' + (r.n === 1 ? 'période initiale' : 'reconduction ' + (r.n - 1)) + ' : <span class="mono">' + jour(r.debut) + ' → ' + jour(r.fin) + '</span></strong>' +
+        '<span class="legende">' + (s.reconductions ? 'reconductible ' + s.reconductions + ' fois · ' : '') + 'fin au plus tard le <span class="mono">' + jour(s.fin) + '</span></span>' +
+        (s.depasse ? '<span class="statut statut--ko">maximum dépassé</span>' : '') + '</div>' +
+      (max ? '<div class="jauge-ac" role="img" aria-label="Commandé ' + K.euros(cmd) + ' sur un maximum de ' + K.euros(max) + '"><span class="jauge-ac__cmd" style="width:' + pct(cmd) + '%"></span>' +
+        (s.minimum ? '<span class="jauge-ac__min" style="left:' + pct(s.minimum) + '%"></span>' : '') + '</div>' : '') +
+      '<p class="legende">Commandé sur la période <strong class="mono">' + K.euros(cmd) + '</strong>' + (max ? ' sur un maximum de <span class="mono">' + K.euros(max) + '</span>' : '') +
+        (s.minimum ? ' (minimum ' + K.euros(s.minimum) + (s.minimumAtteint ? ' atteint' : ' non atteint') + ')' : '') +
+        ' · total commandé <span class="mono">' + K.euros(s.commandeTotal) + '</span> · encaissé <span class="mono">' + K.euros(enc) + '</span></p></div>';
+  }
+
+  function dialogueBon(f, recharger, bon) {
+    var a = f.affaire, s = f.accordCadre, bpu = s.bpu || [];
+    var q = {};
+    (bon ? bon.lignes : []).forEach(function (l) { var x = bpu.filter(function (b) { return b.designation === l.designation; })[0]; if (x) q[x.id] = l.quantite; });
+    var corps = '<div class="form-grille">' +
+        '<div class="champ-bloc"><label for="bc-numero">N° du bon *</label><input class="champ mono" id="bc-numero" data-champ="numero" required value="' + esc(bon ? bon.numero : s.prochainNumero) + '"></div>' +
+        '<div class="champ-bloc"><label for="bc-date">Date</label><input class="champ" type="date" id="bc-date" data-champ="date" value="' + esc(bon ? bon.date : aujourdhuiIso()) + '"></div>' +
+        '<div class="champ-bloc"><label for="bc-delai">Délai d\'exécution</label><input class="champ" type="date" id="bc-delai" data-champ="date_delai" value="' + esc(bon ? bon.date_delai : '') + '"></div>' +
+        '<div class="champ-bloc"><label for="bc-objet">Objet</label><input class="champ" id="bc-objet" data-champ="objet" value="' + esc(bon ? bon.objet : '') + '" placeholder="Programme — salle polyvalente"></div></div>' +
+      (bpu.length ? '<div class="tableau-conteneur"><table class="table-bc"><thead><tr><th scope="col">Prestation du BPU</th><th scope="col" class="num">Prix unitaire</th><th scope="col" class="num">Quantité</th><th scope="col" class="num">Montant</th></tr></thead><tbody>' +
+          bpu.map(function (l) {
+            return '<tr><td>' + l.n + ' · ' + esc(l.designation) + (l.unite ? ' <span class="legende">(' + esc(l.unite) + ')</span>' : '') + '</td><td class="num mono">' + K.euros(l.prix_unitaire) + '</td>' +
+              '<td><input class="champ champ--compact mono num" inputmode="decimal" data-bc-q="' + esc(l.id) + '" data-pu="' + l.prix_unitaire + '" value="' + esc(decimal(q[l.id] || '')) + '" aria-label="Quantité : ' + esc(l.designation) + '"></td>' +
+              '<td class="num mono" data-bc-m>—</td></tr>';
+          }).join('') + '<tr class="ligne-total"><td colspan="3">Montant du bon de commande</td><td class="num mono" data-bc-total>—</td></tr></tbody></table></div>'
+        : '<div class="champ-bloc"><label for="bc-montant">Montant HT du bon (€)</label><input class="champ mono num" id="bc-montant" data-champ="montant" inputmode="decimal" value="' + esc(bon ? decimal(bon.montant) : '') + '"></div>' +
+          '<p class="legende">Pas de BPU saisi : indiquez le montant du bon. Avec un BPU (Appel d\'offres › Offre), le montant se calcule à partir des quantités.</p>') +
+      '<p class="legende" data-bc-cumul></p>';
+    var d = dialogue(bon ? 'Bon de commande ' + bon.numero : 'Nouveau bon de commande', corps, 'Enregistrer', function (form) {
+      var champs = lireChamps(form);
+      var quantites = {};
+      $$('[data-bc-q]', form).forEach(function (c) { if (nb(c.value) > 0) quantites[c.getAttribute('data-bc-q')] = c.value; });
+      if (bpu.length) champs.quantites = quantites;
+      return (bon ? K.appel('apiBonMaj', a.id, bon.id, champs) : K.appel('apiBonAjouter', a.id, champs)).then(function (fiche) {
+        K.toast('Bon de commande ' + champs.numero + ' enregistré.' + (fiche.accordCadre && fiche.accordCadre.depasse ? ' Attention : maximum de la période dépassé.' : ''), !!(fiche.accordCadre && fiche.accordCadre.depasse));
+        recharger(fiche);
+      });
+    });
+    var maj = function () {
+      var total = 0;
+      $$('[data-bc-q]', d).forEach(function (c) {
+        var m = nb(c.value) * Number(c.getAttribute('data-pu'));
+        total += m;
+        c.closest('tr').querySelector('[data-bc-m]').textContent = m ? K.euros(m) : '—';
+      });
+      if (!bpu.length) total = nb(($('#bc-montant', d) || {}).value);
+      var t = $('[data-bc-total]', d); if (t) t.textContent = total ? K.euros(total) : '—';
+      var deja = s.commandePeriode - (bon ? bon.montant : 0);
+      $('[data-bc-cumul]', d).textContent = s.maximum ? 'Après ce bon : commandé ' + K.euros(deja + total) + ' sur ' + K.euros(s.maximum) + ' pour la période' +
+        (deja + total > s.maximum ? ' — maximum dépassé.' : ' (reste ' + K.euros(s.maximum - deja - total) + ').') : '';
+    };
+    $$('input', d).forEach(function (c) { c.addEventListener('input', maj); });
+    maj();
   }
 
   // ——— Mission › Marché : tranches, nature (ferme / optionnelle) et affermissement ———
@@ -1985,6 +2162,11 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
   function planningMission(f) {
     var p = f.planning, a = f.affaire;
     if (!p) return '';
+    if (p.accordCadre && !p.lignes.length) {
+      return '<section class="planning-mission" id="planning-mission">' + enteteAC(f) +
+        '<p class="vide">Aucun bon de commande pour le moment. Chaque bon reçu de l\'acheteur devient une ligne du planning : livrables, facture, paiement.</p>' +
+        (a.statut === 'Gagnée' ? '<p><button type="button" class="bouton" data-bc-ajouter>+ Bon de commande</button></p>' : '') + '</section>';
+    }
     if (!p.base) return '<section class="fiche-bloc"><h2 class="fiche-bloc__titre">Planning</h2><p class="vide">Montant du marché inconnu : renseignez les jours par tranche et le prix par jour (Appel d\'offres › Offre › Chiffrage).</p></section>';
     var actions = a.statut === 'Gagnée';
     var nomT = function (l) { return l.tranche === 'MISSION' ? 'Mission' : l.tranche; };
@@ -2004,11 +2186,12 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     });
     var cartes = p.lignes.map(function (l, i) {
       var opt = l.optionnelle;
-      var nature = !opt ? '<span class="legende">ferme</span>' : l.affermissement === 'affermie' ? '<span class="statut statut--ok">affermie</span>'
+      var nature = l.bc ? (l.bc.objet ? '<span>' + esc(l.bc.objet) + '</span>' : '') : !opt ? '<span class="legende">ferme</span>' : l.affermissement === 'affermie' ? '<span class="statut statut--ok">affermie</span>'
         : l.affermissement === 'non affermie' ? '<span class="statut statut--neutre">non affermie</span>' : '<span class="statut statut--alerte">optionnelle</span>';
       var act = '<button type="button" class="bouton bouton--petit bouton--discret" data-ajout-livrable="' + esc(l.tranche === 'MISSION' ? '' : l.tranche) + '">+ Livrable</button>';
       if (actions) {
         if (opt && l.affermissement === 'optionnelle') act += '<button type="button" class="bouton bouton--petit" data-plan-affermir="' + i + '">Affermir</button><button type="button" class="bouton bouton--petit bouton--discret" data-plan-nonaffermie="' + i + '">Non affermie</button>';
+        if (l.bc && !l.facture) act += '<button type="button" class="bouton bouton--petit bouton--discret" data-bc-modifier="' + esc(l.bc.id) + '">Modifier</button><button type="button" class="bouton bouton--petit bouton--discret" data-bc-suppr="' + esc(l.bc.id) + '" data-numero="' + esc(l.bc.numero) + '">Supprimer</button>';
         if (l.affermissement !== 'optionnelle' && l.affermissement !== 'non affermie') {
           if (l.etat === 'prévue' || l.etat === 'à planifier') act += '<button type="button" class="bouton bouton--petit" data-plan-facturer="' + i + '">Facturer</button>';
           else if (l.etat === 'facturée' || l.etat === 'en retard') act += '<button type="button" class="bouton bouton--petit" data-plan-payer="' + i + '">Paiement reçu</button>';
@@ -2028,17 +2211,21 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
           ' <span class="statut ' + (ETATS_PLAN[l.etat] || 'statut--neutre') + '">' + esc(l.etat === 'couverte' ? 'facturée hors planning' : l.etat) + '</span>' +
           (l.dejaFacture && l.etat !== 'couverte' ? ' <span class="legende">+ ' + K.euros(l.dejaFacture) + ' déjà facturés hors planning</span>' : '') +
           '<div class="tranche-carte__act">' + act + '</div></div>' +
-        '<div class="tranche-carte__corps"><div><div class="k">Livrables</div>' +
+        '<div class="tranche-carte__corps"><div>' +
+          (l.bc ? '<div class="k">Commande du <span class="mono">' + jour(l.bc.date) + '</span>' + (l.bc.date_delai ? ' · délai <span class="mono">' + jour(l.bc.date_delai) + '</span>' : '') + '</div>' +
+            (l.bc.lignes.length ? '<ul class="lignes-bc">' + l.bc.lignes.map(function (x) { return '<li>' + decimal(x.quantite) + ' × ' + esc(x.designation) + ' <span class="legende mono">' + K.euros(x.montant) + '</span></li>'; }).join('') + '</ul>' : '') : '') +
+          '<div class="k">Livrables</div>' +
           (liv.length ? '<ul class="livs">' + liv.map(ligneLivrable).join('') + '</ul>' : '<p class="vide">Aucun livrable : ajoutez ceux du CCTP avec leur date de remise.</p>') + '</div>' +
           '<div><div class="k">Facture</div>' + facture + '</div><div><div class="k">Paiement</div>' + paiement + '</div></div></article>';
     }).join('');
     var orphelins = unique ? [] : (f.livrables || []).filter(function (x) { return codes.indexOf(code(x.tranche)) < 0; });
     var t = f.totaux;
-    return '<section class="planning-mission" id="planning-mission">' +
+    return '<section class="planning-mission" id="planning-mission">' + (p.accordCadre ? enteteAC(f) : '') +
       K.friseCle() + K.frise({ debut: p.debut, fin: p.fin, aujourdhui: p.aujourdhui, pistes: [piste] }) +
       (p.aPlanifier ? '<p class="bandeau">' + p.aPlanifier + ' tranche(s) sans livrable daté : la facture se cale sur la date du dernier livrable de la tranche.</p>' : '') +
       cartes +
-      (orphelins.length ? '<article class="tranche-carte"><div class="tranche-carte__tete"><strong>Livrables sans tranche reconnue</strong> <span class="legende">code de tranche absent de « Jours par tranche »</span></div>' +
+      (p.accordCadre && a.statut === 'Gagnée' ? '<p class="bpu-actions"><button type="button" class="bouton" data-bc-ajouter>+ Bon de commande</button><span class="legende">Reçu un bon de commande de l\'acheteur ? Saisissez-le : n°, date, prestations du BPU et quantités, délai.</span></p>' : '') +
+      (orphelins.length ? '<article class="tranche-carte"><div class="tranche-carte__tete"><strong>Livrables sans ' + (p.accordCadre ? 'bon de commande reconnu' : 'tranche reconnue') + '</strong> <span class="legende">' + (p.accordCadre ? 'indiquez le n° du bon dans « Tranche »' : 'code de tranche absent de « Jours par tranche »') + '</span></div>' +
         '<ul class="livs">' + orphelins.map(ligneLivrable).join('') + '</ul></article>' : '') +
       '<details class="fiche-bloc factures-repli"' + (f.factures.length && !p.utilisable ? ' open' : '') + '><summary><strong>Toutes les factures (' + f.factures.length + ')</strong> <span class="legende">— facturé ' + K.euros(t.facture) + ' · encaissé ' + K.euros(t.encaisse) + ' · saisie d\'une facture hors planning</span></summary>' +
         tableFactures(f) + '</details>' +
@@ -2489,6 +2676,17 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       b.addEventListener('click', function () { rendreFiche(el, f); });
     });
     brancherPiecesOffre(el, f, recharger);
+    brancherBpu(el, f, recharger);
+    $$('[data-bc-ajouter]', el).forEach(function (b) { b.addEventListener('click', function () { dialogueBon(f, recharger, null); }); });
+    $$('[data-bc-modifier]', el).forEach(function (b) {
+      b.addEventListener('click', function () { dialogueBon(f, recharger, f.accordCadre.bons.filter(function (x) { return x.id === b.getAttribute('data-bc-modifier'); })[0]); });
+    });
+    $$('[data-bc-suppr]', el).forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (!window.confirm('Supprimer le bon de commande ' + b.getAttribute('data-numero') + ' ?')) return;
+        K.appel('apiBonSupprimer', a.id, b.getAttribute('data-bc-suppr')).then(function (fiche) { K.toast('Bon de commande supprimé.'); recharger(fiche); }).catch(function (e) { K.toast(e.message, true); });
+      });
+    });
     brancherLivrables(el, f, recharger);
     brancherPlanning(el, f, recharger);
     // Volets et onglets : l'onglet de l'étape en cours si c'est le volet en cours, sinon le premier

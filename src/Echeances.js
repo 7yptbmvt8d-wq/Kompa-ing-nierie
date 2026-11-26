@@ -97,6 +97,19 @@ function Echeances_calculer(debut, fin, quand) {
     }
   });
 
+  // Accord-cadre gagné : reconduction (2 mois avant la fin de la période en cours) et fin de l'accord-cadre
+  Affaires_lister().forEach(function (a) {
+    if (String(a.statut) !== 'Gagnée' || !AC_est_(a)) return;
+    var per = AC_periodes_(a, auj);
+    if (!per.courante) return;
+    var finP = date_(per.courante.fin);
+    var derniere = per.courante.fin === per.fin;
+    var rappel = new Date(finP.getFullYear(), finP.getMonth() - Params_nombre('ac.rappel_reconduction_mois', 2), finP.getDate());
+    ajouter(rappel, 'Reconduction', derniere
+      ? 'Fin de l\'accord-cadre le ' + Utilities.formatDate(finP, APP.FUSEAU, 'dd/MM/yyyy') + ' : préparer la suite (nouvelle consultation)'
+      : 'Reconduction de l\'accord-cadre au ' + Utilities.formatDate(new Date(finP.getTime() + 86400000), APP.FUSEAU, 'dd/MM/yyyy') + ' : vérifier la décision de l\'acheteur (période ' + (per.courante.n + 1) + ')', a);
+  });
+
   // Déclarations URSSAF (périodes terminées non déclarées)
   Fiscal_echeances_(debut, fin, auj).forEach(function (e) {
     var p = e.periode;

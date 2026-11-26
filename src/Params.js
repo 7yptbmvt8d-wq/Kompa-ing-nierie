@@ -97,6 +97,7 @@ var PARAMETRES_DEFAUT = [
   ['fiscal.cumul_avant', '2026-12-01', 'Agent public : demander l\'autorisation de cumul d\'activités à l\'employeur avant cette date (aaaa-mm-jj), avant la création de l\'entreprise. Vide : pas de rappel'],
   ['entreprise.siret', '49356779600021', 'SIRET de l\'entreprise (14 chiffres), attribué le 26/11/2026'],
   ['entreprise.ape', '7112B', 'Code APE (INSEE) : ingénierie, études techniques'],
+  ['ac.rappel_reconduction_mois', '2', 'Accord-cadre : rappel de la reconduction (ou de la fin) N mois avant la fin de la période en cours'],
   ['livre.mode_defaut', 'virement', 'Livre des recettes : mode de règlement affiché par défaut (virement, chèque, carte, prélèvement, espèces, autre), modifiable ligne par ligne'],
   ['fiscal.cfe_montant', '', 'CFE estimée pour une année pleine (€) : à remplacer par le montant de l\'avis (impots.gouv, vers la mi-novembre). Modifiable depuis la carte URSSAF de l\'accueil'],
   ['fiscal.declaration_revenus_ouverture', '04-10', 'Déclaration de revenus (impots.gouv) : date d\'ouverture du service en ligne (mois-jour), à vérifier chaque printemps'],

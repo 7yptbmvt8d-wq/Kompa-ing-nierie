@@ -8,7 +8,7 @@
 var APP = {
   NOM: 'Kartes Affaires',
   ENTREPRISE: 'Kartes Ingénierie',
-  VERSION: '1.6.7',
+  VERSION: '1.7.0',
   CLASSEUR: 'Kartes Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kartes Affaires — sauvegardes',
   ANCIEN_NOM: 'Kompa', // nom d'avant le 22/11/2026 : fichiers et dossiers renommés par la mise à jour automatique
@@ -72,12 +72,15 @@ var TABLES = {
       'points_faibles', 'action_corrective', 'piece_type',
       // Exécution
       'date_notification', 'montant_notifie',
+      // Accord-cadre à bons de commande (26/11/2026)
+      'type_marche', 'ac_debut', 'ac_duree_mois', 'ac_reconductions', 'ac_minimum', 'ac_maximum',
       // Journal
       'notes'
     ],
     nombres: [
       'pre_score', 'score_final', 'validite_offre_jours', 'prix_jour', 'montant_ht',
-      'montant_pondere', 'jours_reponse', 'prix_attributaire', 'rang', 'montant_notifie'
+      'montant_pondere', 'jours_reponse', 'prix_attributaire', 'rang', 'montant_notifie',
+      'ac_duree_mois', 'ac_reconductions', 'ac_minimum', 'ac_maximum'
     ],
     horodatages: ['date_statut'],
     texteBrut: ['departement', 'reference_acheteur', 'repartition_ca', 'tranches_etat']
@@ -103,6 +106,21 @@ var TABLES = {
     colonnes: ['id', 'id_affaire', 'tranche', 'libelle', 'date_echeance', 'etat', 'indice', 'lien', 'ordre', 'commentaire'],
     nombres: ['ordre'],
     texteBrut: ['tranche', 'indice']
+  },
+  BPU: {
+    onglet: 'BPU',
+    cle: 'id',
+    prefixe: 'BP',
+    colonnes: ['id', 'id_affaire', 'ordre', 'designation', 'unite', 'prix_unitaire', 'quantite_dqe'],
+    nombres: ['ordre', 'prix_unitaire', 'quantite_dqe']
+  },
+  BONS_COMMANDE: {
+    onglet: 'Bons de commande',
+    cle: 'id',
+    prefixe: 'BC',
+    colonnes: ['id', 'id_affaire', 'numero', 'date', 'date_delai', 'objet', 'montant', 'lignes', 'commentaire'],
+    nombres: ['montant'],
+    texteBrut: ['numero', 'lignes']
   },
   CRITERES: {
     onglet: 'Critères',

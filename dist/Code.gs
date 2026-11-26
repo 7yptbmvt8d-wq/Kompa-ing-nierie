@@ -1,4 +1,4 @@
-/* Kartes Affaires 1.6.7 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
+/* Kartes Affaires 1.7.0 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
 
 // ════════ Setup.js ════════
 
@@ -220,6 +220,264 @@ function Setup_dossierSauvegardes_() {
 }
 
 
+// ════════ AccordCadre.js ════════
+
+/**
+ * Accord-cadre à bons de commande (décision du 26/11/2026).
+ *
+ * - Offre : le bordereau des prix unitaires (BPU) est saisi ligne par ligne (désignation, unité, prix unitaire HT,
+ *   quantité du détail quantitatif estimatif, DQE). Le montant du DQE devient le montant de l'offre (montant_ht).
+ * - Exécution : chaque bon de commande (BC) reçu de l'acheteur remplace les tranches. Son code (n° du bon) sert de
+ *   « tranche » au planning : livrables, facture, paiement, relances, Qonto (« KI-2027-004 BC-02 ») et CA prévisionnel.
+ * - Périodes : début (ac_debut, à défaut la notification), durée d'une période (ac_duree_mois, 12 par défaut),
+ *   nombre de reconductions (ac_reconductions) ; minimum et maximum HT par période (ac_minimum, ac_maximum).
+ */
+
+var TYPE_MARCHE_AC = 'Accord-cadre à bons de commande';
+var TYPE_MARCHE_ORDINAIRE = 'Marché ordinaire';
+
+function AC_est_(a) { return /accord/i.test(String((a && a.type_marche) || '')); }
+
+// ——— BPU ———
+
+function AC_bpu(idAffaire) {
+  return Db_lire(TABLES.BPU)
+    .filter(function (l) { return String(l.id_affaire) === String(idAffaire); })
+    .sort(function (x, y) { return (Number(x.ordre) || 0) - (Number(y.ordre) || 0); })
+    .map(function (l, i) {
+      var pu = montant_(l.prix_unitaire), q = Number(String(l.quantite_dqe === '' ? 0 : l.quantite_dqe).replace(',', '.')) || 0;
+      return { id: String(l.id), n: i + 1, designation: String(l.designation || ''), unite: String(l.unite || ''),
+        prix_unitaire: arrondi_(pu), quantite_dqe: q, montant: arrondi_(pu * q) };
+    });
+}
+
+function AC_dqe_(lignes) {
+  return arrondi_(lignes.reduce(function (s, l) { return s + l.montant; }, 0));
+}
+
+function AC_nombre_(v, libelle) {
+  var t = String(v === undefined || v === null ? '' : v).replace(/[\s  €]/g, '').replace(',', '.');
+  if (t === '') return 0;
+  var n = Number(t);
+  if (!(n >= 0)) throw new Error(libelle + ' : nombre attendu (« ' + v + ' »).');
+  return n;
+}
+
+/**
+ * Remplace le BPU de l'affaire par les lignes données [{ designation, unite, prix_unitaire, quantite_dqe }]
+ * (lignes sans désignation ignorées). En accord-cadre, le montant de l'offre devient le montant du DQE.
+ */
+function AC_bpuEnregistrer(idAffaire, lignes) {
+  var a = Affaires_get_(idAffaire);
+  var propres = (lignes || []).map(function (l, i) {
+    var d = String(l.designation || '').trim();
+    if (!d) return null;
+    return {
+      id_affaire: idAffaire, ordre: (i + 1) * 10, designation: d.slice(0, 300), unite: String(l.unite || '').trim().slice(0, 40),
+      prix_unitaire: arrondi_(AC_nombre_(l.prix_unitaire, 'Prix unitaire de « ' + d + ' »')),
+      quantite_dqe: AC_nombre_(l.quantite_dqe, 'Quantité de « ' + d + ' »')
+    };
+  }).filter(Boolean);
+  Db_supprimerSi(TABLES.BPU, function (l) { return String(l.id_affaire) === String(idAffaire); });
+  if (propres.length) Db_insererPlusieurs(TABLES.BPU, propres);
+  var bpu = AC_bpu(idAffaire);
+  if (AC_est_(a)) Db_maj(TABLES.AFFAIRES, idAffaire, { montant_ht: AC_dqe_(bpu) });
+  return bpu;
+}
+
+/**
+ * Lit un BPU collé depuis Excel (colonnes séparées par des tabulations, ou « ; ») :
+ * [n°], désignation, unité, prix unitaire, [quantité]. Les lignes sans prix lisible (titres) sont ignorées.
+ */
+function AC_bpuLireTexte_(texte) {
+  var out = [];
+  String(texte || '').split(/\r?\n/).forEach(function (ligne) {
+    if (!ligne.trim()) return;
+    var c = ligne.split(ligne.indexOf('\t') >= 0 ? '\t' : ';').map(function (x) { return x.trim(); });
+    if (c.length >= 2 && /^\d+([.,]\d+)*\.?$/.test(c[0]) && c.length >= 4) c.shift(); // n° de ligne en tête
+    var nb = function (x) { var t = String(x || '').replace(/[\s  €]/g, '').replace(/HT$/i, '').replace(',', '.'); return t !== '' && !isNaN(Number(t)) ? Number(t) : null; };
+    var designation = c[0], unite = '', pu = null, q = null;
+    if (c.length >= 4) { unite = c[1]; pu = nb(c[2]); q = nb(c[3]); }
+    else if (c.length === 3) { if (nb(c[1]) !== null) { pu = nb(c[1]); q = nb(c[2]); } else { unite = c[1]; pu = nb(c[2]); } }
+    else if (c.length === 2) pu = nb(c[1]);
+    if (!designation || pu === null) return;
+    out.push({ designation: designation, unite: unite, prix_unitaire: pu, quantite_dqe: q === null ? 0 : q });
+  });
+  return out;
+}
+
+/** Ajoute à la suite du BPU existant les lignes collées depuis Excel. Renvoie { ajoutees, bpu }. */
+function AC_bpuColler(idAffaire, texte) {
+  var nouvelles = AC_bpuLireTexte_(texte);
+  if (!nouvelles.length) throw new Error('Aucune ligne reconnue : copiez dans Excel les colonnes désignation, unité, prix unitaire et quantité.');
+  var bpu = AC_bpuEnregistrer(idAffaire, AC_bpu(idAffaire).concat(nouvelles));
+  return { ajoutees: nouvelles.length, bpu: bpu };
+}
+
+// ——— Périodes ———
+
+function AC_ajouterMois_(d, n) {
+  var r = new Date(d.getFullYear(), d.getMonth() + n, d.getDate());
+  r.setHours(0, 0, 0, 0);
+  return r;
+}
+
+/** Périodes de l'accord-cadre : [{ n, debut, fin }] (dates ISO), la période en cours et la fin au plus tard. */
+function AC_periodes_(a, quand) {
+  var auj = aujourdhui_(quand);
+  var debut = date_(a.ac_debut) || date_(a.date_notification);
+  var duree = Number(a.ac_duree_mois) || 12;
+  var recon = Math.max(0, Math.floor(Number(a.ac_reconductions) || 0));
+  if (!debut) return { periodes: [], courante: null, fin: '', duree: duree, reconductions: recon };
+  debut = aujourdhui_(debut);
+  var periodes = [];
+  for (var i = 0; i <= recon; i++) {
+    var d = AC_ajouterMois_(debut, i * duree), f = AC_ajouterMois_(debut, (i + 1) * duree);
+    f.setDate(f.getDate() - 1);
+    periodes.push({ n: i + 1, debut: jourIso_(d), fin: jourIso_(f) });
+  }
+  var courante = periodes.filter(function (p) { return jourIso_(auj) >= p.debut && jourIso_(auj) <= p.fin; })[0] || null;
+  return { periodes: periodes, courante: courante, fin: periodes[periodes.length - 1].fin, duree: duree, reconductions: recon };
+}
+
+// ——— Bons de commande ———
+
+function AC_lignesBon_(texte) {
+  try { var v = JSON.parse(String(texte || '[]')); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+}
+
+function AC_bons(idAffaire) {
+  return Db_lire(TABLES.BONS_COMMANDE)
+    .filter(function (b) { return String(b.id_affaire) === String(idAffaire); })
+    .map(function (b) {
+      return { id: String(b.id), numero: String(b.numero || ''), code: Planning_codeTranche_(b.numero),
+        date: date_(b.date) ? jourIso_(date_(b.date)) : '', date_delai: date_(b.date_delai) ? jourIso_(date_(b.date_delai)) : '',
+        objet: String(b.objet || ''), montant: arrondi_(montant_(b.montant)), lignes: AC_lignesBon_(b.lignes), commentaire: String(b.commentaire || '') };
+    })
+    .sort(function (x, y) { return (x.date || '9') < (y.date || '9') ? -1 : (x.date || '9') > (y.date || '9') ? 1 : x.numero.localeCompare(y.numero, 'fr', { numeric: true }); });
+}
+
+/** Prochain n° proposé : BC-01, BC-02… */
+function AC_prochainNumero_(idAffaire) {
+  var n = AC_bons(idAffaire).length + 1;
+  return 'BC-' + (n < 10 ? '0' : '') + n;
+}
+
+/**
+ * Champs d'un bon : numero, date, date_delai, objet, quantites { idBpu: quantité } (prix du BPU),
+ * ou montant saisi si le bon ne reprend pas le BPU. Montant = Σ quantité × prix unitaire.
+ */
+function AC_bonValider_(idAffaire, champs, idExclu) {
+  var a = Affaires_get_(idAffaire);
+  var numero = String(champs.numero || '').trim() || AC_prochainNumero_(idAffaire);
+  var code = Planning_codeTranche_(numero);
+  if (AC_bons(idAffaire).some(function (b) { return b.code === code && b.id !== idExclu; })) throw new Error('Le bon de commande « ' + numero + ' » existe déjà.');
+  var bpu = AC_bpu(idAffaire);
+  var lignes = [];
+  var q = champs.quantites || {};
+  bpu.forEach(function (l) {
+    var n = AC_nombre_(q[l.id], 'Quantité de « ' + l.designation + ' »');
+    if (n > 0) lignes.push({ designation: l.designation, unite: l.unite, prix_unitaire: l.prix_unitaire, quantite: n, montant: arrondi_(n * l.prix_unitaire) });
+  });
+  var montant = lignes.length ? AC_dqe_(lignes) : arrondi_(AC_nombre_(champs.montant, 'Montant du bon'));
+  if (!(montant > 0)) throw new Error('Indiquez des quantités du BPU, ou le montant du bon de commande.');
+  var d = date_(champs.date) || aujourdhui_();
+  var delai = String(champs.date_delai || '').trim() ? date_(champs.date_delai) : '';
+  if (String(champs.date_delai || '').trim() && !delai) throw new Error('Délai d\'exécution : date attendue.');
+  return {
+    id_affaire: a.id, numero: numero.slice(0, 12), date: d, date_delai: delai || '', objet: String(champs.objet || '').trim().slice(0, 200),
+    montant: montant, lignes: JSON.stringify(lignes), commentaire: String(champs.commentaire || '').trim()
+  };
+}
+
+function AC_bonAjouter(idAffaire, champs) {
+  var b = Db_inserer(TABLES.BONS_COMMANDE, AC_bonValider_(idAffaire, champs || {}, ''));
+  var s = AC_synthese(idAffaire);
+  Affaires_ajouterNote(idAffaire, 'Bon de commande ' + b.numero + ' du ' + Utilities.formatDate(date_(b.date), APP.FUSEAU, 'dd/MM/yyyy') + ' : ' + Courriers_euros_(montant_(b.montant)) + ' HT' + (b.objet ? ' — ' + b.objet : '') +
+    (s.depasse ? ' (maximum de la période dépassé)' : ''));
+  return b;
+}
+
+function AC_bonMaj(idAffaire, idBon, champs) {
+  var b = Db_trouver(TABLES.BONS_COMMANDE, idBon);
+  if (!b || String(b.id_affaire) !== String(idAffaire)) throw new Error('Bon de commande introuvable.');
+  var actuel = AC_bons(idAffaire).filter(function (x) { return x.id === String(idBon); })[0];
+  var fusion = Object.assign({ numero: actuel.numero, date: actuel.date, date_delai: actuel.date_delai, objet: actuel.objet, montant: actuel.montant, commentaire: actuel.commentaire }, champs || {});
+  if (!champs || !champs.quantites) {
+    // Sans nouvelles quantités : lignes et montant conservés (sauf montant saisi)
+    var v = AC_bonValider_(idAffaire, Object.assign({}, fusion, { quantites: {}, montant: 'montant' in (champs || {}) ? champs.montant : actuel.montant }), String(idBon));
+    if (!('montant' in (champs || {}))) { v.lignes = JSON.stringify(actuel.lignes); v.montant = actuel.montant; }
+    return Db_maj(TABLES.BONS_COMMANDE, idBon, v);
+  }
+  return Db_maj(TABLES.BONS_COMMANDE, idBon, AC_bonValider_(idAffaire, fusion, String(idBon)));
+}
+
+/** Supprime un bon tant qu'il n'est pas facturé. */
+function AC_bonSupprimer(idAffaire, idBon) {
+  var b = AC_bons(idAffaire).filter(function (x) { return x.id === String(idBon); })[0];
+  if (!b) throw new Error('Bon de commande introuvable.');
+  var facture = Db_lire(TABLES.FACTURES).some(function (f) { return String(f.id_affaire) === String(idAffaire) && Planning_codeTranche_(f.tranche) === b.code && f.qonto_statut !== 'annulée'; });
+  if (facture) throw new Error('Le bon ' + b.numero + ' est déjà facturé : il ne peut plus être supprimé.');
+  Db_supprimerSi(TABLES.BONS_COMMANDE, function (x) { return String(x.id) === String(idBon); });
+  Affaires_ajouterNote(idAffaire, 'Bon de commande ' + b.numero + ' supprimé');
+  return true;
+}
+
+/**
+ * Synthèse de l'accord-cadre : périodes, bons, commandé (période en cours et total), minimum / maximum,
+ * DQE de l'offre. null si l'affaire n'est pas un accord-cadre.
+ */
+function AC_synthese(idAffaire, quand) {
+  var a = Affaires_get_(idAffaire);
+  if (!AC_est_(a)) return null;
+  var per = AC_periodes_(a, quand);
+  var bons = AC_bons(idAffaire);
+  var dans = function (b, p) { return p && b.date >= p.debut && b.date <= p.fin; };
+  // Période de référence : en cours ; avant le début, la 1re ; après la fin, la dernière
+  var cour = per.courante || (per.periodes.length ? (jourIso_(aujourdhui_(quand)) < per.periodes[0].debut ? per.periodes[0] : per.periodes[per.periodes.length - 1]) : null);
+  var commandePeriode = arrondi_(bons.filter(function (b) { return dans(b, cour); }).reduce(function (s, b) { return s + b.montant; }, 0));
+  var commandeTotal = arrondi_(bons.reduce(function (s, b) { return s + b.montant; }, 0));
+  var maximum = montant_(a.ac_maximum), minimum = montant_(a.ac_minimum);
+  var bpu = AC_bpu(idAffaire);
+  var periodes = per.periodes.map(function (p) {
+    var c = arrondi_(bons.filter(function (b) { return dans(b, p); }).reduce(function (s, b) { return s + b.montant; }, 0));
+    return Object.assign({}, p, { commande: c, courante: !!(per.courante && per.courante.n === p.n), depasse: !!(maximum && c > maximum + 0.005) });
+  });
+  return {
+    periodes: periodes, reference: cour,
+    courante: cour, fin: per.fin, duree: per.duree, reconductions: per.reconductions,
+    minimum: minimum || 0, maximum: maximum || 0, dqe: AC_dqe_(bpu), bpu: bpu, bons: bons,
+    commandePeriode: commandePeriode, commandeTotal: commandeTotal,
+    depasse: periodes.some(function (p) { return p.depasse; }) || !!(maximum && !per.periodes.length && commandeTotal > maximum + 0.005),
+    minimumAtteint: !minimum || commandePeriode + 0.005 >= minimum,
+    prochainNumero: AC_prochainNumero_(idAffaire)
+  };
+}
+
+/**
+ * CA potentiel d'un accord-cadre gagné (pour le CA prévisionnel) : pour chaque période restante, le DQE
+ * (à défaut le maximum) moins ce qui est déjà commandé sur la période ; rangé sur l'année de début de la période
+ * (année en cours pour la période en cours). Renvoie { annee: montant }.
+ */
+function AC_potentiel_(a, quand) {
+  var auj = aujourdhui_(quand), anCourant = auj.getFullYear();
+  var s = AC_synthese(a.id, auj);
+  if (!s) return {};
+  var reference = s.dqe || s.maximum;
+  if (!(reference > 0)) return {};
+  var out = {};
+  s.periodes.forEach(function (p) {
+    if (p.fin < jourIso_(auj)) return;
+    var reste = Math.max(reference - p.commande, 0);
+    if (s.maximum) reste = Math.min(reste, Math.max(s.maximum - p.commande, 0));
+    if (reste <= 0.005) return;
+    var an = Math.max(Number(p.debut.slice(0, 4)), anCourant);
+    out[an] = arrondi_((out[an] || 0) + reste);
+  });
+  return out;
+}
+
+
 // ════════ Affaires.js ════════
 
 /**
@@ -327,11 +585,19 @@ var FICHE_BLOCS = [
     ['date_decision', 'Date de décision', 'date']
   ] },
   { id: 'offre', titre: 'Chiffrage', champs: [
+    ['type_marche', 'Type de marché', 'choix:Marché ordinaire|Accord-cadre à bons de commande'],
     ['tranches', 'Tranches', 'long'],
     ['jours_par_tranche', 'Jours par tranche', 'long'],
     ['prix_jour', 'Prix par jour HT (€)', 'euros'],
     ['montant_ht', 'Montant HT (€)', 'euros'],
     ['montant_pondere', 'Montant pondéré (€)', 'euros']
+  ] },
+  { id: 'accordcadre', titre: 'Accord-cadre', champs: [
+    ['ac_duree_mois', 'Durée d\'une période (mois)', 'nombre'],
+    ['ac_reconductions', 'Nombre de reconductions', 'nombre'],
+    ['ac_minimum', 'Minimum HT par période (€)', 'euros'],
+    ['ac_maximum', 'Maximum HT par période (€)', 'euros'],
+    ['ac_debut', 'Début de la 1re période', 'date']
   ] },
   { id: 'depot', titre: 'Dépôt', champs: [
     ['groupement', 'Candidature', 'choix:Seul|Groupement'],
@@ -394,6 +660,12 @@ var AIDES_CHAMPS = {
   prix_jour: ['Votre prix de journée HT. Le montant HT se calcule tout seul avec les jours par tranche.', '400'],
   montant_ht: ['Calculé automatiquement : total des jours par tranche × prix par jour. Vous pouvez le corriger (prix arrondi, frais en sus) : c\'est le prix inscrit à l\'acte d\'engagement.', '13200'],
   repartition_ca: ['Pour le CA prévisionnel : année d\'encaissement prévue et montant HT, une ligne par année ; « reste » pour le solde. Sans répartition, tout le reste à encaisser compte sur l\'année en cours.', '2027 : 10000\n2028 : reste'],
+  type_marche: ['Marché ordinaire (tranches, prix global) ou accord-cadre à bons de commande (bordereau des prix unitaires, BPU). Voir l\'acte d\'engagement ou le CCAP.'],
+  ac_duree_mois: ['Durée d\'une période de l\'accord-cadre, en mois (CCAP).', '12'],
+  ac_reconductions: ['Nombre de reconductions possibles (« reconductible 3 fois » = 3).', '3'],
+  ac_minimum: ['Montant minimum HT par période, s\'il existe (sinon laisser vide).', '5000'],
+  ac_maximum: ['Montant maximum HT par période (CCAP, acte d\'engagement).', '40000'],
+  ac_debut: ['Début de la première période. Vide : date de notification.'],
   montant_pondere: ['Seulement si l\'acheteur compare les prix sur une simulation (détail quantitatif estimatif, DQE, ou bordereau pondéré) : montant de cette simulation. Sinon, laisser vide.'],
   jours_reponse: ['Temps passé à préparer l\'offre, en jours (une demi-journée = 0,5). Mesure le coût de vos réponses.', '2,5'],
   date_depot: ['Date du dépôt sur la plateforme, sur l\'accusé de réception.'],
@@ -518,6 +790,11 @@ function Affaires_maj(id, donnees) {
       prix_jour: 'prix_jour' in champs ? champs.prix_jour : avant.prix_jour
     });
     if (calc !== null) champs.montant_ht = calc;
+    var typeM = 'type_marche' in champs ? champs.type_marche : avant.type_marche;
+    if (AC_est_({ type_marche: typeM })) champs.montant_ht = AC_dqe_(AC_bpu(id)) || '';
+  } else if ('type_marche' in champs && AC_est_(champs) && !AC_est_(avant)) {
+    var dqe = AC_dqe_(AC_bpu(id));
+    if (dqe > 0) champs.montant_ht = dqe; // passage en accord-cadre : montant de l'offre = DQE
   }
   ['id', 'statut', 'date_statut', 'decision', 'statut_final', 'notes', 'cree_le', 'modifie_le']
     .forEach(function (k) { delete champs[k]; });
@@ -657,6 +934,7 @@ function Factures_maj(idFacture, donnees) {
 function Affaires_verifierSolde_(idAffaire) {
   var a = Affaires_get_(idAffaire);
   if (a.statut !== STATUTS.GAGNEE) return false;
+  if (AC_est_(a)) return false;
   var notifie = montant_(a.montant_notifie);
   if (!notifie) return false;
   var encaisse = Db_lire(TABLES.FACTURES)
@@ -715,8 +993,32 @@ function ficheClient_(id) {
     livrablesResume: Livrables_resume_(f.livrables),
     totaux: f.totaux,
     transitions: f.transitions,
-    planning: Planning_affaire(id)
+    planning: Planning_affaire(id),
+    accordCadre: AC_synthese(id),
+    bpu: AC_bpu(id)
   };
+}
+
+// ——— Accord-cadre : BPU et bons de commande ———
+
+function apiBpuEnregistrer(id, lignes) {
+  return repondre_(function () { AC_bpuEnregistrer(id, lignes); return ficheClient_(id); });
+}
+
+function apiBpuColler(id, texte) {
+  return repondre_(function () { var r = AC_bpuColler(id, texte); var f = ficheClient_(id); f.ajoutees = r.ajoutees; return f; });
+}
+
+function apiBonAjouter(id, champs) {
+  return repondre_(function () { AC_bonAjouter(id, champs); Relances_synchroniser(); return ficheClient_(id); });
+}
+
+function apiBonMaj(id, idBon, champs) {
+  return repondre_(function () { AC_bonMaj(id, idBon, champs); Relances_synchroniser(); return ficheClient_(id); });
+}
+
+function apiBonSupprimer(id, idBon) {
+  return repondre_(function () { AC_bonSupprimer(id, idBon); Relances_synchroniser(); return ficheClient_(id); });
 }
 
 /** Liste des affaires (résumé) + méta. */
@@ -1229,7 +1531,7 @@ function arrondi_(n) {
 var APP = {
   NOM: 'Kartes Affaires',
   ENTREPRISE: 'Kartes Ingénierie',
-  VERSION: '1.6.7',
+  VERSION: '1.7.0',
   CLASSEUR: 'Kartes Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kartes Affaires — sauvegardes',
   ANCIEN_NOM: 'Kompa', // nom d'avant le 22/11/2026 : fichiers et dossiers renommés par la mise à jour automatique
@@ -1293,12 +1595,15 @@ var TABLES = {
       'points_faibles', 'action_corrective', 'piece_type',
       // Exécution
       'date_notification', 'montant_notifie',
+      // Accord-cadre à bons de commande (26/11/2026)
+      'type_marche', 'ac_debut', 'ac_duree_mois', 'ac_reconductions', 'ac_minimum', 'ac_maximum',
       // Journal
       'notes'
     ],
     nombres: [
       'pre_score', 'score_final', 'validite_offre_jours', 'prix_jour', 'montant_ht',
-      'montant_pondere', 'jours_reponse', 'prix_attributaire', 'rang', 'montant_notifie'
+      'montant_pondere', 'jours_reponse', 'prix_attributaire', 'rang', 'montant_notifie',
+      'ac_duree_mois', 'ac_reconductions', 'ac_minimum', 'ac_maximum'
     ],
     horodatages: ['date_statut'],
     texteBrut: ['departement', 'reference_acheteur', 'repartition_ca', 'tranches_etat']
@@ -1324,6 +1629,21 @@ var TABLES = {
     colonnes: ['id', 'id_affaire', 'tranche', 'libelle', 'date_echeance', 'etat', 'indice', 'lien', 'ordre', 'commentaire'],
     nombres: ['ordre'],
     texteBrut: ['tranche', 'indice']
+  },
+  BPU: {
+    onglet: 'BPU',
+    cle: 'id',
+    prefixe: 'BP',
+    colonnes: ['id', 'id_affaire', 'ordre', 'designation', 'unite', 'prix_unitaire', 'quantite_dqe'],
+    nombres: ['ordre', 'prix_unitaire', 'quantite_dqe']
+  },
+  BONS_COMMANDE: {
+    onglet: 'Bons de commande',
+    cle: 'id',
+    prefixe: 'BC',
+    colonnes: ['id', 'id_affaire', 'numero', 'date', 'date_delai', 'objet', 'montant', 'lignes', 'commentaire'],
+    nombres: ['montant'],
+    texteBrut: ['numero', 'lignes']
   },
   CRITERES: {
     onglet: 'Critères',
@@ -2258,6 +2578,19 @@ function Echeances_calculer(debut, fin, quand) {
     }
   });
 
+  // Accord-cadre gagné : reconduction (2 mois avant la fin de la période en cours) et fin de l'accord-cadre
+  Affaires_lister().forEach(function (a) {
+    if (String(a.statut) !== 'Gagnée' || !AC_est_(a)) return;
+    var per = AC_periodes_(a, auj);
+    if (!per.courante) return;
+    var finP = date_(per.courante.fin);
+    var derniere = per.courante.fin === per.fin;
+    var rappel = new Date(finP.getFullYear(), finP.getMonth() - Params_nombre('ac.rappel_reconduction_mois', 2), finP.getDate());
+    ajouter(rappel, 'Reconduction', derniere
+      ? 'Fin de l\'accord-cadre le ' + Utilities.formatDate(finP, APP.FUSEAU, 'dd/MM/yyyy') + ' : préparer la suite (nouvelle consultation)'
+      : 'Reconduction de l\'accord-cadre au ' + Utilities.formatDate(new Date(finP.getTime() + 86400000), APP.FUSEAU, 'dd/MM/yyyy') + ' : vérifier la décision de l\'acheteur (période ' + (per.courante.n + 1) + ')', a);
+  });
+
   // Déclarations URSSAF (périodes terminées non déclarées)
   Fiscal_echeances_(debut, fin, auj).forEach(function (e) {
     var p = e.periode;
@@ -2514,7 +2847,7 @@ function Email_construire(quand, depuis) {
   var avisFrance = horsPaca.filter(function (a) { return a.classement === 'à étudier'; });
   var autresFrance = horsPaca.length - avisFrance.length;
   var echeances = Echeances_calculer(auj, ajouterJours_(auj, 7), quand)
-    .filter(function (e) { return ['Remise', 'Questions', 'Visite', 'Déclaration', 'Livrable', 'Facturation'].indexOf(e.type) >= 0; });
+    .filter(function (e) { return ['Remise', 'Questions', 'Visite', 'Déclaration', 'Livrable', 'Facturation', 'Reconduction'].indexOf(e.type) >= 0; });
   var relances = Relances_aFaire(quand);
   var ind = Indicateurs_resume(quand);
   // Remises imminentes (J-3 à J0) : encadré rouge en tête de l'e-mail et dans l'objet.
@@ -3785,6 +4118,7 @@ var PARAMETRES_DEFAUT = [
   ['fiscal.cumul_avant', '2026-12-01', 'Agent public : demander l\'autorisation de cumul d\'activités à l\'employeur avant cette date (aaaa-mm-jj), avant la création de l\'entreprise. Vide : pas de rappel'],
   ['entreprise.siret', '49356779600021', 'SIRET de l\'entreprise (14 chiffres), attribué le 26/11/2026'],
   ['entreprise.ape', '7112B', 'Code APE (INSEE) : ingénierie, études techniques'],
+  ['ac.rappel_reconduction_mois', '2', 'Accord-cadre : rappel de la reconduction (ou de la fin) N mois avant la fin de la période en cours'],
   ['livre.mode_defaut', 'virement', 'Livre des recettes : mode de règlement affiché par défaut (virement, chèque, carte, prélèvement, espèces, autre), modifiable ligne par ligne'],
   ['fiscal.cfe_montant', '', 'CFE estimée pour une année pleine (€) : à remplacer par le montant de l\'avis (impots.gouv, vers la mi-novembre). Modifiable depuis la carte URSSAF de l\'accueil'],
   ['fiscal.declaration_revenus_ouverture', '04-10', 'Déclaration de revenus (impots.gouv) : date d\'ouverture du service en ligne (mois-jour), à vérifier chaque printemps'],
@@ -4219,8 +4553,12 @@ function Planning_affaire(idAffaire, quand) {
   var gagnee = ['Gagnée', 'Soldée'].indexOf(String(a.statut)) >= 0;
   var base = montant_(gagnee ? (a.montant_notifie || a.montant_ht) : a.montant_ht);
   var delai = Params_nombre('echeance.paiement_public_j', 30);
-  var tranches = Planning_tranches_(a.jours_par_tranche);
-  if (!tranches.length) tranches = [{ tranche: PLANNING_MISSION, jours: Affaires_joursTotal_(a.jours_par_tranche) }];
+  var ac = AC_est_(a);
+  var tranches = ac
+    ? AC_bons(idAffaire).map(function (b) { return { tranche: b.code, jours: 0, texte: '', montantFixe: b.montant, bc: b }; })
+    : Planning_tranches_(a.jours_par_tranche);
+  if (ac) base = tranches.reduce(function (s, t) { return s + t.montantFixe; }, 0);
+  if (!tranches.length && !ac) tranches = [{ tranche: PLANNING_MISSION, jours: Affaires_joursTotal_(a.jours_par_tranche) }];
   var totalJours = tranches.reduce(function (s, t) { return s + t.jours; }, 0);
   var livrables = Livrables_lister(idAffaire);
   var factures = Db_lire(TABLES.FACTURES).filter(function (f) { return String(f.id_affaire) === String(idAffaire) && f.qonto_statut !== 'annulée'; });
@@ -4232,13 +4570,14 @@ function Planning_affaire(idAffaire, quand) {
       var c = Planning_codeTranche_(l.tranche);
       return c === t.tranche || (unique && (!c || codes.indexOf(c) < 0));
     });
-    var montant = arrondi_(totalJours > 0 ? base * t.jours / totalJours : base);
+    var montant = t.bc ? t.montantFixe : arrondi_(totalJours > 0 ? base * t.jours / totalJours : base);
     var ligne = {
       tranche: t.tranche, jours: t.jours, montant: montant,
       livrables: liv.map(function (l) { return { libelle: String(l.libelle), date: date_(l.date_echeance) ? jourIso_(date_(l.date_echeance)) : '', etat: String(l.etat) }; }),
       etat: 'à planifier', dateFacture: '', dateEcheance: '', dateEncaissement: '', montantEncaisse: 0, facture: null, retard: null,
-      optionnelle: Planning_trancheOptionnelle_(t, etatsT),
-      affermissement: Planning_trancheOptionnelle_(t, etatsT)
+      bc: t.bc || null,
+      optionnelle: !t.bc && Planning_trancheOptionnelle_(t, etatsT),
+      affermissement: !t.bc && Planning_trancheOptionnelle_(t, etatsT)
         ? (etatsT[t.tranche] && ETATS_AFFERMISSEMENT.indexOf(etatsT[t.tranche].etat) >= 0 ? etatsT[t.tranche].etat : 'optionnelle') : 'ferme',
       dateAffermissement: etatsT[t.tranche] && etatsT[t.tranche].etat !== 'ferme' ? etatsT[t.tranche].date : ''
     };
@@ -4263,6 +4602,7 @@ function Planning_affaire(idAffaire, quand) {
       return ligne;
     }
     var dates = liv.map(function (l) { return date_(l.date_echeance); }).filter(Boolean).sort(function (x, y) { return x - y; });
+    if (!dates.length && t.bc && t.bc.date_delai) dates = [date_(t.bc.date_delai)]; // bon sans livrable : facture au délai d'exécution
     if (dates.length) {
       var dFac = dates[dates.length - 1];
       var dEch = new Date(dFac.getTime()); dEch.setDate(dEch.getDate() + delai);
@@ -4291,6 +4631,7 @@ function Planning_affaire(idAffaire, quand) {
   });
   toutes.sort();
   return {
+    accordCadre: ac,
     base: arrondi_(base), delai: delai, lignes: lignes,
     debut: toutes[0] || '', fin: toutes[toutes.length - 1] || '', aujourdhui: jourIso_(auj),
     aPlanifier: lignes.filter(function (l) { return l.etat === 'à planifier' && l.affermissement !== 'non affermie'; }).length,
@@ -4450,6 +4791,12 @@ function Previsionnel_ca(quand) {
     var rep = Previsionnel_repartir_(base, deja, a.repartition_ca, anneeCourante);
     var plan = Planning_parAnnee_(a.id, auj, pl);
     var potOptions = plan ? plan.potentiel : (pl.montantOptionnel > 0 ? (function () { var o = {}; o[anneeCourante] = pl.montantOptionnel; return o; })() : {});
+    if (gagnee && pl.accordCadre) {
+      // Accord-cadre : seuls les bons de commande sont certains ; le reste du DQE de chaque période est potentiel
+      base = pl.base;
+      var potAC = AC_potentiel_(a, auj);
+      Object.keys(potAC).forEach(function (k) { potentiel[k] = (potentiel[k] || 0) + potAC[k]; annees[k] = true; });
+    }
     Object.keys(potOptions).forEach(function (k) { potentiel[k] = (potentiel[k] || 0) + potOptions[k]; annees[k] = true; });
     if (plan) {
       // Planning de facturation (livrables) : prioritaire sur la répartition saisie, plafonné au reste à encaisser
@@ -4607,7 +4954,7 @@ function Qonto_reference_(inv, affaires) {
     var a = affaires[id];
     if (!a) continue;
     var reste = t.toUpperCase().slice(t.toUpperCase().indexOf(m[0]) + m[0].length);
-    var codes = Planning_tranches_(a.jours_par_tranche).map(function (x) { return x.tranche; });
+    var codes = AC_est_(a) ? AC_bons(a.id).map(function (b) { return b.code; }) : Planning_tranches_(a.jours_par_tranche).map(function (x) { return x.tranche; });
     var tranche = codes.filter(function (c) { return new RegExp('(^|[^A-Z0-9])' + c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^A-Z0-9]|$)').test(reste); })[0] || '';
     return { id_affaire: id, tranche: tranche };
   }

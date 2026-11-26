@@ -103,11 +103,19 @@ var FICHE_BLOCS = [
     ['date_decision', 'Date de décision', 'date']
   ] },
   { id: 'offre', titre: 'Chiffrage', champs: [
+    ['type_marche', 'Type de marché', 'choix:Marché ordinaire|Accord-cadre à bons de commande'],
     ['tranches', 'Tranches', 'long'],
     ['jours_par_tranche', 'Jours par tranche', 'long'],
     ['prix_jour', 'Prix par jour HT (€)', 'euros'],
     ['montant_ht', 'Montant HT (€)', 'euros'],
     ['montant_pondere', 'Montant pondéré (€)', 'euros']
+  ] },
+  { id: 'accordcadre', titre: 'Accord-cadre', champs: [
+    ['ac_duree_mois', 'Durée d\'une période (mois)', 'nombre'],
+    ['ac_reconductions', 'Nombre de reconductions', 'nombre'],
+    ['ac_minimum', 'Minimum HT par période (€)', 'euros'],
+    ['ac_maximum', 'Maximum HT par période (€)', 'euros'],
+    ['ac_debut', 'Début de la 1re période', 'date']
   ] },
   { id: 'depot', titre: 'Dépôt', champs: [
     ['groupement', 'Candidature', 'choix:Seul|Groupement'],
@@ -170,6 +178,12 @@ var AIDES_CHAMPS = {
   prix_jour: ['Votre prix de journée HT. Le montant HT se calcule tout seul avec les jours par tranche.', '400'],
   montant_ht: ['Calculé automatiquement : total des jours par tranche × prix par jour. Vous pouvez le corriger (prix arrondi, frais en sus) : c\'est le prix inscrit à l\'acte d\'engagement.', '13200'],
   repartition_ca: ['Pour le CA prévisionnel : année d\'encaissement prévue et montant HT, une ligne par année ; « reste » pour le solde. Sans répartition, tout le reste à encaisser compte sur l\'année en cours.', '2027 : 10000\n2028 : reste'],
+  type_marche: ['Marché ordinaire (tranches, prix global) ou accord-cadre à bons de commande (bordereau des prix unitaires, BPU). Voir l\'acte d\'engagement ou le CCAP.'],
+  ac_duree_mois: ['Durée d\'une période de l\'accord-cadre, en mois (CCAP).', '12'],
+  ac_reconductions: ['Nombre de reconductions possibles (« reconductible 3 fois » = 3).', '3'],
+  ac_minimum: ['Montant minimum HT par période, s\'il existe (sinon laisser vide).', '5000'],
+  ac_maximum: ['Montant maximum HT par période (CCAP, acte d\'engagement).', '40000'],
+  ac_debut: ['Début de la première période. Vide : date de notification.'],
   montant_pondere: ['Seulement si l\'acheteur compare les prix sur une simulation (détail quantitatif estimatif, DQE, ou bordereau pondéré) : montant de cette simulation. Sinon, laisser vide.'],
   jours_reponse: ['Temps passé à préparer l\'offre, en jours (une demi-journée = 0,5). Mesure le coût de vos réponses.', '2,5'],
   date_depot: ['Date du dépôt sur la plateforme, sur l\'accusé de réception.'],
@@ -294,6 +308,11 @@ function Affaires_maj(id, donnees) {
       prix_jour: 'prix_jour' in champs ? champs.prix_jour : avant.prix_jour
     });
     if (calc !== null) champs.montant_ht = calc;
+    var typeM = 'type_marche' in champs ? champs.type_marche : avant.type_marche;
+    if (AC_est_({ type_marche: typeM })) champs.montant_ht = AC_dqe_(AC_bpu(id)) || '';
+  } else if ('type_marche' in champs && AC_est_(champs) && !AC_est_(avant)) {
+    var dqe = AC_dqe_(AC_bpu(id));
+    if (dqe > 0) champs.montant_ht = dqe; // passage en accord-cadre : montant de l'offre = DQE
   }
   ['id', 'statut', 'date_statut', 'decision', 'statut_final', 'notes', 'cree_le', 'modifie_le']
     .forEach(function (k) { delete champs[k]; });
@@ -433,6 +452,7 @@ function Factures_maj(idFacture, donnees) {
 function Affaires_verifierSolde_(idAffaire) {
   var a = Affaires_get_(idAffaire);
   if (a.statut !== STATUTS.GAGNEE) return false;
+  if (AC_est_(a)) return false;
   var notifie = montant_(a.montant_notifie);
   if (!notifie) return false;
   var encaisse = Db_lire(TABLES.FACTURES)

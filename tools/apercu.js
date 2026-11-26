@@ -369,6 +369,47 @@ function assembler() {
   await p.waitForSelector('.table-enseignements tbody tr');
   await p.screenshot({ path: path.join(sortie, 'pc-bilan.png'), fullPage: true });
 
+  // ——— Accord-cadre à bons de commande : BPU (offre), bons de commande (planning), saisie d'un bon ———
+  {
+    const ac = A.Affaires_creer({ acheteur: 'Commune de Gap', departement: '05', objet: 'Accord-cadre d\'AMO — programmation et assistance pour les équipements communaux' }, { date: '2026-09-01' }).id;
+    A.Affaires_maj(ac, { type_marche: 'Accord-cadre à bons de commande', prix_jour: 550 });
+    A.apiBpuColler(ac, '1\tÉtude de faisabilité / programme d\'un équipement < 1 000 m²\tforfait\t6600\t2\n2\tRéunion (préparation, animation, compte rendu)\tréunion\t330\t12\n3\tAnalyse des candidatures et des offres de maîtrise d\'œuvre\tconsultation\t2200\t2\n4\tJournée d\'assistance (vacation)\tjour\t550\t10');
+    A.Affaires_changerStatut(ac, 'Go', {}, { date: '2026-09-05' });
+    A.Affaires_changerStatut(ac, 'Déposée', { montant_ht: 27060, jours_reponse: 2, date_depot: '2026-09-20' }, { date: '2026-09-20' });
+    A.Affaires_changerStatut(ac, 'Gagnée', { date_notification: '2026-11-02', montant_notifie: 27060 }, { date: '2026-11-02' });
+    A.Affaires_maj(ac, { ac_duree_mois: 12, ac_reconductions: 3, ac_minimum: 5000, ac_maximum: 40000 });
+    const bpuAc = A.AC_bpu(ac);
+    const q1 = {}; q1[bpuAc[0].id] = 1; q1[bpuAc[1].id] = 2;
+    A.AC_bonAjouter(ac, { numero: 'BC-01', date: '2026-11-10', date_delai: '2027-01-29', objet: 'Programme — école maternelle des Eyssagnières', quantites: q1 });
+    const q2 = {}; q2[bpuAc[2].id] = 1; q2[bpuAc[1].id] = 4;
+    A.AC_bonAjouter(ac, { numero: 'BC-02', date: '2026-11-20', date_delai: '2027-03-31', objet: 'Recrutement de la maîtrise d\'œuvre — gymnase', quantites: q2 });
+    await p.evaluate((id) => { window.KA.viderMemoire(); window.KA.afficher('affaire/' + id, true); }, ac);
+    await p.waitForSelector('.fiche-tete');
+    await p.click('[data-volet="ao"]');
+    await p.click('[data-sous="offre"]');
+    await p.waitForSelector('#bpu [data-bpu-ligne]');
+    assert.strictEqual(await p.locator('#bpu [data-bpu-ligne]').count(), 4);
+    await p.locator('#bpu').scrollIntoViewIfNeeded();
+    await p.screenshot({ path: path.join(sortie, 'pc-ac-bpu.png'), fullPage: true });
+    await p.click('[data-volet="mission"]');
+    await p.click('[data-sous="planning"]');
+    await p.waitForSelector('.entete-ac');
+    assert.strictEqual(await p.locator('.tranche-carte[data-tranche="BC-01"]').count(), 1);
+    await p.screenshot({ path: path.join(sortie, 'pc-ac-bons.png'), fullPage: true });
+    await p.click('[data-bc-ajouter]');
+    await p.waitForSelector('dialog.dialogue[open] [data-bc-q]');
+    await p.fill('dialog.dialogue[open] #bc-objet', 'Programme — salle polyvalente');
+    await p.locator('dialog.dialogue[open] [data-bc-q]').first().fill('1');
+    await p.locator('dialog.dialogue[open] [data-bc-q]').nth(1).fill('3');
+    await p.screenshot({ path: path.join(sortie, 'pc-ac-nouveau-bon.png') });
+    await p.click('dialog.dialogue[open] button[type=submit]');
+    await p.waitForSelector('.tranche-carte[data-tranche="BC-03"]');
+    assert.strictEqual(A.AC_bons(ac).length, 3);
+    await p.click('[data-sous="marche"]');
+    await p.waitForSelector('#p-marche table');
+    await p.screenshot({ path: path.join(sortie, 'pc-ac-periodes.png'), fullPage: true });
+  }
+
   // ——— Finances : vue d'ensemble, encaissements (une ligne de temps), URSSAF et CFE ———
   await p.click('nav a[href="#finances"]');
   await p.waitForSelector('#carte-ca table');
