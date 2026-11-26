@@ -34,7 +34,7 @@ Le fichier JSON décrit le document :
     {"saut": true}
   ]
 }
-Les informations inconnues s'écrivent entre crochets : [téléphone], [SIRET]. Ne rien inventer.
+Les informations inconnues s'écrivent entre crochets : [téléphone], [référence à fournir]. Ne rien inventer.
 """
 import json
 import os
@@ -66,7 +66,7 @@ TEXTE_INVERSE_2 = 'A3B0C4'
 SANS = 'IBM Plex Sans'
 MONO = 'IBM Plex Mono'
 
-MENTIONS = 'Kartes Ingénierie — Sébastien De Raedt EI · SIRET [n°] · TVA non applicable, art. 293 B du CGI'
+MENTIONS = 'Kartes Ingénierie — Sébastien De Raedt EI · SIRET 493 567 796 00021 · TVA non applicable, art. 293 B du CGI'
 
 
 def rgb(h):

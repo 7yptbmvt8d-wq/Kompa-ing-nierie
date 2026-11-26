@@ -339,6 +339,7 @@ test('renommage Kompa → Kartes : fichiers renommés et signature d\'origine mi
   assert.deepStrictEqual(Object.values(env.classeurs).map((c) => c.nom).sort(), ['Kartes Affaires — données', 'Kartes Estimation — données']);
   A.Db_viderCache_(); A.Params_cache_ = null;
   assert.match(A.Params_texte('courrier.signature'), /^Sébastien De Raedt EI\nKartes Ingénierie/);
+  assert.match(A.Params_texte('courrier.signature'), /SIRET 493 567 796 00021/);
   assert.strictEqual(A.Params_texte('veille.heure_collecte'), '5');
   // Adresse publique : remplace [e-mail] dans la signature des courriers
   A.Params_enregistrer('courrier.email_public', 'contact@kartes-ingenierie.fr');
@@ -352,6 +353,13 @@ test('renommage Kompa → Kartes : fichiers renommés et signature d\'origine mi
   assert.match(c.corps, /remise par Kartes Ingénierie/);
   assert.match(c.corps, /contact@kartes-ingenierie\.fr/);
   assert.doesNotMatch(c.corps, /Kompa/);
+  // Signature modifiée à la main : seul « SIRET [n°] » est complété, le reste est conservé
+  A.Params_enregistrer('courrier.signature', 'S. De Raedt\n06 00 00 00 00\nSIRET [n°]');
+  A.Params_cache_ = null;
+  A.Params_migrer_();
+  A.Db_viderCache_(); A.Params_cache_ = null;
+  assert.strictEqual(A.Params_texte('courrier.signature'), 'S. De Raedt\n06 00 00 00 00\nSIRET 493 567 796 00021');
+  assert.strictEqual(A.Params_texte('entreprise.ape'), '7112B');
 });
 
 test('bascule de compte : arrêt des déclencheurs de l\'ancien compte, sans toucher aux données', () => {

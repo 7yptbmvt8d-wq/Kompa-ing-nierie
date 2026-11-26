@@ -119,7 +119,7 @@ def generer(d, sortie):
     r += 1
     ws.cell(r, 1, 'À reporter dans l\'app Kartes Affaires, onglet Offre : tranches, jours par tranche, prix par jour, montant HT.').font = f(9, False, GRIS, italique=True)
     r += 1
-    ws.cell(r, 1, 'Kartes Ingénierie — Sébastien De Raedt EI · SIRET [n°] · TVA non applicable, art. 293 B du CGI').font = f(8, False, GRIS, MONO)
+    ws.cell(r, 1, 'Kartes Ingénierie — Sébastien De Raedt EI · SIRET 493 567 796 00021 · TVA non applicable, art. 293 B du CGI').font = f(8, False, GRIS, MONO)
 
     ws.print_title_rows = '9:9'
     ws.page_setup.orientation = 'landscape'

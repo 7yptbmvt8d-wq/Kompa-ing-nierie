@@ -95,6 +95,8 @@ var PARAMETRES_DEFAUT = [
   ['fiscal.debut_suivi', '', 'Début du suivi des déclarations (aaaa-mm-jj) : les périodes terminées avant ne sont ni affichées en retard ni relancées. Rempli à l\'installation'],
   ['fiscal.date_creation', '2027-01-04', 'Date de création de l\'entreprise (aaaa-mm-jj) : CFE exonérée l\'année de création, base réduite de moitié l\'année suivante. Modifiable depuis la carte URSSAF de l\'accueil'],
   ['fiscal.cumul_avant', '2026-12-01', 'Agent public : demander l\'autorisation de cumul d\'activités à l\'employeur avant cette date (aaaa-mm-jj), avant la création de l\'entreprise. Vide : pas de rappel'],
+  ['entreprise.siret', '49356779600021', 'SIRET de l\'entreprise (14 chiffres), attribué le 26/11/2026'],
+  ['entreprise.ape', '7112B', 'Code APE (INSEE) : ingénierie, études techniques'],
   ['livre.mode_defaut', 'virement', 'Livre des recettes : mode de règlement affiché par défaut (virement, chèque, carte, prélèvement, espèces, autre), modifiable ligne par ligne'],
   ['fiscal.cfe_montant', '', 'CFE estimée pour une année pleine (€) : à remplacer par le montant de l\'avis (impots.gouv, vers la mi-novembre). Modifiable depuis la carte URSSAF de l\'accueil'],
   ['fiscal.declaration_revenus_ouverture', '04-10', 'Déclaration de revenus (impots.gouv) : date d\'ouverture du service en ligne (mois-jour), à vérifier chaque printemps'],
@@ -117,7 +119,7 @@ var PARAMETRES_DEFAUT = [
   ['echeance.validite_defaut_j', '90', 'Validité de l\'offre si non renseignée dans l\'affaire (jours)'],
   ['courrier.nom_entreprise', 'Kartes Ingénierie', 'Nom de l\'entreprise dans les courriers et documents'],
   ['courrier.email_public', 'kartes.ingenierie@gmail.com', 'Adresse e-mail publique (courriers, offres, DC1) : remplace [e-mail] dans la signature. À renseigner'],
-  ['courrier.signature', 'Sébastien De Raedt EI\nKartes Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · [e-mail]\nSIRET [n°] · TVA non applicable, art. 293 B du CGI',
+  ['courrier.signature', 'Sébastien De Raedt EI\nKartes Ingénierie — Assistance à maîtrise d\'ouvrage\n[téléphone] · [e-mail]\nSIRET 493 567 796 00021 · TVA non applicable, art. 293 B du CGI',
     'Signature des modèles de courriers (\\n = retour à la ligne ; [e-mail] = adresse publique ci-dessus)'],
 
   // E-mail (§ 6)
@@ -216,6 +218,14 @@ var MIGRATIONS_PARAMETRES = [
   ['veille.exclusions', 'marché de travaux;AMO juridique;AMO financière;assurances', null]
 ];
 
+/**
+ * Morceaux de texte remplacés dans une valeur, même modifiée (le reste de votre texte est conservé) :
+ * [clé, ancien morceau, nouveau]. Sert à compléter les crochets à remplir (SIRET, e-mail).
+ */
+var REMPLACEMENTS_PARAMETRES = [
+  ['courrier.signature', 'SIRET [n°]', 'SIRET 493 567 796 00021']
+];
+
 /** Valeurs ajoutées aux listes existantes, même modifiées (sans doublon, sans retirer les vôtres). */
 var AJOUTS_PARAMETRES = [
   ['veille.plateformes_domaines', 'ampmetropole.fr;safetender.com;ville-gap.fr;maregionsud.fr;departement13.fr;laprovencemarchespublics.com'],
@@ -233,6 +243,12 @@ function Params_migrer_() {
       Db_maj(TABLES.PARAMETRES, m[0], { valeur: nouvelle });
       faites.push(m[0]);
     }
+  });
+  REMPLACEMENTS_PARAMETRES.forEach(function (m) {
+    var ligne = Db_trouver(TABLES.PARAMETRES, m[0]);
+    if (!ligne || String(ligne.valeur).indexOf(m[1]) < 0) return;
+    Db_maj(TABLES.PARAMETRES, m[0], { valeur: String(ligne.valeur).split(m[1]).join(m[2]) });
+    if (faites.indexOf(m[0]) < 0) faites.push(m[0]);
   });
   AJOUTS_PARAMETRES.forEach(function (m) {
     var ligne = Db_trouver(TABLES.PARAMETRES, m[0]);
