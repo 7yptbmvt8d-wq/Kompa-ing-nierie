@@ -2425,6 +2425,31 @@ test('accord-cadre : BPU vierge du DCE (sans prix, n° de l\'acheteur, titres de
   assert.match(A.Affaires_get_(id).notes, /BPU importé depuis BPU-/);
 });
 
+test('accord-cadre : cellules sur plusieurs lignes (copie Google Sheets), collage qui remplace le BPU', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  A.installer({ exercice: false });
+  const id = A.Affaires_creer({ acheteur: 'Commune de Gap', objet: 'AC AMO' }).id;
+  A.Affaires_maj(id, { type_marche: 'Accord-cadre à bons de commande' });
+  // 5 prestations, dont 3 désignations sur plusieurs lignes dans leur cellule (entre guillemets à la copie)
+  const q = '"';
+  const texte = '1.1\t' + q + 'Étude de faisabilité\nd\'un équipement\n< 1 000 m²' + q + '\tforfait\t\t2\n' +
+    '1.2\tRéunion de travail\tréunion\t\t12\n' +
+    '1.3\t' + q + 'Analyse des offres de MOE\n(candidatures et offres)' + q + '\tconsultation\t\t2\n' +
+    '2.1\t' + q + 'Journée d\'assistance\n' + q + q + 'vacation' + q + q + q + '\tjour\t\t10\n' +
+    '2.2\tVisite de site\tvisite\t\t4';
+  let r = brut(A.apiBpuColler(id, texte));
+  assert.ok(r.ok, r.erreur);
+  assert.strictEqual(r.data.bpu.length, 5);
+  assert.deepStrictEqual(r.data.bpu.map((l) => l.numero), ['1.1', '1.2', '1.3', '2.1', '2.2']);
+  assert.strictEqual(r.data.bpu[0].designation, 'Étude de faisabilité d\'un équipement < 1 000 m²');
+  assert.strictEqual(r.data.bpu[3].designation, 'Journée d\'assistance "vacation"');
+  assert.deepStrictEqual(r.data.bpu.map((l) => l.unite), ['forfait', 'réunion', 'consultation', 'jour', 'visite']);
+  // Coller une 2e fois : remplace (toujours 5 lignes) ; avec « ajouter » : 10
+  assert.strictEqual(brut(A.apiBpuColler(id, texte)).data.bpu.length, 5);
+  assert.strictEqual(brut(A.apiBpuColler(id, texte, true)).data.bpu.length, 10);
+});
+
 test('URSSAF : périodes antérieures au début du suivi non relancées', () => {
   const { A } = jeuFiscal();
   A.Params_enregistrer('fiscal.debut_suivi', '2026-11-01');

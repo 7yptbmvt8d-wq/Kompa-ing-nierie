@@ -60,8 +60,8 @@ function apiBpuEnregistrer(id, lignes) {
   return repondre_(function () { AC_bpuEnregistrer(id, lignes); return ficheClient_(id); });
 }
 
-function apiBpuColler(id, texte) {
-  return repondre_(function () { var r = AC_bpuColler(id, texte); var f = ficheClient_(id); f.ajoutees = r.ajoutees; f.sansPrix = r.sansPrix; return f; });
+function apiBpuColler(id, texte, ajouter) {
+  return repondre_(function () { var r = AC_bpuColler(id, texte, ajouter === true || ajouter === 'oui'); var f = ficheClient_(id); f.ajoutees = r.ajoutees; f.sansPrix = r.sansPrix; return f; });
 }
 
 function apiBonAjouter(id, champs) {

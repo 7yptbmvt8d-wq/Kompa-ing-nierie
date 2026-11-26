@@ -1,4 +1,4 @@
-/* Kartes Affaires 1.7.1 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
+/* Kartes Affaires 1.7.2 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
 
 // ════════ Setup.js ════════
 
@@ -300,6 +300,32 @@ function AC_estNumeroBpu_(x) {
  * gardée (prix à compléter) dès qu'elle a une unité ou une quantité. Ignorées : ligne d'en-tête,
  * titres de chapitre (n° et intitulé seuls), lignes vides.
  */
+/**
+ * Découpe un texte copié d'un tableur en lignes de cellules. Une cellule contenant un retour à la ligne
+ * est copiée entre guillemets (« "Étude de\nfaisabilité" », guillemets internes doublés) : elle reste
+ * UNE cellule (ses retours à la ligne deviennent des espaces). Séparateur : tabulation, sinon « ; ».
+ */
+function AC_cellules_(texte) {
+  texte = String(texte || '').replace(/\r\n?/g, '\n');
+  var sep = texte.indexOf('\t') >= 0 ? '\t' : ';';
+  var lignes = [], ligne = [], cel = '', guillemets = false, debutCel = true;
+  for (var i = 0; i < texte.length; i++) {
+    var ch = texte.charAt(i);
+    if (guillemets) {
+      if (ch === '"') {
+        if (texte.charAt(i + 1) === '"') { cel += '"'; i++; } else guillemets = false;
+      } else cel += ch === '\n' ? ' ' : ch;
+      continue;
+    }
+    if (ch === '"' && debutCel) { guillemets = true; debutCel = false; continue; }
+    if (ch === sep) { ligne.push(cel); cel = ''; debutCel = true; continue; }
+    if (ch === '\n') { ligne.push(cel); lignes.push(ligne); ligne = []; cel = ''; debutCel = true; continue; }
+    cel += ch; debutCel = false;
+  }
+  if (cel !== '' || ligne.length) { ligne.push(cel); lignes.push(ligne); }
+  return lignes.map(function (l) { return l.map(function (x) { return x.replace(/\s+/g, ' ').trim(); }); });
+}
+
 function AC_bpuLireTexte_(texte) {
   var out = [];
   var nb = function (x) {
@@ -308,9 +334,8 @@ function AC_bpuLireTexte_(texte) {
     t = t.replace(',', '.');
     return t !== '' && !isNaN(Number(t)) ? Number(t) : null;
   };
-  String(texte || '').split(/\r?\n/).forEach(function (ligne) {
-    if (!ligne.trim()) return;
-    var c = ligne.split(ligne.indexOf('\t') >= 0 ? '\t' : ';').map(function (x) { return x.trim(); });
+  AC_cellules_(texte).forEach(function (c) {
+    if (!c.join('').trim()) return;
     while (c.length && c[0] === '') c.shift(); // colonne vide en tête (cellules fusionnées)
     var numero = '';
     // N° de l'acheteur en tête (1.1, A2…) suivi d'une désignation en texte
@@ -332,11 +357,14 @@ function AC_bpuLireTexte_(texte) {
   return out;
 }
 
-/** Ajoute à la suite du BPU existant les lignes collées depuis Excel. Renvoie { ajoutees, bpu }. */
-function AC_bpuColler(idAffaire, texte) {
+/**
+ * Lignes collées depuis un tableur : elles REMPLACENT le BPU (par défaut), ou s'ajoutent à la suite
+ * (ajouter = true). Renvoie { ajoutees, sansPrix, bpu }.
+ */
+function AC_bpuColler(idAffaire, texte, ajouter) {
   var nouvelles = AC_bpuLireTexte_(texte);
   if (!nouvelles.length) throw new Error('Aucune ligne reconnue : sélectionnez dans le tableur les colonnes n°, désignation, unité, prix et quantité (lignes de prestations, pas seulement les titres), copiez, puis collez.');
-  var bpu = AC_bpuEnregistrer(idAffaire, AC_bpu(idAffaire).concat(nouvelles));
+  var bpu = AC_bpuEnregistrer(idAffaire, (ajouter ? AC_bpu(idAffaire) : []).concat(nouvelles));
   return { ajoutees: nouvelles.length, sansPrix: nouvelles.filter(function (l) { return l.sansPrix; }).length, bpu: bpu };
 }
 
@@ -1076,8 +1104,8 @@ function apiBpuEnregistrer(id, lignes) {
   return repondre_(function () { AC_bpuEnregistrer(id, lignes); return ficheClient_(id); });
 }
 
-function apiBpuColler(id, texte) {
-  return repondre_(function () { var r = AC_bpuColler(id, texte); var f = ficheClient_(id); f.ajoutees = r.ajoutees; f.sansPrix = r.sansPrix; return f; });
+function apiBpuColler(id, texte, ajouter) {
+  return repondre_(function () { var r = AC_bpuColler(id, texte, ajouter === true || ajouter === 'oui'); var f = ficheClient_(id); f.ajoutees = r.ajoutees; f.sansPrix = r.sansPrix; return f; });
 }
 
 function apiBonAjouter(id, champs) {
@@ -1602,7 +1630,7 @@ function arrondi_(n) {
 var APP = {
   NOM: 'Kartes Affaires',
   ENTREPRISE: 'Kartes Ingénierie',
-  VERSION: '1.7.1',
+  VERSION: '1.7.2',
   CLASSEUR: 'Kartes Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kartes Affaires — sauvegardes',
   ANCIEN_NOM: 'Kompa', // nom d'avant le 22/11/2026 : fichiers et dossiers renommés par la mise à jour automatique

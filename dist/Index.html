@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Kartes Affaires 1.7.1 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
+<!-- Kartes Affaires 1.7.2 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
 <html lang="fr">
 <head>
   <base target="_top">
@@ -2045,10 +2045,12 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       }).catch(function (e) { bi.disabled = false; K.toast(e.message, true); });
     });
     $('[data-bpu-coller]', zone).addEventListener('click', function () {
-      var corpsD = '<p class="legende">Dans le BPU du DCE (Excel ou Google Sheets), sélectionnez les colonnes <strong>n°, désignation, unité, prix unitaire et quantité</strong> (le n° de l\'acheteur est conservé : 1.1, A2…), copiez, puis collez ici. Les lignes sont ajoutées à la suite. Un BPU vierge (sans prix) est accepté : vous complétez ensuite les prix unitaires ; les titres de chapitre sont ignorés.</p>' +
-        '<label for="bpu-colle" class="seul-lecteur">Lignes copiées depuis Excel</label><textarea class="champ mono" id="bpu-colle" rows="10" data-champ="texte" required placeholder="1\tÉtude de faisabilité\tforfait\t6600\t2"></textarea>';
+      var corpsD = '<p class="legende">Dans le BPU du DCE (Excel ou Google Sheets), sélectionnez les colonnes <strong>n°, désignation, unité, prix unitaire et quantité</strong> (le n° de l\'acheteur est conservé : 1.1, A2…), copiez, puis collez ici. Les lignes collées remplacent le BPU actuel (case à cocher pour les ajouter à la suite). Un BPU vierge (sans prix) est accepté : vous complétez ensuite les prix unitaires ; les titres de chapitre sont ignorés.</p>' +
+        '<label for="bpu-colle" class="seul-lecteur">Lignes copiées depuis Excel</label><textarea class="champ mono" id="bpu-colle" rows="10" data-champ="texte" required placeholder="1\tÉtude de faisabilité\tforfait\t6600\t2"></textarea>' +
+        ((f.bpu || []).length ? '<label class="case"><input type="checkbox" data-bpu-ajout> Ajouter à la suite des ' + f.bpu.length + ' lignes actuelles (sinon, elles sont remplacées)</label>' : '');
       dialogue('Coller le BPU depuis Excel', corpsD, 'Ajouter les lignes', function (form) {
-        return K.appel('apiBpuColler', a.id, lireChamps(form).texte).then(function (fiche) { K.toast(fiche.ajoutees + ' ligne' + (fiche.ajoutees > 1 ? 's' : '') + ' ajoutée' + (fiche.ajoutees > 1 ? 's' : '') + ' au BPU' + (fiche.sansPrix ? ' dont ' + fiche.sansPrix + ' sans prix : complétez les prix unitaires puis « Enregistrer le BPU »' : '') + '.'); recharger(fiche); });
+        var ajout = $('[data-bpu-ajout]', form);
+        return K.appel('apiBpuColler', a.id, lireChamps(form).texte, !!(ajout && ajout.checked)).then(function (fiche) { K.toast(fiche.ajoutees + ' ligne' + (fiche.ajoutees > 1 ? 's' : '') + ' ajoutée' + (fiche.ajoutees > 1 ? 's' : '') + ' au BPU' + (fiche.sansPrix ? ' dont ' + fiche.sansPrix + ' sans prix : complétez les prix unitaires puis « Enregistrer le BPU »' : '') + '.'); recharger(fiche); });
       });
     });
   }
