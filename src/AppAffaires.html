@@ -555,7 +555,7 @@
   function decimal(v) { return v === '' || v === null || v === undefined ? '' : String(v).replace('.', ','); }
 
   function ligneBpu(l, i) {
-    return '<tr data-bpu-ligne><td class="mono">' + (i + 1) + '</td>' +
+    return '<tr data-bpu-ligne><td><input class="champ champ--compact mono" data-bpu="numero" value="' + esc(l.numero || String(i + 1)) + '" aria-label="N° de la ligne (numérotation de l\'acheteur)"></td>' +
       '<td><input class="champ champ--compact" data-bpu="designation" value="' + esc(l.designation || '') + '" aria-label="Désignation, ligne ' + (i + 1) + '"></td>' +
       '<td><input class="champ champ--compact" data-bpu="unite" value="' + esc(l.unite || '') + '" aria-label="Unité, ligne ' + (i + 1) + '"></td>' +
       '<td><input class="champ champ--compact mono num" inputmode="decimal" data-bpu="prix_unitaire" value="' + esc(decimal(l.prix_unitaire)) + '" aria-label="Prix unitaire HT, ligne ' + (i + 1) + '"></td>' +
@@ -573,6 +573,8 @@
         '<th scope="col" class="num">Prix unitaire HT</th><th scope="col" class="num">Qté DQE</th><th scope="col" class="num">Montant DQE</th><th scope="col"><span class="seul-lecteur">Retirer</span></th></tr></thead>' +
         '<tbody data-bpu-corps>' + (bpu.length ? bpu.map(ligneBpu).join('') : ligneBpu({}, 0)) + '</tbody>' +
         '<tfoot><tr class="ligne-total"><td colspan="5">Montant du DQE (montant de l\'offre)</td><td class="num mono" data-bpu-total>' + K.euros(f.accordCadre ? f.accordCadre.dqe : 0) + '</td><td></td></tr></tfoot></table></div>' +
+      (f.bpuFichier ? '<div class="bandeau bandeau--info">Le skill a déposé <strong>' + esc(f.bpuFichier.nom) + '</strong> (' + esc(f.bpuFichier.date) + ') dans le dossier Drive. ' +
+        '<button type="button" class="bouton bouton--petit" data-bpu-importer>Importer le BPU du skill</button></div>' : '') +
       '<div class="bpu-actions"><button type="button" class="bouton bouton--petit bouton--discret" data-bpu-ajouter>+ Ligne</button>' +
         '<button type="button" class="bouton bouton--petit bouton--discret" data-bpu-coller>Coller depuis le BPU Excel du DCE</button>' +
         '<button type="button" class="bouton bouton--petit" data-bpu-enregistrer>Enregistrer le BPU</button>' +
@@ -599,7 +601,7 @@
         var pu = nb($('[data-bpu="prix_unitaire"]', tr).value), q = nb($('[data-bpu="quantite_dqe"]', tr).value);
         total += pu * q;
         $('[data-bpu-montant]', tr).textContent = K.euros(pu * q);
-        $('.mono', tr).textContent = i + 1;
+        var n = $('[data-bpu="numero"]', tr); if (!n.value.trim()) n.placeholder = String(i + 1);
       });
       $('[data-bpu-total]', zone).textContent = K.euros(total);
       var j = $('[data-bpu-jours]', zone);
@@ -626,11 +628,20 @@
       K.appel('apiBpuEnregistrer', a.id, lire()).then(function (fiche) { K.toast('BPU enregistré : DQE ' + K.euros(fiche.accordCadre ? fiche.accordCadre.dqe : 0) + ' HT = montant de l\'offre.'); recharger(fiche); })
         .catch(function (e) { b.disabled = false; K.toast(e.message, true); });
     });
+    var bi = $('[data-bpu-importer]', zone);
+    if (bi) bi.addEventListener('click', function () {
+      if ((f.bpu || []).length && !window.confirm('Remplacer les ' + f.bpu.length + ' lignes actuelles du BPU par celles de ' + f.bpuFichier.nom + ' ?')) return;
+      bi.disabled = true;
+      K.appel('apiBpuImporterSkill', a.id).then(function (fiche) {
+        K.toast(fiche.importe.lignes + ' lignes importées de ' + fiche.importe.fichier + ' : DQE ' + K.euros(fiche.accordCadre ? fiche.accordCadre.dqe : 0) + ' HT.');
+        recharger(fiche);
+      }).catch(function (e) { bi.disabled = false; K.toast(e.message, true); });
+    });
     $('[data-bpu-coller]', zone).addEventListener('click', function () {
-      var corpsD = '<p class="legende">Dans le BPU Excel du DCE, sélectionnez les colonnes <strong>désignation, unité, prix unitaire et quantité</strong> (le n° de ligne en tête est accepté), copiez, puis collez ici. Les lignes sont ajoutées à la suite ; les titres sans prix sont ignorés.</p>' +
+      var corpsD = '<p class="legende">Dans le BPU du DCE (Excel ou Google Sheets), sélectionnez les colonnes <strong>n°, désignation, unité, prix unitaire et quantité</strong> (le n° de l\'acheteur est conservé : 1.1, A2…), copiez, puis collez ici. Les lignes sont ajoutées à la suite. Un BPU vierge (sans prix) est accepté : vous complétez ensuite les prix unitaires ; les titres de chapitre sont ignorés.</p>' +
         '<label for="bpu-colle" class="seul-lecteur">Lignes copiées depuis Excel</label><textarea class="champ mono" id="bpu-colle" rows="10" data-champ="texte" required placeholder="1\tÉtude de faisabilité\tforfait\t6600\t2"></textarea>';
       dialogue('Coller le BPU depuis Excel', corpsD, 'Ajouter les lignes', function (form) {
-        return K.appel('apiBpuColler', a.id, lireChamps(form).texte).then(function (fiche) { K.toast(fiche.ajoutees + ' ligne' + (fiche.ajoutees > 1 ? 's' : '') + ' ajoutée' + (fiche.ajoutees > 1 ? 's' : '') + ' au BPU.'); recharger(fiche); });
+        return K.appel('apiBpuColler', a.id, lireChamps(form).texte).then(function (fiche) { K.toast(fiche.ajoutees + ' ligne' + (fiche.ajoutees > 1 ? 's' : '') + ' ajoutée' + (fiche.ajoutees > 1 ? 's' : '') + ' au BPU' + (fiche.sansPrix ? ' dont ' + fiche.sansPrix + ' sans prix : complétez les prix unitaires puis « Enregistrer le BPU »' : '') + '.'); recharger(fiche); });
       });
     });
   }
@@ -674,7 +685,7 @@
         '<div class="champ-bloc"><label for="bc-objet">Objet</label><input class="champ" id="bc-objet" data-champ="objet" value="' + esc(bon ? bon.objet : '') + '" placeholder="Programme — salle polyvalente"></div></div>' +
       (bpu.length ? '<div class="tableau-conteneur"><table class="table-bc"><thead><tr><th scope="col">Prestation du BPU</th><th scope="col" class="num">Prix unitaire</th><th scope="col" class="num">Quantité</th><th scope="col" class="num">Montant</th></tr></thead><tbody>' +
           bpu.map(function (l) {
-            return '<tr><td>' + l.n + ' · ' + esc(l.designation) + (l.unite ? ' <span class="legende">(' + esc(l.unite) + ')</span>' : '') + '</td><td class="num mono">' + K.euros(l.prix_unitaire) + '</td>' +
+            return '<tr><td><span class="mono">' + esc(l.numero) + '</span> · ' + esc(l.designation) + (l.unite ? ' <span class="legende">(' + esc(l.unite) + ')</span>' : '') + '</td><td class="num mono">' + K.euros(l.prix_unitaire) + '</td>' +
               '<td><input class="champ champ--compact mono num" inputmode="decimal" data-bc-q="' + esc(l.id) + '" data-pu="' + l.prix_unitaire + '" value="' + esc(decimal(q[l.id] || '')) + '" aria-label="Quantité : ' + esc(l.designation) + '"></td>' +
               '<td class="num mono" data-bc-m>—</td></tr>';
           }).join('') + '<tr class="ligne-total"><td colspan="3">Montant du bon de commande</td><td class="num mono" data-bc-total>—</td></tr></tbody></table></div>'
@@ -807,7 +818,7 @@
           '<div class="tranche-carte__act">' + act + '</div></div>' +
         '<div class="tranche-carte__corps"><div>' +
           (l.bc ? '<div class="k">Commande du <span class="mono">' + jour(l.bc.date) + '</span>' + (l.bc.date_delai ? ' · délai <span class="mono">' + jour(l.bc.date_delai) + '</span>' : '') + '</div>' +
-            (l.bc.lignes.length ? '<ul class="lignes-bc">' + l.bc.lignes.map(function (x) { return '<li>' + decimal(x.quantite) + ' × ' + esc(x.designation) + ' <span class="legende mono">' + K.euros(x.montant) + '</span></li>'; }).join('') + '</ul>' : '') : '') +
+            (l.bc.lignes.length ? '<ul class="lignes-bc">' + l.bc.lignes.map(function (x) { return '<li>' + (x.numero ? '<span class="mono">' + esc(x.numero) + '</span> · ' : '') + decimal(x.quantite) + ' × ' + esc(x.designation) + ' <span class="legende mono">' + K.euros(x.montant) + '</span></li>'; }).join('') + '</ul>' : '') : '') +
           '<div class="k">Livrables</div>' +
           (liv.length ? '<ul class="livs">' + liv.map(ligneLivrable).join('') + '</ul>' : '<p class="vide">Aucun livrable : ajoutez ceux du CCTP avec leur date de remise.</p>') + '</div>' +
           '<div><div class="k">Facture</div>' + facture + '</div><div><div class="k">Paiement</div>' + paiement + '</div></div></article>';

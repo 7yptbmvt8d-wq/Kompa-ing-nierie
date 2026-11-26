@@ -8,7 +8,7 @@
 var APP = {
   NOM: 'Kartes Affaires',
   ENTREPRISE: 'Kartes Ingénierie',
-  VERSION: '1.7.0',
+  VERSION: '1.7.1',
   CLASSEUR: 'Kartes Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kartes Affaires — sauvegardes',
   ANCIEN_NOM: 'Kompa', // nom d'avant le 22/11/2026 : fichiers et dossiers renommés par la mise à jour automatique
@@ -111,8 +111,9 @@ var TABLES = {
     onglet: 'BPU',
     cle: 'id',
     prefixe: 'BP',
-    colonnes: ['id', 'id_affaire', 'ordre', 'designation', 'unite', 'prix_unitaire', 'quantite_dqe'],
-    nombres: ['ordre', 'prix_unitaire', 'quantite_dqe']
+    colonnes: ['id', 'id_affaire', 'ordre', 'designation', 'unite', 'prix_unitaire', 'quantite_dqe', 'numero'],
+    nombres: ['ordre', 'prix_unitaire', 'quantite_dqe'],
+    texteBrut: ['numero'] // « 1.10 » reste « 1.10 » (pas 1,1)
   },
   BONS_COMMANDE: {
     onglet: 'Bons de commande',

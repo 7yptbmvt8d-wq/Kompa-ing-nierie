@@ -2389,6 +2389,42 @@ test('accord-cadre : BPU collé depuis Excel, DQE = offre, bons de commande au p
   assert.strictEqual(pot[2030], 26400);
 });
 
+test('accord-cadre : BPU vierge du DCE (sans prix, n° de l\'acheteur, titres de chapitre), import du fichier déposé par le skill', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  A.installer({ exercice: false });
+  const id = A.Affaires_creer({ acheteur: 'Commune de Gap', objet: 'AC AMO' }).id;
+  A.Affaires_maj(id, { type_marche: 'Accord-cadre à bons de commande' });
+  // Copie depuis Google Sheets : en-tête, chapitres, colonne prix vide, colonne montant vide
+  const texte = 'N°\tDésignation des prestations\tUnité\tPrix unitaire HT\tQuantité\tMontant HT\n' +
+    '1\tPHASE 1 — ÉTUDES\t\t\t\t\n1.1\tÉtude de faisabilité\tforfait\t\t2\t\n1.2\tRéunion de travail\tréunion\t\t12\t\n' +
+    '2\tASSISTANCE\t\t\t\t\n2.1\tJournée d\'assistance\tjour\t\t10\t\n\tTOTAL DQE\t\t\t\t';
+  let r = brut(A.apiBpuColler(id, texte));
+  assert.ok(r.ok, r.erreur);
+  assert.strictEqual(r.data.ajoutees, 3);
+  assert.strictEqual(r.data.sansPrix, 3);
+  assert.deepStrictEqual(r.data.bpu.map((l) => [l.numero, l.designation, l.unite, l.prix_unitaire, l.quantite_dqe]),
+    [['1.1', 'Étude de faisabilité', 'forfait', 0, 2], ['1.2', 'Réunion de travail', 'réunion', 0, 12], ['2.1', 'Journée d\'assistance', 'jour', 0, 10]]);
+  // N° conservés à l'enregistrement après saisie des prix
+  const lignes = r.data.bpu.map((l, i) => ({ numero: l.numero, designation: l.designation, unite: l.unite, prix_unitaire: [6600, 330, 550][i], quantite_dqe: l.quantite_dqe }));
+  r = brut(A.apiBpuEnregistrer(id, lignes));
+  assert.deepStrictEqual(r.data.bpu.map((l) => l.numero), ['1.1', '1.2', '2.1']);
+  assert.strictEqual(r.data.affaire.montant_ht, 13200 + 3960 + 5500);
+  // Fichier du skill dans 04 Offre : proposé, puis importé (remplace le BPU)
+  A.Affaires_changerStatut(id, 'Go', {});
+  assert.strictEqual(brut(A.apiAffaire(id)).data.bpuFichier, null);
+  const tsv = '1.1\tÉtude de faisabilité\tforfait\t6875\t2\n1.2\tRéunion de travail\tréunion\t343,75\t12\n2.1\tJournée d\'assistance\tjour\t550\t10\n';
+  A.Drive_deposer(id, '04 Offre', { nom: 'BPU-' + id + '.tsv', type: 'text/tab-separated-values', donnees: Buffer.from(tsv).toString('base64') });
+  const fiche = brut(A.apiAffaire(id)).data;
+  assert.strictEqual(fiche.bpuFichier.nom, 'BPU-' + id + '.tsv');
+  r = brut(A.apiBpuImporterSkill(id));
+  assert.ok(r.ok, r.erreur);
+  assert.strictEqual(r.data.importe.lignes, 3);
+  assert.deepStrictEqual(r.data.bpu.map((l) => [l.numero, l.prix_unitaire]), [['1.1', 6875], ['1.2', 343.75], ['2.1', 550]]);
+  assert.strictEqual(r.data.affaire.montant_ht, 13750 + 4125 + 5500);
+  assert.match(A.Affaires_get_(id).notes, /BPU importé depuis BPU-/);
+});
+
 test('URSSAF : périodes antérieures au début du suivi non relancées', () => {
   const { A } = jeuFiscal();
   A.Params_enregistrer('fiscal.debut_suivi', '2026-11-01');

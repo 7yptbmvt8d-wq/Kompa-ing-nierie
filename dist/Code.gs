@@ -1,4 +1,4 @@
-/* Kartes Affaires 1.7.0 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
+/* Kartes Affaires 1.7.1 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
 
 // ════════ Setup.js ════════
 
@@ -246,7 +246,8 @@ function AC_bpu(idAffaire) {
     .sort(function (x, y) { return (Number(x.ordre) || 0) - (Number(y.ordre) || 0); })
     .map(function (l, i) {
       var pu = montant_(l.prix_unitaire), q = Number(String(l.quantite_dqe === '' ? 0 : l.quantite_dqe).replace(',', '.')) || 0;
-      return { id: String(l.id), n: i + 1, designation: String(l.designation || ''), unite: String(l.unite || ''),
+      return { id: String(l.id), n: i + 1, numero: String(l.numero === '' || l.numero === undefined || l.numero === null ? i + 1 : l.numero),
+        designation: String(l.designation || ''), unite: String(l.unite || ''),
         prix_unitaire: arrondi_(pu), quantite_dqe: q, montant: arrondi_(pu * q) };
     });
 }
@@ -273,7 +274,8 @@ function AC_bpuEnregistrer(idAffaire, lignes) {
     var d = String(l.designation || '').trim();
     if (!d) return null;
     return {
-      id_affaire: idAffaire, ordre: (i + 1) * 10, designation: d.slice(0, 300), unite: String(l.unite || '').trim().slice(0, 40),
+      id_affaire: idAffaire, ordre: (i + 1) * 10, numero: String(l.numero === undefined || l.numero === null ? '' : l.numero).trim().slice(0, 20) || String(i + 1),
+      designation: d.slice(0, 300), unite: String(l.unite || '').trim().slice(0, 40),
       prix_unitaire: arrondi_(AC_nombre_(l.prix_unitaire, 'Prix unitaire de « ' + d + ' »')),
       quantite_dqe: AC_nombre_(l.quantite_dqe, 'Quantité de « ' + d + ' »')
     };
@@ -285,23 +287,47 @@ function AC_bpuEnregistrer(idAffaire, lignes) {
   return bpu;
 }
 
+/** N° de ligne d'un BPU d'acheteur : 1, 1.2, 1.2.3, 2-1, A, A1, A.2, II.3, art. 4… */
+function AC_estNumeroBpu_(x) {
+  var t = String(x || '').trim().replace(/^(art(icle)?\.?|n°|poste)\s*/i, '');
+  return t.length > 0 && t.length <= 12 && /^([A-Z]{1,3}|\d+)([.\-\/ ]?(\d+|[A-Z]))*\.?$/i.test(t) && /\d|^[A-Z]{1,3}\.?$/i.test(t);
+}
+
 /**
- * Lit un BPU collé depuis Excel (colonnes séparées par des tabulations, ou « ; ») :
- * [n°], désignation, unité, prix unitaire, [quantité]. Les lignes sans prix lisible (titres) sont ignorées.
+ * Lit un BPU collé depuis Excel ou Google Sheets (colonnes séparées par des tabulations, ou « ; ») :
+ * [n° de l'acheteur], désignation, [unité], [prix unitaire], [quantité], [montant…]. Le n° de l'acheteur
+ * (1.1, A2…) est conservé. Le BPU du DCE est le plus souvent vierge de prix : une ligne sans prix est
+ * gardée (prix à compléter) dès qu'elle a une unité ou une quantité. Ignorées : ligne d'en-tête,
+ * titres de chapitre (n° et intitulé seuls), lignes vides.
  */
 function AC_bpuLireTexte_(texte) {
   var out = [];
+  var nb = function (x) {
+    var t = String(x || '').replace(/[\s  €]/g, '').replace(/HT$/i, '');
+    if (/^\d{1,3}(\.\d{3})+,\d+$/.test(t)) t = t.replace(/\./g, ''); // 1.234,56
+    t = t.replace(',', '.');
+    return t !== '' && !isNaN(Number(t)) ? Number(t) : null;
+  };
   String(texte || '').split(/\r?\n/).forEach(function (ligne) {
     if (!ligne.trim()) return;
     var c = ligne.split(ligne.indexOf('\t') >= 0 ? '\t' : ';').map(function (x) { return x.trim(); });
-    if (c.length >= 2 && /^\d+([.,]\d+)*\.?$/.test(c[0]) && c.length >= 4) c.shift(); // n° de ligne en tête
-    var nb = function (x) { var t = String(x || '').replace(/[\s  €]/g, '').replace(/HT$/i, '').replace(',', '.'); return t !== '' && !isNaN(Number(t)) ? Number(t) : null; };
-    var designation = c[0], unite = '', pu = null, q = null;
-    if (c.length >= 4) { unite = c[1]; pu = nb(c[2]); q = nb(c[3]); }
-    else if (c.length === 3) { if (nb(c[1]) !== null) { pu = nb(c[1]); q = nb(c[2]); } else { unite = c[1]; pu = nb(c[2]); } }
-    else if (c.length === 2) pu = nb(c[1]);
-    if (!designation || pu === null) return;
-    out.push({ designation: designation, unite: unite, prix_unitaire: pu, quantite_dqe: q === null ? 0 : q });
+    while (c.length && c[0] === '') c.shift(); // colonne vide en tête (cellules fusionnées)
+    var numero = '';
+    // N° de l'acheteur en tête (1.1, A2…) suivi d'une désignation en texte
+    if (c.length >= 2 && AC_estNumeroBpu_(c[0]) && c[1] && nb(c[1]) === null) {
+      numero = c.shift().replace(/^(art(icle)?\.?|n°|poste)\s*/i, '');
+    }
+    var designation = c[0] || '';
+    if (!designation || nb(designation) !== null) return;
+    if (/^(n°|num[ée]ro|d[ée]signation.*|libell[ée].*|intitul[ée].*|prestations?|nature des prestations|description)$/i.test(designation)) return; // en-tête
+    var reste = c.slice(1);
+    var unite = '';
+    if (reste.length && reste[0] && nb(reste[0]) === null) unite = reste.shift();
+    if (/^unit[ée]s?$/i.test(unite)) return; // en-tête
+    var pu = reste.length ? nb(reste[0]) : null;
+    var q = reste.length > 1 ? nb(reste[1]) : null;
+    if (pu === null && !unite && q === null) return; // titre de chapitre, total : ni unité, ni prix, ni quantité
+    out.push({ numero: numero, designation: designation, unite: unite, prix_unitaire: pu === null ? 0 : pu, quantite_dqe: q === null ? 0 : q, sansPrix: pu === null });
   });
   return out;
 }
@@ -309,9 +335,49 @@ function AC_bpuLireTexte_(texte) {
 /** Ajoute à la suite du BPU existant les lignes collées depuis Excel. Renvoie { ajoutees, bpu }. */
 function AC_bpuColler(idAffaire, texte) {
   var nouvelles = AC_bpuLireTexte_(texte);
-  if (!nouvelles.length) throw new Error('Aucune ligne reconnue : copiez dans Excel les colonnes désignation, unité, prix unitaire et quantité.');
+  if (!nouvelles.length) throw new Error('Aucune ligne reconnue : sélectionnez dans le tableur les colonnes n°, désignation, unité, prix et quantité (lignes de prestations, pas seulement les titres), copiez, puis collez.');
   var bpu = AC_bpuEnregistrer(idAffaire, AC_bpu(idAffaire).concat(nouvelles));
-  return { ajoutees: nouvelles.length, bpu: bpu };
+  return { ajoutees: nouvelles.length, sansPrix: nouvelles.filter(function (l) { return l.sansPrix; }).length, bpu: bpu };
+}
+
+/**
+ * Fichier BPU déposé par le skill dans le dossier Drive de l'affaire (04 Offre, ou tout sous-dossier) :
+ * « BPU-KI-AAAA-NNN.tsv » (ou .txt), colonnes n°, désignation, unité, prix unitaire HT, quantité.
+ * Renvoie le plus récent { id, nom, date } ou null.
+ */
+function AC_fichierSkill_(a, avecFichier) {
+  try {
+    var dossier = Drive_dossierAffaire_(a);
+    if (!dossier) return null;
+    var trouve = null;
+    var voir = function (d) {
+      var it = d.getFiles();
+      while (it.hasNext()) {
+        var f = it.next(), nom = String(f.getName());
+        if (!/^BPU.*\.(tsv|txt)$/i.test(nom)) continue;
+        if (!trouve || f.getDateCreated() > trouve.f.getDateCreated()) trouve = { f: f, nom: nom };
+      }
+    };
+    voir(dossier);
+    var it = dossier.getFolders();
+    while (it.hasNext()) voir(it.next());
+    if (!trouve) return null;
+    var info = { id: trouve.f.getId(), nom: trouve.nom, date: Utilities.formatDate(trouve.f.getDateCreated(), APP.FUSEAU, 'dd/MM/yyyy HH:mm') };
+    if (avecFichier) info.fichier = trouve.f;
+    return info;
+  } catch (e) { return null; }
+}
+
+/** Remplace le BPU de l'affaire par celui du fichier déposé par le skill. Renvoie { lignes, fichier, bpu }. */
+function AC_bpuImporterSkill(idAffaire) {
+  var a = Affaires_get_(idAffaire);
+  var fichier = AC_fichierSkill_(a, true);
+  if (!fichier) throw new Error('Aucun fichier « BPU-' + a.id + '.tsv » dans le dossier Drive de l\'affaire (le skill le dépose dans 04 Offre).');
+  var lignes = AC_bpuLireTexte_(fichier.fichier.getBlob().getDataAsString('UTF-8'));
+  if (!lignes.length) throw new Error('Le fichier ' + fichier.nom + ' ne contient aucune ligne de prix lisible.');
+  var bpu = AC_bpuEnregistrer(idAffaire, lignes);
+  Affaires_ajouterNote(idAffaire, 'BPU importé depuis ' + fichier.nom + ' (' + lignes.length + ' lignes, DQE ' + Courriers_euros_(AC_dqe_(bpu)) + ' HT)');
+  return { lignes: lignes.length, fichier: fichier, bpu: bpu };
 }
 
 // ——— Périodes ———
@@ -377,7 +443,7 @@ function AC_bonValider_(idAffaire, champs, idExclu) {
   var q = champs.quantites || {};
   bpu.forEach(function (l) {
     var n = AC_nombre_(q[l.id], 'Quantité de « ' + l.designation + ' »');
-    if (n > 0) lignes.push({ designation: l.designation, unite: l.unite, prix_unitaire: l.prix_unitaire, quantite: n, montant: arrondi_(n * l.prix_unitaire) });
+    if (n > 0) lignes.push({ numero: l.numero, designation: l.designation, unite: l.unite, prix_unitaire: l.prix_unitaire, quantite: n, montant: arrondi_(n * l.prix_unitaire) });
   });
   var montant = lignes.length ? AC_dqe_(lignes) : arrondi_(AC_nombre_(champs.montant, 'Montant du bon'));
   if (!(montant > 0)) throw new Error('Indiquez des quantités du BPU, ou le montant du bon de commande.');
@@ -995,8 +1061,13 @@ function ficheClient_(id) {
     transitions: f.transitions,
     planning: Planning_affaire(id),
     accordCadre: AC_synthese(id),
-    bpu: AC_bpu(id)
+    bpu: AC_bpu(id),
+    bpuFichier: AC_est_(f.affaire) && ['En étude', 'Go'].indexOf(String(f.affaire.statut)) >= 0 ? AC_fichierSkill_(f.affaire) : null
   };
+}
+
+function apiBpuImporterSkill(id) {
+  return repondre_(function () { var r = AC_bpuImporterSkill(id); var f = ficheClient_(id); f.importe = { lignes: r.lignes, fichier: r.fichier.nom }; return f; });
 }
 
 // ——— Accord-cadre : BPU et bons de commande ———
@@ -1006,7 +1077,7 @@ function apiBpuEnregistrer(id, lignes) {
 }
 
 function apiBpuColler(id, texte) {
-  return repondre_(function () { var r = AC_bpuColler(id, texte); var f = ficheClient_(id); f.ajoutees = r.ajoutees; return f; });
+  return repondre_(function () { var r = AC_bpuColler(id, texte); var f = ficheClient_(id); f.ajoutees = r.ajoutees; f.sansPrix = r.sansPrix; return f; });
 }
 
 function apiBonAjouter(id, champs) {
@@ -1531,7 +1602,7 @@ function arrondi_(n) {
 var APP = {
   NOM: 'Kartes Affaires',
   ENTREPRISE: 'Kartes Ingénierie',
-  VERSION: '1.7.0',
+  VERSION: '1.7.1',
   CLASSEUR: 'Kartes Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kartes Affaires — sauvegardes',
   ANCIEN_NOM: 'Kompa', // nom d'avant le 22/11/2026 : fichiers et dossiers renommés par la mise à jour automatique
@@ -1634,8 +1705,9 @@ var TABLES = {
     onglet: 'BPU',
     cle: 'id',
     prefixe: 'BP',
-    colonnes: ['id', 'id_affaire', 'ordre', 'designation', 'unite', 'prix_unitaire', 'quantite_dqe'],
-    nombres: ['ordre', 'prix_unitaire', 'quantite_dqe']
+    colonnes: ['id', 'id_affaire', 'ordre', 'designation', 'unite', 'prix_unitaire', 'quantite_dqe', 'numero'],
+    nombres: ['ordre', 'prix_unitaire', 'quantite_dqe'],
+    texteBrut: ['numero'] // « 1.10 » reste « 1.10 » (pas 1,1)
   },
   BONS_COMMANDE: {
     onglet: 'Bons de commande',

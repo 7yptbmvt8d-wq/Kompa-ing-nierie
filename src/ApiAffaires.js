@@ -45,8 +45,13 @@ function ficheClient_(id) {
     transitions: f.transitions,
     planning: Planning_affaire(id),
     accordCadre: AC_synthese(id),
-    bpu: AC_bpu(id)
+    bpu: AC_bpu(id),
+    bpuFichier: AC_est_(f.affaire) && ['En étude', 'Go'].indexOf(String(f.affaire.statut)) >= 0 ? AC_fichierSkill_(f.affaire) : null
   };
+}
+
+function apiBpuImporterSkill(id) {
+  return repondre_(function () { var r = AC_bpuImporterSkill(id); var f = ficheClient_(id); f.importe = { lignes: r.lignes, fichier: r.fichier.nom }; return f; });
 }
 
 // ——— Accord-cadre : BPU et bons de commande ———
@@ -56,7 +61,7 @@ function apiBpuEnregistrer(id, lignes) {
 }
 
 function apiBpuColler(id, texte) {
-  return repondre_(function () { var r = AC_bpuColler(id, texte); var f = ficheClient_(id); f.ajoutees = r.ajoutees; return f; });
+  return repondre_(function () { var r = AC_bpuColler(id, texte); var f = ficheClient_(id); f.ajoutees = r.ajoutees; f.sansPrix = r.sansPrix; return f; });
 }
 
 function apiBonAjouter(id, champs) {

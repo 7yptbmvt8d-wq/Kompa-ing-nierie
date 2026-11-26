@@ -19,15 +19,17 @@ JSON :
 Le montant HT de chaque tâche = jours × prix de journée (formule Excel). Synthèse par tranche
 (SOMME.SI), total général, mention « TVA non applicable, art. 293 B du CGI » : montant TTC = HT.
 
-Accord-cadre à bons de commande : remplacer « taches » par « bpu » (une ligne par prestation du BPU) :
+Accord-cadre à bons de commande : remplacer « taches » par « bpu » (une ligne par prestation du BPU,
+avec le n° de ligne DE L'ACHETEUR, tel qu'il figure dans son BPU : 1.1, 2.3, A4…) :
   "bpu": [
-    {"designation": "Réunion (préparation, animation, compte rendu)", "unite": "réunion", "jours": 0.6, "quantite": 12},
-    {"designation": "Étude de faisabilité < 1 000 m²", "unite": "forfait", "jours": 12, "quantite": 2},
-    {"designation": "Frais de reprographie", "unite": "forfait", "prix": 150, "quantite": 1}   # prix imposé
+    {"numero": "1.1", "designation": "Étude de faisabilité < 1 000 m²", "unite": "forfait", "jours": 12, "quantite": 2},
+    {"numero": "1.2", "designation": "Réunion (préparation, animation, compte rendu)", "unite": "réunion", "jours": 0.6, "quantite": 12},
+    {"numero": "3.1", "designation": "Frais de reprographie", "unite": "forfait", "prix": 150, "quantite": 1}   # prix imposé
   ]
 Prix unitaire HT = jours × prix de journée (formule), sauf « prix » donné ; montant DQE = prix × quantité ;
-total du DQE = montant de l'offre. Colonnes désignation, unité, prix, quantité dans cet ordre : copiables
-telles quelles dans l'app (Offre › BPU › « Coller depuis le BPU Excel du DCE »).
+total du DQE = montant de l'offre.
+Le script écrit aussi, à côté du .xlsx, « BPU-<référence>.tsv » (n°, désignation, unité, prix unitaire,
+quantité ; prix calculés) : déposé dans 04 Offre, l'app propose « Importer le BPU du skill ».
 """
 import json
 import sys
@@ -74,7 +76,7 @@ def generer_bpu(d, sortie):
     lignes = d.get('bpu') or [{'designation': '[Prestation du BPU]', 'unite': '[unité]', 'jours': 1, 'quantite': 1}]
     for i, l in enumerate(lignes, 1):
         r += 1
-        ws.cell(r, 1, i).font = f(10, False, ARDOISE, MONO)
+        ws.cell(r, 1, str(l.get('numero') or i)).font = f(10, False, ARDOISE, MONO)
         ws.cell(r, 2, l.get('designation', '')).font = f(10)
         ws.cell(r, 2).alignment = Alignment(wrap_text=True, vertical='top')
         ws.cell(r, 3, l.get('unite', '')).font = f(10)
@@ -110,7 +112,7 @@ def generer_bpu(d, sortie):
         c.alignment = Alignment(horizontal='right')
         r += 1
     r += 1
-    ws.cell(r, 1, 'À reporter dans l\'app Kartes Affaires : Offre › Type de marché « Accord-cadre à bons de commande », puis copier les colonnes B à E dans « Coller depuis le BPU Excel du DCE ».').font = f(9, False, GRIS, italique=True)
+    ws.cell(r, 1, 'À reporter dans l\'app Kartes Affaires : Offre › Type de marché « Accord-cadre à bons de commande », puis « Importer le BPU du skill » (fichier BPU-….tsv déposé dans 04 Offre), ou copier les colonnes A à E dans « Coller depuis le BPU ».').font = f(9, False, GRIS, italique=True)
     r += 1
     ws.cell(r, 1, 'Kartes Ingénierie — Sébastien De Raedt EI · SIRET 493 567 796 00021 · TVA non applicable, art. 293 B du CGI').font = f(8, False, GRIS, MONO)
     ws.page_setup.orientation = 'landscape'
@@ -121,6 +123,17 @@ def generer_bpu(d, sortie):
     ws.oddFooter.right.text = 'page &P / &N'
     ws.freeze_panes = 'A10'
     wb.save(sortie)
+    # Fichier texte pour l'import dans l'app (prix calculés, n° de l'acheteur conservés)
+    import os
+    pj = float(d.get('prix_jour', 400))
+    tsv = os.path.join(os.path.dirname(os.path.abspath(sortie)), 'BPU-%s.tsv' % d.get('reference', 'affaire'))
+    with open(tsv, 'w', encoding='utf-8') as fh:
+        for i, l in enumerate(lignes, 1):
+            prix = l['prix'] if l.get('prix') is not None else round(float(l.get('jours', 0)) * pj, 2)
+            vals = [str(l.get('numero') or i), str(l.get('designation', '')), str(l.get('unite', '')),
+                    ('%.2f' % float(prix)).replace('.', ','), str(l.get('quantite', 0)).replace('.', ',')]
+            fh.write('\t'.join(v.replace('\t', ' ').replace('\n', ' ') for v in vals) + '\n')
+    print('BPU pour l\'app : ' + tsv)
     return sortie
 
 

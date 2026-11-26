@@ -277,7 +277,7 @@ function creerEnvironnement(options = {}) {
             const f = {
               id: 'FIC' + fichiersDrive.length, nom: blob.nom, dossier: d, corbeille: false, octets: blob.octets, type: blob.type,
               cree: new Date(Date.now() + fichiersDrive.length * 1000),
-              getId: () => f.id, getName: () => f.nom, getUrl: () => 'https://drive.google.com/file/d/' + f.id + '/view', getSize: () => f.octets.length,
+              getId: () => f.id, getName: () => f.nom, getBlob: () => ({ getDataAsString: () => Buffer.from(f.octets).toString('utf8') }), getUrl: () => 'https://drive.google.com/file/d/' + f.id + '/view', getSize: () => f.octets.length,
               getDateCreated: () => f.cree, setTrashed: (v) => { f.corbeille = v; }
             };
             fichiersDrive.push(f);
