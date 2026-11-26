@@ -83,11 +83,14 @@ Kartes Affaires — Dossiers/
         ├── 02 Questions et visite  ← créé à la création
         ├── 03 Candidature          ← créé au passage en Go
         ├── 04 Offre                ← créé au passage en Go
+        │   └── Archives            ← créé par le skill : indices remplacés (ind A, ind B…)
         ├── 05 Dépôt                ← créé au passage en Go
         ├── 06 Résultat             ← créé au résultat (Gagnée, Perdue, Sans suite)
         ├── 07 Exécution            ← créé au passage en Gagnée
-        └── 08 Facturation          ← créé au passage en Gagnée
+        ├── 08 Facturation          ← créé au passage en Gagnée
+        └── 09 Estimations          ← créé au passage en Gagnée
 ```
+Chaque sous-dossier d'étape peut contenir un sous-dossier `Archives` (créé par le skill au premier changement d'indice) : le sous-dossier d'étape ne garde que la dernière version de chaque livrable. Le panneau Documents de l'app n'affiche pas le contenu d'`Archives` ; les fichiers restent dans Drive.
 Les noms des sous-dossiers sont des paramètres (`drive.sous_dossiers_*`) : lis-les si le classeur est accessible.
 
 Recherches avec le connecteur Google Drive (`search_files`) :
@@ -95,8 +98,10 @@ Recherches avec le connecteur Google Drive (`search_files`) :
 - Sous-dossier : `parentId = '<id du dossier>' and mimeType = 'application/vnd.google-apps.folder' and title = '04 Offre'`.
 - Fichiers déjà présents : `parentId = '<id du sous-dossier>' and title contains 'KI-2027-012 — Note méthodologique'`.
 - Dépôt (`create_file`) : `title`, `parentId`, `contentMimeType` (`application/vnd.openxmlformats-officedocument.wordprocessingml.document` ou `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`), `disableConversionToGoogleType: true`.
+- Dossier `Archives` : `parentId = '<id du sous-dossier>' and mimeType = 'application/vnd.google-apps.folder' and title = 'Archives'` ; absent → `create_file` avec `title: 'Archives'`, `contentMimeType: 'application/vnd.google-apps.folder'`, `parentId` = id du sous-dossier d'étape.
+- Anciens indices du même document : `parentId = '<id du sous-dossier>' and title contains 'KI-2027-012 — Note méthodologique — ind'` ; chacun, sauf le nouveau, est déplacé par `update_file` (`fileId`, `parentId` = id d'`Archives`), après le dépôt réussi du nouvel indice.
 
-Interdits : créer un dossier, renommer ou déplacer un dossier de l'app, supprimer ou remplacer un fichier. L'app retrouve ses dossiers par leur nom et leur lien : toute modification de l'arborescence casse ce lien ou crée un doublon.
+Interdits : créer un dossier (sauf `Archives` dans un sous-dossier d'étape), renommer ou déplacer un dossier de l'app, supprimer ou remplacer un fichier, archiver un fichier qui n'est pas un livrable Kartes à indice. L'app retrouve ses dossiers par leur nom et leur lien : toute modification de l'arborescence casse ce lien ou crée un doublon.
 
 ## 7. Dossier-type
 
