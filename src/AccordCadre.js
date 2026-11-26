@@ -51,7 +51,7 @@ function AC_bpuEnregistrer(idAffaire, lignes) {
     if (!d) return null;
     return {
       id_affaire: idAffaire, ordre: (i + 1) * 10, numero: String(l.numero === undefined || l.numero === null ? '' : l.numero).trim().slice(0, 20) || String(i + 1),
-      designation: d.slice(0, 300), unite: String(l.unite || '').trim().slice(0, 40),
+      designation: d.slice(0, 400), unite: String(l.unite || '').trim().slice(0, 120),
       prix_unitaire: arrondi_(AC_nombre_(l.prix_unitaire, 'Prix unitaire de « ' + d + ' »')),
       quantite_dqe: AC_nombre_(l.quantite_dqe, 'Quantité de « ' + d + ' »')
     };
@@ -103,6 +103,8 @@ function AC_cellules_(texte) {
 }
 
 function AC_bpuLireTexte_(texte) {
+  var parEntete = AC_bpuDepuisTableau_([{ nom: 'collage', lignes: AC_cellules_(texte) }]);
+  if (parEntete.length) return parEntete;
   var out = [];
   var nb = function (x) {
     var t = String(x || '').replace(/[\s  €]/g, '').replace(/HT$/i, '');
@@ -131,6 +133,109 @@ function AC_bpuLireTexte_(texte) {
     out.push({ numero: numero, designation: designation, unite: unite, prix_unitaire: pu === null ? 0 : pu, quantite_dqe: q === null ? 0 : q, sansPrix: pu === null });
   });
   return out;
+}
+
+/**
+ * Lecture d'un BPU sous forme de tableau (fichier Excel lu par le navigateur, ou texte collé avec sa ligne
+ * d'en-tête) : les colonnes sont reconnues d'après leur titre, quel que soit leur ordre.
+ *   n° (« N° prix », « Réf. », « Code »…), désignation, unité, précision (« Tranche quantitative »,
+ *   « Observations »… ajoutée à la désignation), prix unitaire, quantité (DQE) ; « Montant », « Total » ignorés.
+ * Cellules fusionnées sur plusieurs lignes (une désignation pour 2A.1 à 2A.3) : le navigateur recopie la valeur
+ * vers le bas ; à défaut, une ligne avec n° et prix mais sans désignation reprend celle de la ligne au-dessus.
+ * Titres de chapitre (ni unité, ni précision, ni prix, ni quantité) et lignes de total ignorés.
+ * Une 2e feuille « DQE » (n° + quantité) complète les quantités d'après le n°.
+ * feuilles : [{ nom, lignes: [[cellule…]…] }]. Renvoie les lignes du BPU, ou [] si aucun en-tête reconnu.
+ */
+var AC_ENTETES = {
+  numero: /^(n\s*°|n°\s*(de\s*)?(prix|ligne|poste|article)|num[ée]ro|r[ée]f(\.|[ée]rence)?|code|art(\.|icle)?|poste|item|rep[eè]re)\b|^n°/i,
+  designation: /d[ée]signation|libell[ée]|intitul[ée]|nature\s+des\s+prestations|description|prestations?\b/i,
+  unite: /^unit[ée]s?(?![a-z])|unit[ée]\s+de\s+(mesure|compte|base)/i,
+  precision: /tranche\s+quantitative|pr[ée]cision|observations?|seuil|conditions?|d[ée]tail|commentaire|remarques?/i,
+  prix: /prix|p\.\s*u\.?|\bpu\b|tarif/i,
+  quantite: /quantit|(^|[^a-z])qt[ée]?s?(?![a-z])|nombre|(^|[^a-z])nb(?![a-z])|dqe/i,
+  montant: /montant|total/i
+};
+
+function AC_colonnes_(ligne) {
+  var col = {};
+  ligne.forEach(function (v, j) {
+    var t = String(v === null || v === undefined ? '' : v).replace(/\s+/g, ' ').trim();
+    if (!t || t.length > 60) return;
+    var trouver = function (k) { if (col[k] === undefined && AC_ENTETES[k].test(t)) { col[k] = j; return true; } return false; };
+    // « N° prix », « N° de poste », « Réf. », « Code » : n° de ligne (avant « prix »)
+    if (col.numero === undefined && /^(n\s*°|num[ée]ro|r[ée]f|code|art(\.|icle)|poste|item|rep[eè]re)/i.test(t)) { col.numero = j; return; }
+    if (AC_ENTETES.montant.test(t) && !/unitaire/i.test(t)) { if (col.montant === undefined) col.montant = j; return; }
+    if (AC_ENTETES.prix.test(t) && !/total/i.test(t)) { if (col.prix === undefined || /unitaire/i.test(t)) col.prix = j; return; }
+    if (/tranche\s+quantitative/i.test(t) && trouver('precision')) return; // précision, pas une quantité
+    if (trouver('quantite')) return;
+    if (trouver('unite')) return;
+    if (trouver('designation')) return;
+    if (trouver('precision')) return;
+    trouver('numero');
+  });
+  return col.designation !== undefined && (col.prix !== undefined || col.quantite !== undefined || col.unite !== undefined) ? col : null;
+}
+
+function AC_texteCel_(v) { return String(v === null || v === undefined ? '' : v).replace(/\s+/g, ' ').trim(); }
+
+function AC_nombreCel_(v) {
+  if (typeof v === 'number') return v;
+  var t = String(v || '').replace(/[\s\u00a0\u202f€]/g, '').replace(/HT$/i, '');
+  if (/^\d{1,3}(\.\d{3})+,\d+$/.test(t)) t = t.replace(/\./g, '');
+  t = t.replace(',', '.');
+  return t !== '' && !isNaN(Number(t)) ? Number(t) : null;
+}
+
+function AC_bpuDepuisTableau_(feuilles) {
+  var analyse = (feuilles || []).map(function (fl) {
+    var lignes = fl.lignes || [];
+    for (var i = 0; i < Math.min(lignes.length, 40); i++) {
+      var col = AC_colonnes_(lignes[i] || []);
+      if (col) return { nom: fl.nom, lignes: lignes, entete: i, col: col };
+    }
+    return null;
+  }).filter(Boolean);
+  if (!analyse.length) return [];
+  // Feuille du BPU : celle qui a une colonne prix (à défaut la première reconnue) ; DQE : une autre avec quantités
+  var bpuF = analyse.filter(function (a) { return a.col.prix !== undefined; })[0] || analyse[0];
+  var dqeF = analyse.filter(function (a) { return a !== bpuF && a.col.quantite !== undefined && a.col.numero !== undefined; })[0] || null;
+  var c = bpuF.col, out = [], dernier = null;
+  bpuF.lignes.slice(bpuF.entete + 1).forEach(function (l) {
+    l = l || [];
+    var g = function (k) { return c[k] === undefined ? '' : AC_texteCel_(l[c[k]]); };
+    var numero = g('numero'), designation = g('designation'), unite = g('unite'), precision = g('precision');
+    var pu = c.prix === undefined ? null : AC_nombreCel_(l[c.prix]);
+    var q = c.quantite === undefined ? null : AC_nombreCel_(l[c.quantite]);
+    if (/^(sous[-\s]?)?total|^montant|^tva\b|^ttc\b/i.test(designation) || /^total/i.test(numero)) return;
+    if (!designation && !numero) return;
+    if (!designation && numero && dernier && (pu !== null || precision || unite)) {
+      designation = dernier.designation; // cellule fusionnée non recopiée
+      if (!unite) unite = dernier.unite;
+    }
+    if (!designation) return;
+    if (!unite && !precision && pu === null && q === null) { return; } // titre de chapitre
+    dernier = { designation: designation, unite: unite };
+    out.push({ numero: numero.replace(/^(art(icle)?\.?|n°|poste)\s*/i, ''), designation: designation + (precision ? ' — ' + precision : ''),
+      unite: unite, prix_unitaire: pu === null ? 0 : pu, quantite_dqe: q === null ? 0 : q, sansPrix: pu === null });
+  });
+  if (dqeF && out.length) {
+    var parNumero = {};
+    dqeF.lignes.slice(dqeF.entete + 1).forEach(function (l) {
+      var n = AC_texteCel_((l || [])[dqeF.col.numero]), q = AC_nombreCel_((l || [])[dqeF.col.quantite]);
+      if (n && q !== null) parNumero[n] = q;
+    });
+    out.forEach(function (x) { if (!x.quantite_dqe && parNumero[x.numero] !== undefined) x.quantite_dqe = parNumero[x.numero]; });
+  }
+  return out;
+}
+
+/** Import d'un fichier Excel lu par le navigateur : remplace le BPU (ou ajoute, ajouter = true). */
+function AC_bpuImporterTableau(idAffaire, feuilles, ajouter, nomFichier) {
+  var nouvelles = AC_bpuDepuisTableau_(feuilles);
+  if (!nouvelles.length) throw new Error('BPU non reconnu dans ce fichier : il faut une ligne d\'en-tête avec au moins « Désignation » et « Prix unitaire » (ou « Unité », « Quantité »).');
+  var bpu = AC_bpuEnregistrer(idAffaire, (ajouter ? AC_bpu(idAffaire) : []).concat(nouvelles));
+  Affaires_ajouterNote(idAffaire, 'BPU importé' + (nomFichier ? ' depuis ' + String(nomFichier).slice(0, 120) : '') + ' : ' + nouvelles.length + ' lignes');
+  return { ajoutees: nouvelles.length, sansPrix: nouvelles.filter(function (l) { return l.sansPrix; }).length, bpu: bpu };
 }
 
 /**

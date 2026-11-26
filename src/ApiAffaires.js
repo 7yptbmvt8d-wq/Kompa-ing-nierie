@@ -50,6 +50,14 @@ function ficheClient_(id) {
   };
 }
 
+/** Fichier Excel du BPU lu par le navigateur : feuilles = [{ nom, lignes }]. */
+function apiBpuImporterTableau(id, feuilles, ajouter, nomFichier) {
+  return repondre_(function () {
+    var r = AC_bpuImporterTableau(id, feuilles, ajouter === true, nomFichier);
+    var f = ficheClient_(id); f.ajoutees = r.ajoutees; f.sansPrix = r.sansPrix; return f;
+  });
+}
+
 function apiBpuImporterSkill(id) {
   return repondre_(function () { var r = AC_bpuImporterSkill(id); var f = ficheClient_(id); f.importe = { lignes: r.lignes, fichier: r.fichier.nom }; return f; });
 }

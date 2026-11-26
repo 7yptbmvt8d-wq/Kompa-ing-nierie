@@ -391,6 +391,18 @@ function assembler() {
     assert.strictEqual(await p.locator('#bpu [data-bpu-ligne]').count(), 4);
     await p.locator('#bpu').scrollIntoViewIfNeeded();
     await p.screenshot({ path: path.join(sortie, 'pc-ac-bpu.png'), fullPage: true });
+    // Import direct d'un fichier Excel de BPU vierge (cellules fusionnées, « Tranche quantitative ») : remplace le BPU
+    p.once('dialog', (d) => d.accept());
+    await p.setInputFiles('#bpu-fichier', path.join(__dirname, 'fixtures', 'bpu-exemple.xlsx'));
+    await p.waitForFunction(() => document.querySelectorAll('#bpu [data-bpu-ligne]').length === 6, null, { timeout: 30000 });
+    const numeros = await p.$$eval('#bpu [data-bpu="numero"]', (els) => els.map((e) => e.value));
+    assert.deepStrictEqual(numeros, ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2']);
+    assert.match(await p.inputValue('#bpu [data-bpu-ligne]:nth-child(2) [data-bpu="designation"]'), /Étude de faisabilité d'un équipement — 500 m²/);
+    await p.screenshot({ path: path.join(sortie, 'pc-ac-bpu-import-excel.png'), fullPage: true });
+    // Remise du BPU de démonstration (prix) pour la suite de l'aperçu
+    A.apiBpuColler(ac, '1\tÉtude de faisabilité / programme d\'un équipement < 1 000 m²\tforfait\t6600\t2\n2\tRéunion (préparation, animation, compte rendu)\tréunion\t330\t12\n3\tAnalyse des candidatures et des offres de maîtrise d\'œuvre\tconsultation\t2200\t2\n4\tJournée d\'assistance (vacation)\tjour\t550\t10');
+    await p.evaluate((id) => { window.KA.viderMemoire(); window.KA.afficher('affaire/' + id, true); }, ac);
+    await p.waitForSelector('.fiche-tete');
     await p.click('[data-volet="mission"]');
     await p.click('[data-sous="planning"]');
     await p.waitForSelector('.entete-ac');

@@ -2450,6 +2450,45 @@ test('accord-cadre : cellules sur plusieurs lignes (copie Google Sheets), collag
   assert.strictEqual(brut(A.apiBpuColler(id, texte, true)).data.bpu.length, 10);
 });
 
+test('accord-cadre : fichier Excel du BPU de l\'acheteur (colonnes par titre, « Tranche quantitative », cellules fusionnées, DQE séparé)', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  A.installer({ exercice: false });
+  const id = A.Affaires_creer({ acheteur: 'Ville X', objet: 'AC AMO économie de la construction' }).id;
+  A.Affaires_maj(id, { type_marche: 'Accord-cadre à bons de commande' });
+  // Feuille telle que lue par le navigateur (fusions verticales recopiées vers le bas, sauf la dernière)
+  const bpu = [
+    ['ACCORD-CADRE A BONS DE COMMANDE AMO économie de la construction', '', '', '', ''],
+    ['Bordereau des prix unitaires (BPU)', '', '', '', ''],
+    ['N° prix', 'Désignation', 'Unité', 'Tranche quantitative', 'Prix unitaire \n€ HT'],
+    [1, 'MISSION 1 - ANALYSES TECHNICO-ECONOMIQUES TRANSVERSALES', '', '', ''],
+    ['1.1', 'Etablissement d’une grille-type d’analyse comparative', 'Par typologie de travaux', '', 2400],
+    ['1.5', 'Note d\'expertise thématique', 'Jour', '', 400],
+    [2, 'MISSION 2 - ANALYSES D\'UNE OPERATION', '', '', ''],
+    ['2A', 'Analyse technico-économique sans DPGF', '', '', ''],
+    ['2A.1', 'Analyse des pièces écrites et graphiques', 'Par opération', 'Travaux analysés < 1,2M€HT', 800],
+    ['2A.2', 'Analyse des pièces écrites et graphiques', 'Par opération', '1,2M€HT ≤ travaux analysés <2M€HT', 1000],
+    ['2A.3', '', '', '2M€HT ≤ travaux analysés', 1200],
+    ['2B.6', 'Plus-value pour vérification sur plan des quantités', 'Tranche de 500k€ HT de travaux analysés', '', 600],
+    ['', 'TOTAL', '', '', '']
+  ];
+  const dqe = [['N°', 'Désignation', 'Quantité'], ['1.1', 'Grille-type', 2], ['2A.1', 'Analyse', 5], ['2B.6', 'Plus-value', 3]];
+  const r = brut(A.apiBpuImporterTableau(id, [{ nom: 'BPU', lignes: bpu }, { nom: 'DQE', lignes: dqe }], false, 'KI-2026-011 - BPU - ind B.xlsx'));
+  assert.ok(r.ok, r.erreur);
+  const l = r.data.bpu;
+  assert.deepStrictEqual(l.map((x) => x.numero), ['1.1', '1.5', '2A.1', '2A.2', '2A.3', '2B.6']);
+  assert.deepStrictEqual(l.map((x) => x.prix_unitaire), [2400, 400, 800, 1000, 1200, 600]);
+  assert.strictEqual(l[2].designation, 'Analyse des pièces écrites et graphiques — Travaux analysés < 1,2M€HT');
+  assert.strictEqual(l[4].designation, 'Analyse des pièces écrites et graphiques — 2M€HT ≤ travaux analysés');
+  assert.strictEqual(l[4].unite, 'Par opération');
+  assert.strictEqual(l[5].unite, 'Tranche de 500k€ HT de travaux analysés');
+  assert.deepStrictEqual(l.map((x) => x.quantite_dqe), [2, 0, 5, 0, 0, 3]);
+  assert.strictEqual(r.data.affaire.montant_ht, 2400 * 2 + 800 * 5 + 600 * 3);
+  assert.match(A.Affaires_get_(id).notes, /BPU importé depuis KI-2026-011 - BPU - ind B\.xlsx : 6 lignes/);
+  // Fichier sans en-tête reconnu : message clair
+  assert.match(brut(A.apiBpuImporterTableau(id, [{ nom: 'X', lignes: [['a', 'b'], ['c', 'd']] }])).erreur, /BPU non reconnu/);
+});
+
 test('URSSAF : périodes antérieures au début du suivi non relancées', () => {
   const { A } = jeuFiscal();
   A.Params_enregistrer('fiscal.debut_suivi', '2026-11-01');

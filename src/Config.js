@@ -8,7 +8,7 @@
 var APP = {
   NOM: 'Kartes Affaires',
   ENTREPRISE: 'Kartes Ingénierie',
-  VERSION: '1.7.2',
+  VERSION: '1.7.3',
   CLASSEUR: 'Kartes Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kartes Affaires — sauvegardes',
   ANCIEN_NOM: 'Kompa', // nom d'avant le 22/11/2026 : fichiers et dossiers renommés par la mise à jour automatique

@@ -576,10 +576,11 @@
       (f.bpuFichier ? '<div class="bandeau bandeau--info">Le skill a déposé <strong>' + esc(f.bpuFichier.nom) + '</strong> (' + esc(f.bpuFichier.date) + ') dans le dossier Drive. ' +
         '<button type="button" class="bouton bouton--petit" data-bpu-importer>Importer le BPU du skill</button></div>' : '') +
       '<div class="bpu-actions"><button type="button" class="bouton bouton--petit bouton--discret" data-bpu-ajouter>+ Ligne</button>' +
-        '<button type="button" class="bouton bouton--petit bouton--discret" data-bpu-coller>Coller depuis le BPU Excel du DCE</button>' +
+        '<label class="bouton bouton--petit" for="bpu-fichier">Importer le fichier Excel du BPU</label><input type="file" id="bpu-fichier" class="depot__input" accept=".xlsx,.xls,.xlsm,.ods,.csv" data-bpu-fichier>' +
+        '<button type="button" class="bouton bouton--petit bouton--discret" data-bpu-coller>Coller des lignes</button>' +
         '<button type="button" class="bouton bouton--petit" data-bpu-enregistrer>Enregistrer le BPU</button>' +
         '<span class="legende" data-bpu-etat></span></div>' +
-      '<p class="legende">Le montant du DQE devient le montant HT de l\'offre (celui que l\'acheteur compare)' +
+      '<p class="legende">Importez directement le fichier Excel du BPU du DCE : les colonnes sont reconnues par leur titre (n°, désignation, unité, précision, prix, quantité ; une feuille DQE complète les quantités). Le montant du DQE devient le montant HT de l\'offre (celui que l\'acheteur compare)' +
         (pj ? '. Repère : prix de journée ' + K.euros(pj) + ' HT — <span data-bpu-jours></span>' : '') + '.</p></section>';
   }
 
@@ -628,6 +629,22 @@
       K.appel('apiBpuEnregistrer', a.id, lire()).then(function (fiche) { K.toast('BPU enregistré : DQE ' + K.euros(fiche.accordCadre ? fiche.accordCadre.dqe : 0) + ' HT = montant de l\'offre.'); recharger(fiche); })
         .catch(function (e) { b.disabled = false; K.toast(e.message, true); });
     });
+    var bf = $('[data-bpu-fichier]', zone);
+    if (bf) bf.addEventListener('change', function () {
+      var fichier = bf.files && bf.files[0];
+      bf.value = '';
+      if (!fichier) return;
+      if ((f.bpu || []).length && !window.confirm('Remplacer les ' + f.bpu.length + ' lignes actuelles du BPU par celles de « ' + fichier.name + ' » ?')) return;
+      etatTxt.textContent = 'Lecture de « ' + fichier.name + ' »…';
+      lireTableur(fichier).then(function (feuilles) {
+        etatTxt.textContent = 'Import du BPU…';
+        return K.appel('apiBpuImporterTableau', a.id, feuilles, false, fichier.name);
+      }).then(function (fiche) {
+        K.toast(fiche.ajoutees + ' ligne' + (fiche.ajoutees > 1 ? 's' : '') + ' importée' + (fiche.ajoutees > 1 ? 's' : '') + ' de « ' + fichier.name + ' »' +
+          (fiche.sansPrix ? ', dont ' + fiche.sansPrix + ' sans prix à compléter' : '') + ' : DQE ' + K.euros(fiche.accordCadre ? fiche.accordCadre.dqe : 0) + ' HT.');
+        recharger(fiche);
+      }).catch(function (e) { etatTxt.textContent = ''; K.toast(e.message, true); });
+    });
     var bi = $('[data-bpu-importer]', zone);
     if (bi) bi.addEventListener('click', function () {
       if ((f.bpu || []).length && !window.confirm('Remplacer les ' + f.bpu.length + ' lignes actuelles du BPU par celles de ' + f.bpuFichier.nom + ' ?')) return;
@@ -644,6 +661,53 @@
       dialogue('Coller le BPU depuis Excel', corpsD, 'Ajouter les lignes', function (form) {
         var ajout = $('[data-bpu-ajout]', form);
         return K.appel('apiBpuColler', a.id, lireChamps(form).texte, !!(ajout && ajout.checked)).then(function (fiche) { K.toast(fiche.ajoutees + ' ligne' + (fiche.ajoutees > 1 ? 's' : '') + ' ajoutée' + (fiche.ajoutees > 1 ? 's' : '') + ' au BPU' + (fiche.sansPrix ? ' dont ' + fiche.sansPrix + ' sans prix : complétez les prix unitaires puis « Enregistrer le BPU »' : '') + '.'); recharger(fiche); });
+      });
+    });
+  }
+
+  // Lecture d'un tableur (Excel, LibreOffice, CSV) dans le navigateur, avec SheetJS chargé à la demande.
+  // Cellules fusionnées sur plusieurs lignes : la valeur est recopiée vers le bas (une désignation pour 2A.1 à 2A.3).
+  var XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  function chargerXlsx() {
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    return new Promise(function (ok, ko) {
+      var s = document.createElement('script');
+      s.src = XLSX_URL;
+      s.onload = function () { window.XLSX ? ok(window.XLSX) : ko(new Error('Lecture des fichiers Excel indisponible.')); };
+      s.onerror = function () { ko(new Error('Lecture des fichiers Excel indisponible (connexion à cdnjs.cloudflare.com). Utilisez « Coller des lignes ».')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function lireTableur(fichier) {
+    return chargerXlsx().then(function (XLSX) {
+      return new Promise(function (ok, ko) {
+        var r = new FileReader();
+        r.onerror = function () { ko(new Error('Lecture du fichier impossible.')); };
+        r.onload = function () {
+          try {
+            var wb = XLSX.read(new Uint8Array(r.result), { type: 'array' });
+            var feuilles = wb.SheetNames.slice(0, 8).map(function (nom) {
+              var ws = wb.Sheets[nom];
+              if (!ws || !ws['!ref']) return null;
+              var plage = XLSX.utils.decode_range(ws['!ref']);
+              var lignes = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '', blankrows: true });
+              (ws['!merges'] || []).forEach(function (m) {
+                if (m.e.r <= m.s.r) return;
+                var l0 = lignes[m.s.r - plage.s.r] || [], v = l0[m.s.c - plage.s.c];
+                for (var i = m.s.r + 1; i <= m.e.r; i++) {
+                  var li = lignes[i - plage.s.r] = lignes[i - plage.s.r] || [];
+                  if (li[m.s.c - plage.s.c] === '' || li[m.s.c - plage.s.c] === undefined) li[m.s.c - plage.s.c] = v;
+                }
+              });
+              return { nom: nom, lignes: lignes.slice(0, 600).map(function (l) {
+                return (l || []).slice(0, 30).map(function (v) { return v instanceof Date ? v.toISOString().slice(0, 10) : (typeof v === 'number' ? v : String(v === null || v === undefined ? '' : v)); });
+              }) };
+            }).filter(Boolean);
+            ok(feuilles);
+          } catch (e) { ko(new Error('Fichier illisible : ' + e.message)); }
+        };
+        r.readAsArrayBuffer(fichier);
       });
     });
   }
