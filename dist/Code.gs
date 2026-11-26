@@ -1,4 +1,4 @@
-/* Kartes Affaires 1.6.5 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
+/* Kartes Affaires 1.6.6 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
 
 // ════════ Setup.js ════════
 
@@ -1229,7 +1229,7 @@ function arrondi_(n) {
 var APP = {
   NOM: 'Kartes Affaires',
   ENTREPRISE: 'Kartes Ingénierie',
-  VERSION: '1.6.5',
+  VERSION: '1.6.6',
   CLASSEUR: 'Kartes Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kartes Affaires — sauvegardes',
   ANCIEN_NOM: 'Kompa', // nom d'avant le 22/11/2026 : fichiers et dossiers renommés par la mise à jour automatique
@@ -2891,7 +2891,7 @@ function Finances_synthese(quand) {
   var enc = Finances_encaissements_(auj);
   var somme = function (filtre) { return arrondi_(enc.lignes.filter(filtre).reduce(function (s, l) { return s + l.montant; }, 0)); };
   var fiscal = Fiscal_declarations(null, auj);
-  var prochaineDecl = fiscal.periodes.filter(function (p) { return p.etat !== 'déclarée' && p.etat !== 'non suivie'; })[0] || null;
+  var prochaineDecl = fiscal.periodes.filter(function (p) { return p.etat !== 'déclarée' && p.etat !== 'non suivie' && p.etat !== 'regroupée'; })[0] || null;
   var cfe = fiscal.cfe && ['non due', 'exonérée', 'payée'].indexOf(fiscal.cfe.etat) < 0 ? fiscal.cfe : fiscal.cfeProchaine;
   return {
     ca: Compteur_ca(auj.getFullYear()),
@@ -2946,6 +2946,24 @@ function Fiscal_periodes_(annee) {
       debut: debut, fin: fin, echeance: echeance
     });
   }
+  // Première déclaration (trimestriel) : elle couvre le trimestre du début d'activité ET le trimestre suivant,
+  // à déclarer à l'échéance de ce dernier (ex. début le 01/12/2026 → du 01/12/2026 au 31/03/2027, avant le 30/04/2027).
+  var creation = date_(Params_texte('fiscal.date_creation', ''));
+  if (!mensuel && creation) {
+    var tc = Math.floor(creation.getMonth() / 3), ac = creation.getFullYear();
+    var tn = (tc + 1) % 4, an = tc === 3 ? ac + 1 : ac;
+    var idC = ac + '-T' + (tc + 1), idN = an + '-T' + (tn + 1);
+    out.forEach(function (p) {
+      if (p.id === idC) {
+        p.regroupeAvec = idN;
+        p.libelle = 'T' + (tc + 1) + ' ' + ac + ' (avec T' + (tn + 1) + ' ' + an + ')';
+        p.debutAffiche = creation;
+      } else if (p.id === idN) {
+        p.debutDeclaration = aujourdhui_(creation);
+        p.libelle = 'T' + (tc + 1) + ' ' + ac + ' + T' + (tn + 1) + ' ' + an + ' — 1re déclaration';
+      }
+    });
+  }
   return out;
 }
 
@@ -2978,10 +2996,15 @@ function Fiscal_declarations(annee, quand) {
   if (creationEntreprise && (!debutSuivi || creationEntreprise > debutSuivi)) debutSuivi = creationEntreprise;
 
   var periodes = Fiscal_periodes_(annee).map(function (p) {
-    var ca = factures.reduce(function (s, f) {
-      var d = date_(f.date_encaissement);
-      return d && aujourdhui_(d) >= p.debut && aujourdhui_(d) <= p.fin ? s + montant_(f.montant_encaisse) : s;
-    }, 0);
+    var caEntre = function (de) {
+      return factures.reduce(function (s, f) {
+        var d = date_(f.date_encaissement);
+        return d && aujourdhui_(d) >= de && aujourdhui_(d) <= p.fin && f.qonto_statut !== 'annulée' ? s + montant_(f.montant_encaisse) : s;
+      }, 0);
+    };
+    var caPeriode = caEntre(p.debut);
+    // 1re déclaration : CA depuis le début d'activité ; trimestre regroupé : rien à payer sur cette ligne
+    var ca = p.debutDeclaration ? caEntre(p.debutDeclaration) : p.regroupeAvec ? 0 : caPeriode;
     var cotisations = taux.cotisations === null ? null : ca * taux.cotisations;
     var cfp = taux.cfp === null ? null : ca * taux.cfp;
     var impot = taux.impot === null ? null : ca * taux.impot;
@@ -2989,12 +3012,14 @@ function Fiscal_declarations(annee, quand) {
     var dec = declarees[p.id];
     var etat = dec && dec.date_declaration ? 'déclarée'
       : debutSuivi && p.fin < aujourdhui_(debutSuivi) ? 'non suivie'
+      : p.regroupeAvec ? 'regroupée'
       : auj < p.debut ? 'à venir'
       : auj <= p.fin ? 'en cours'
       : auj <= p.echeance ? 'à déclarer' : 'en retard';
     return {
-      id: p.id, libelle: p.libelle, debut: jourIso_(p.debut), fin: jourIso_(p.fin), echeance: jourIso_(p.echeance),
-      ca: arrondi_(ca), cotisations: arr(cotisations), cfp: arr(cfp), impot: arr(impot), total: arr(total),
+      id: p.id, libelle: p.libelle, debut: jourIso_(p.debutDeclaration || p.debutAffiche || p.debut), fin: jourIso_(p.fin), echeance: jourIso_(p.echeance),
+      regroupeAvec: p.regroupeAvec || '', premiere: !!p.debutDeclaration,
+      ca: arrondi_(p.regroupeAvec ? caPeriode : ca), caPeriode: arrondi_(caPeriode), cotisations: arr(cotisations), cfp: arr(cfp), impot: arr(impot), total: arr(total),
       etat: etat, joursAvantEcheance: ecartJours_(p.echeance, auj),
       ca_declare: dec ? montant_(dec.ca_declare) : null,
       date_declaration: dec && date_(dec.date_declaration) ? jourIso_(date_(dec.date_declaration)) : ''
@@ -3021,7 +3046,7 @@ function Fiscal_declarations(annee, quand) {
       }
       return null;
     })(),
-    totaux: { ca: somme('ca'), cotisations: somme('cotisations'), cfp: somme('cfp'), impot: somme('impot'), total: somme('total') }
+    totaux: { ca: somme('caPeriode'), cotisations: somme('cotisations'), cfp: somme('cfp'), impot: somme('impot'), total: somme('total') }
   };
 }
 
@@ -3159,7 +3184,7 @@ function Fiscal_echeances_(debut, fin, quand) {
   var out = [];
   annees.forEach(function (an) {
     Fiscal_declarations(an, auj).periodes.forEach(function (p) {
-      if (p.etat === 'déclarée' || p.etat === 'à venir' || p.etat === 'non suivie') return;
+      if (p.etat === 'déclarée' || p.etat === 'à venir' || p.etat === 'non suivie' || p.etat === 'regroupée') return;
       var e = date_(p.echeance);
       var dans = aujourdhui_(e) >= aujourdhui_(debut) && aujourdhui_(e) <= aujourdhui_(fin);
       if (!dans && p.etat !== 'en retard') return;

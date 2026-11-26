@@ -280,7 +280,12 @@ test('passage à l\'année suivante : numérotation, CA et déclarations URSSAF 
   const d2026 = brut(A.Fiscal_declarations(2026, new Date(2027, 0, 20)));
   assert.ok(d2026.periodes.every((p) => p.etat === 'non suivie'), d2026.periodes.map((p) => p.libelle + ' ' + p.etat).join(' | '));
   const d2027 = brut(A.Fiscal_declarations(2027, new Date(2027, 0, 20)));
-  assert.strictEqual(d2027.periodes[0].etat, 'en cours');
+  // 1re déclaration : trimestre de création + trimestre suivant, à l'échéance de ce dernier
+  assert.strictEqual(d2027.periodes[0].etat, 'regroupée');
+  assert.strictEqual(d2027.periodes[0].regroupeAvec, '2027-T2');
+  assert.ok(d2027.periodes[1].premiere);
+  assert.deepStrictEqual([d2027.periodes[1].debut, d2027.periodes[1].fin, d2027.periodes[1].echeance], ['2027-01-04', '2027-06-30', '2027-07-31']);
+  assert.match(d2027.periodes[1].libelle, /T1 2027 \+ T2 2027 — 1re déclaration/);
   // Déclaration de revenus : rien au printemps 2027 (pas de CA 2026 de micro-entreprise), rappel au printemps 2028 pour le CA 2027
   assert.strictEqual(A.Fiscal_declarationRevenus(2027, new Date(2027, 4, 1)).etat, 'non due');
   assert.ok(!brut(A.Echeances_calculer(new Date(2027, 3, 1), new Date(2027, 5, 30), new Date(2027, 4, 1))).some((e) => /Déclaration de revenus/.test(e.libelle)));
@@ -2152,9 +2157,12 @@ test('URSSAF trimestriel : CA encaissé par trimestre, échéances, estimation, 
   const { A } = jeuFiscal();
   const d = brut(A.Fiscal_declarations(2026, new Date(2026, 10, 12)));
   assert.deepStrictEqual(d.periodes.map((p) => p.id), ['2026-T1', '2026-T2', '2026-T3', '2026-T4']);
-  assert.deepStrictEqual(d.periodes.map((p) => p.ca), [10000, 0, 13000, 0]);
+  // 1re déclaration (création le 01/01/2026) : T1 + T2, avant le 31/07 ; T1 affiche son CA, sans somme à payer
+  assert.deepStrictEqual(d.periodes.map((p) => p.ca), [10000, 10000, 13000, 0]);
   assert.deepStrictEqual(d.periodes.map((p) => p.echeance), ['2026-04-30', '2026-07-31', '2026-10-31', '2027-01-31']);
-  assert.deepStrictEqual(d.periodes.map((p) => p.etat), ['en retard', 'en retard', 'en retard', 'en cours']);
+  assert.deepStrictEqual(d.periodes.map((p) => p.etat), ['regroupée', 'en retard', 'en retard', 'en cours']);
+  assert.strictEqual(d.periodes[0].total, 0);
+  assert.strictEqual(d.periodes[1].cotisations, 2320); // 10 000 × 23,2 %
   const t3 = d.periodes[2];
   assert.strictEqual(t3.cotisations, 3016);   // 13 000 × 23,2 %
   assert.strictEqual(t3.cfp, 26);             // 13 000 × 0,2 %
@@ -2259,19 +2267,52 @@ test('URSSAF : relance et échéance tant que non déclaré ; déclaration → s
   const quand = new Date(2026, 10, 12);
   A.Relances_synchroniser(quand);
   const urssaf = () => A.Db_lire(A.TABLES.RELANCES).filter((x) => x.type === 'Déclaration URSSAF');
-  assert.strictEqual(urssaf().length, 3); // T1, T2, T3 en retard
+  assert.strictEqual(urssaf().length, 2); // 1re déclaration (T1 + T2) et T3 en retard
   assert.match(urssaf().find((x) => x.cle === 'urssaf:2026-T3').commentaire, /13 000,00 €, avant le 31\/10\/2026/);
   const ech = brut(A.Echeances_calculer(new Date(2026, 10, 12), new Date(2026, 11, 31), quand)).filter((e) => e.type === 'Déclaration');
-  assert.strictEqual(ech.length, 3);
+  assert.strictEqual(ech.length, 2);
   assert.ok(ech.every((e) => e.depassee && e.acheteur === 'URSSAF'));
-  ['2026-T1', '2026-T2', '2026-T3'].forEach((id) => assert.ok(A.apiDeclarer(id, '', '2026-11-12').ok));
+  ['2026-T2', '2026-T3'].forEach((id) => assert.ok(A.apiDeclarer(id, '', '2026-11-12').ok));
   A.Relances_synchroniser(quand);
   assert.ok(urssaf().every((x) => x.statut === 'sans objet'));
   const d = brut(A.Fiscal_declarations(2026, quand));
-  assert.deepStrictEqual(d.periodes.map((p) => p.etat), ['déclarée', 'déclarée', 'déclarée', 'en cours']);
+  assert.deepStrictEqual(d.periodes.map((p) => p.etat), ['regroupée', 'déclarée', 'déclarée', 'en cours']);
   assert.ok(A.apiAnnulerDeclaration('2026-T3').ok);
   assert.strictEqual(brut(A.Fiscal_declarations(2026, quand)).periodes[2].etat, 'en retard');
   assert.strictEqual(A.apiDeclarer('2026-T9', 1, '').ok, false);
+});
+
+test('URSSAF : 1re déclaration pour un début d\'activité le 01/12/2026 (du 01/12/2026 au 31/03/2027, avant le 30/04/2027)', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  A.installer({ exercice: false });
+  A.Params_enregistrer('fiscal.debut_suivi', '2026-11-12');
+  A.Params_enregistrer('fiscal.date_creation', '2026-12-01');
+  A.Params_enregistrer('fiscal.taux_cotisations', '25,6');
+  A.Params_cache_ = null;
+  const g = A.Affaires_creer({ acheteur: 'Commune de Gap', objet: 'AMO' }, { date: '2026-11-20' }).id;
+  A.Affaires_changerStatut(g, 'Go', {}); A.Affaires_changerStatut(g, 'Déposée', { montant_ht: 3000, jours_reponse: 1, date_depot: '2026-11-25' });
+  A.Affaires_changerStatut(g, 'Gagnée', { date_notification: '2026-12-02', montant_notifie: 3000 });
+  A.Factures_ajouter(g, { numero: 'F1', date: '2026-12-10', montant: 1000, date_encaissement: '2026-12-20', montant_encaisse: 1000 });
+  A.Factures_ajouter(g, { numero: 'F2', date: '2027-02-10', montant: 2000, date_encaissement: '2027-03-05', montant_encaisse: 2000 });
+  // Fin janvier 2027 : rien à déclarer (pas de T4 2026 seul)
+  const fevrier = new Date(2027, 1, 2);
+  const d26 = brut(A.Fiscal_declarations(2026, fevrier));
+  assert.deepStrictEqual(d26.periodes.map((p) => p.etat), ['non suivie', 'non suivie', 'non suivie', 'regroupée']);
+  assert.strictEqual(d26.periodes[3].debut, '2026-12-01');
+  assert.strictEqual(d26.totaux.ca, 1000);
+  A.Relances_synchroniser(fevrier);
+  assert.strictEqual(A.Db_lire(A.TABLES.RELANCES).filter((x) => x.type === 'Déclaration URSSAF').length, 0);
+  // Avril 2027 : 1re déclaration de 3 000 € (décembre + T1), avant le 30/04/2027
+  const avril = new Date(2027, 3, 10);
+  const t1 = brut(A.Fiscal_declarations(2027, avril)).periodes[0];
+  assert.deepStrictEqual([t1.debut, t1.fin, t1.echeance, t1.ca, t1.etat, t1.premiere], ['2026-12-01', '2027-03-31', '2027-04-30', 3000, 'à déclarer', true]);
+  assert.strictEqual(t1.cotisations, 768); // 3 000 × 25,6 %
+  assert.strictEqual(brut(A.Fiscal_declarations(2027, avril)).totaux.ca, 2000); // CA de l'année 2027 seule
+  A.Relances_synchroniser(avril);
+  const r = A.Db_lire(A.TABLES.RELANCES).filter((x) => x.type === 'Déclaration URSSAF');
+  assert.strictEqual(r.length, 1);
+  assert.match(r[0].commentaire, /3\s000,00\s€, avant le 30\/04\/2027/);
 });
 
 test('URSSAF : périodes antérieures au début du suivi non relancées', () => {

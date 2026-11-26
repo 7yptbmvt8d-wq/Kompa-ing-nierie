@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Kartes Affaires 1.6.5 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
+<!-- Kartes Affaires 1.6.6 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
 <html lang="fr">
 <head>
   <base target="_top">
@@ -1387,10 +1387,10 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
   var K = window.KA;
   var esc = K.esc, $ = K.$, $$ = K.$$;
 
-  var etat = { vue: 'colonnes', clotures: true, meta: null };
+  var etat = { vue: 'colonnes', clotures: false, meta: null };
   try {
     etat.vue = localStorage.getItem('ka.vue') || 'colonnes';
-    etat.clotures = localStorage.getItem('ka.clotures') !== '0'; // affichées par défaut
+    etat.clotures = localStorage.getItem('ka.clotures2') === '1'; // masquées par défaut (case « Afficher les affaires clôturées »)
   } catch (e) { /* stockage indisponible : valeurs par défaut */ }
   function memoriser(cle, v) { try { localStorage.setItem(cle, v); } catch (e) { /* sans effet */ } }
 
@@ -1599,7 +1599,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
 
     $('[data-action="nouvelle"]', el).addEventListener('click', nouvelleAffaire);
     $('[data-action="clotures"]', el).addEventListener('change', function (ev) {
-      etat.clotures = ev.target.checked; memoriser('ka.clotures', etat.clotures ? '1' : '0'); rendreAffaires(el, affaires);
+      etat.clotures = ev.target.checked; memoriser('ka.clotures2', etat.clotures ? '1' : '0'); rendreAffaires(el, affaires);
     });
     $$('[data-vue]', el).forEach(function (b) {
       b.addEventListener('click', function () { etat.vue = b.getAttribute('data-vue'); memoriser('ka.vue', etat.vue); rendreAffaires(el, affaires); });
@@ -3035,7 +3035,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
   // ——— Déclarations URSSAF (accueil) ———
   var ETATS_DECL = {
     'déclarée': 'statut--ok', 'en retard': 'statut--ko', 'à déclarer': 'statut--alerte',
-    'en cours': 'statut--encours', 'à venir': 'statut--neutre', 'non suivie': 'statut--neutre'
+    'en cours': 'statut--encours', 'à venir': 'statut--neutre', 'non suivie': 'statut--neutre', 'regroupée': 'statut--neutre'
   };
 
   K.fiscalAccueil = function (el, donnees) {
@@ -3048,7 +3048,8 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     var tx = function (x) { return x === null ? '?' : (x * 100).toFixed(1).replace('.', ',').replace(',0', '') + ' %'; };
     var lignes = d.periodes.map(function (p) {
       var etat = '<span class="statut ' + (ETATS_DECL[p.etat] || 'statut--neutre') + '">' + esc(p.etat) + '</span>' +
-        (p.date_declaration ? ' <span class="legende mono">' + jour(p.date_declaration) + '</span>' : '');
+        (p.date_declaration ? ' <span class="legende mono">' + jour(p.date_declaration) + '</span>' : '') +
+        (p.regroupeAvec && p.etat === 'regroupée' ? '<div class="legende">déclaré avec ' + esc(p.regroupeAvec.replace(/^(\d{4})-(T\d)$/, '$2 $1')) + ' (1re déclaration)</div>' : '');
       var action = (p.etat === 'à déclarer' || p.etat === 'en retard')
         ? '<button type="button" class="bouton" data-declarer="' + esc(p.id) + '" data-ca="' + esc(p.ca) + '" data-libelle="' + esc(p.libelle) + '">Déclarée</button>'
         : p.etat === 'déclarée' ? '<button type="button" class="bouton bouton--discret" data-annuler-decl="' + esc(p.id) + '">Annuler</button>' : '';

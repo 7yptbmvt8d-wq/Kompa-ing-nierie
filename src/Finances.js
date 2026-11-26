@@ -58,7 +58,7 @@ function Finances_synthese(quand) {
   var enc = Finances_encaissements_(auj);
   var somme = function (filtre) { return arrondi_(enc.lignes.filter(filtre).reduce(function (s, l) { return s + l.montant; }, 0)); };
   var fiscal = Fiscal_declarations(null, auj);
-  var prochaineDecl = fiscal.periodes.filter(function (p) { return p.etat !== 'déclarée' && p.etat !== 'non suivie'; })[0] || null;
+  var prochaineDecl = fiscal.periodes.filter(function (p) { return p.etat !== 'déclarée' && p.etat !== 'non suivie' && p.etat !== 'regroupée'; })[0] || null;
   var cfe = fiscal.cfe && ['non due', 'exonérée', 'payée'].indexOf(fiscal.cfe.etat) < 0 ? fiscal.cfe : fiscal.cfeProchaine;
   return {
     ca: Compteur_ca(auj.getFullYear()),

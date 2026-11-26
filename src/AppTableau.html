@@ -58,7 +58,7 @@
   // ——— Déclarations URSSAF (accueil) ———
   var ETATS_DECL = {
     'déclarée': 'statut--ok', 'en retard': 'statut--ko', 'à déclarer': 'statut--alerte',
-    'en cours': 'statut--encours', 'à venir': 'statut--neutre', 'non suivie': 'statut--neutre'
+    'en cours': 'statut--encours', 'à venir': 'statut--neutre', 'non suivie': 'statut--neutre', 'regroupée': 'statut--neutre'
   };
 
   K.fiscalAccueil = function (el, donnees) {
@@ -71,7 +71,8 @@
     var tx = function (x) { return x === null ? '?' : (x * 100).toFixed(1).replace('.', ',').replace(',0', '') + ' %'; };
     var lignes = d.periodes.map(function (p) {
       var etat = '<span class="statut ' + (ETATS_DECL[p.etat] || 'statut--neutre') + '">' + esc(p.etat) + '</span>' +
-        (p.date_declaration ? ' <span class="legende mono">' + jour(p.date_declaration) + '</span>' : '');
+        (p.date_declaration ? ' <span class="legende mono">' + jour(p.date_declaration) + '</span>' : '') +
+        (p.regroupeAvec && p.etat === 'regroupée' ? '<div class="legende">déclaré avec ' + esc(p.regroupeAvec.replace(/^(\d{4})-(T\d)$/, '$2 $1')) + ' (1re déclaration)</div>' : '');
       var action = (p.etat === 'à déclarer' || p.etat === 'en retard')
         ? '<button type="button" class="bouton" data-declarer="' + esc(p.id) + '" data-ca="' + esc(p.ca) + '" data-libelle="' + esc(p.libelle) + '">Déclarée</button>'
         : p.etat === 'déclarée' ? '<button type="button" class="bouton bouton--discret" data-annuler-decl="' + esc(p.id) + '">Annuler</button>' : '';

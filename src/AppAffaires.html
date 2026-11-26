@@ -5,10 +5,10 @@
   var K = window.KA;
   var esc = K.esc, $ = K.$, $$ = K.$$;
 
-  var etat = { vue: 'colonnes', clotures: true, meta: null };
+  var etat = { vue: 'colonnes', clotures: false, meta: null };
   try {
     etat.vue = localStorage.getItem('ka.vue') || 'colonnes';
-    etat.clotures = localStorage.getItem('ka.clotures') !== '0'; // affichées par défaut
+    etat.clotures = localStorage.getItem('ka.clotures2') === '1'; // masquées par défaut (case « Afficher les affaires clôturées »)
   } catch (e) { /* stockage indisponible : valeurs par défaut */ }
   function memoriser(cle, v) { try { localStorage.setItem(cle, v); } catch (e) { /* sans effet */ } }
 
@@ -217,7 +217,7 @@
 
     $('[data-action="nouvelle"]', el).addEventListener('click', nouvelleAffaire);
     $('[data-action="clotures"]', el).addEventListener('change', function (ev) {
-      etat.clotures = ev.target.checked; memoriser('ka.clotures', etat.clotures ? '1' : '0'); rendreAffaires(el, affaires);
+      etat.clotures = ev.target.checked; memoriser('ka.clotures2', etat.clotures ? '1' : '0'); rendreAffaires(el, affaires);
     });
     $$('[data-vue]', el).forEach(function (b) {
       b.addEventListener('click', function () { etat.vue = b.getAttribute('data-vue'); memoriser('ka.vue', etat.vue); rendreAffaires(el, affaires); });

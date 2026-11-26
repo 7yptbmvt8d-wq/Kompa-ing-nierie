@@ -124,6 +124,9 @@ function assembler() {
   await p.waitForSelector(`.colonne[data-statut="Go"] .carte-affaire[data-id="${e1}"]`);
   assert.strictEqual(A.Affaires_get_(e1).statut, 'Go', 'glisser-déposer sans effet');
   // Colonne « Clôturées » : l'exercice Mouthe y est visible ; Déposée → Clôturées propose Perdue / Sans suite
+  // Masquées par défaut ; la case « Afficher les affaires clôturées » les montre
+  assert.strictEqual(await p.locator('.colonne[data-statut="Clôturées"]').count(), 0, 'affaires clôturées visibles par défaut');
+  await p.check('[data-action="clotures"]');
   await p.waitForSelector('.colonne[data-statut="Clôturées"] .carte-affaire[data-id="KI-2026-001"]');
   await p.locator(`.carte-affaire[data-id="${d1}"]`).dragTo(p.locator('.colonne[data-statut="Clôturées"]'));
   await p.waitForSelector('dialog.dialogue[open] input[name=cloture]');
@@ -578,6 +581,7 @@ function assembler() {
     }
     await np.click('nav a[href="#affaires"]');
     await np.click('[data-vue="liste"]');
+    await np.check('[data-action="clotures"]'); // w1 est soldée : affichée avec les clôturées
     await np.click(`[data-ouvrir="${w1}"]`);
     await np.waitForSelector('.fiche-tete');
     await np.screenshot({ path: path.join(sortie, 'neon-fiche.png') });
