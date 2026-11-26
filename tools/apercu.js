@@ -178,6 +178,9 @@ function assembler() {
     { name: 'Rapport de programmation.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(184000, 1) },
     { name: 'Notes de visite.docx', mimeType: 'application/octet-stream', buffer: Buffer.alloc(23000, 1) }
   ]);
+  // Barre de progression pendant l'envoi (reste affichée un instant à 100 %)
+  await p.waitForSelector('#tiroir-docs .depot-prog');
+  await p.screenshot({ path: path.join(sortie, 'pc-depot-progression.png') });
   await p.waitForSelector('#tiroir-docs .pieces__liste li >> text=Notes de visite.docx');
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-pieces.png') });
   await p.click('#tiroir-docs [data-fermer-tiroir]');

@@ -876,22 +876,59 @@
       occupe = true;
       depot.classList.add('est-occupe');
       var dossier = $('[data-dossier]', zone).value;
-      var faits = 0, dernier = null;
+      var nomDossier = dossier || 'Dossier de l\'affaire';
+      // Progression : lecture du fichier (30 % de son poids), puis envoi vers Drive (70 %, estimé au fil du temps :
+      // le serveur ne renvoie pas d'avancement) ; la barre ne dépasse 100 % qu'à la confirmation de Drive.
+      var lignes = liste.map(function (f) { return { f: f, etat: 'en attente', part: 0 }; });
+      var poids = function (l) { return Math.max(l.f.size, 1); };
+      var total = lignes.reduce(function (s, l) { return s + poids(l); }, 0);
+      var faits = 0, dernier = null, i = -1, minuteur = null;
+      var ICONES = { 'en attente': '·', 'lecture': '…', 'envoi': '↑', 'rangé': '✓', 'erreur': '✕' };
+      var afficher = function () {
+        var fait = lignes.reduce(function (s, l) { return s + poids(l) * (l.etat === 'rangé' || l.etat === 'erreur' ? 1 : l.part); }, 0);
+        var pct = Math.min(100, Math.round(fait / total * 100));
+        var l = lignes[i];
+        var phrase = !l ? 'Terminé'
+          : (l.etat === 'lecture' ? 'Lecture de « ' : 'Envoi vers Drive de « ') + esc(l.f.name) + ' »' + (lignes.length > 1 ? ' — fichier ' + (i + 1) + ' sur ' + lignes.length : '');
+        etatTxt.innerHTML = '<div class="depot-prog" role="progressbar" aria-label="Envoi des fichiers" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '">' +
+            '<div class="depot-prog__barre' + (l && l.etat === 'envoi' ? ' est-active' : '') + '" style="width:' + pct + '%"></div></div>' +
+          '<p class="depot-prog__texte"><span>' + phrase + '</span><strong class="mono">' + pct + ' %</strong></p>' +
+          (lignes.length > 1 ? '<ul class="depot-prog__liste">' + lignes.map(function (x) {
+            return '<li class="est-' + x.etat.replace(/\s/g, '-').replace('é', 'e') + '"><span aria-hidden="true">' + ICONES[x.etat] + '</span> ' + esc(x.f.name) +
+              ' <span class="legende">' + taille(x.f.size) + ' · ' + x.etat + '</span></li>';
+          }).join('') + '</ul>' : '');
+      };
+      var arreterMinuteur = function () { if (minuteur) { clearInterval(minuteur); minuteur = null; } };
       var suivant = function () {
-        if (!liste.length) {
-          occupe = false;
-          depot.classList.remove('est-occupe');
-          if (faits) K.toast(faits + ' fichier' + (faits > 1 ? 's rangés' : ' rangé') + ' dans « ' + (dossier || 'Dossier de l\'affaire') + ' ».');
-          if (dernier) rendreToutesPieces(el, a, dernier);
-          else etatTxt.textContent = '';
+        i++;
+        if (i >= lignes.length) {
+          afficher();
+          var erreurs = lignes.filter(function (x) { return x.etat === 'erreur'; }).length;
+          setTimeout(function () {
+            occupe = false;
+            depot.classList.remove('est-occupe');
+            if (faits) K.toast(faits + ' fichier' + (faits > 1 ? 's rangés' : ' rangé') + ' dans « ' + nomDossier + ' »' + (erreurs ? ' ; ' + erreurs + ' en erreur.' : '.'), !!erreurs);
+            if (dernier) rendreToutesPieces(el, a, dernier);
+          }, 900);
           return;
         }
-        var f = liste.shift();
-        etatTxt.textContent = 'Envoi de « ' + f.name + ' »…';
-        lireBase64(f).then(function (donnees) {
-          return K.appel('apiPieceDeposer', a.id, dossier, { nom: f.name, type: f.type, donnees: donnees });
-        }).then(function (r) { faits++; dernier = r; }, function (e) { K.toast('« ' + f.name + ' » non déposé : ' + e.message, true); })
-          .then(suivant);
+        var l = lignes[i];
+        l.etat = 'lecture'; l.part = 0; afficher();
+        lireBase64(l.f, function (fraction) { l.part = 0.3 * fraction; afficher(); }).then(function (donnees) {
+          l.etat = 'envoi'; l.part = 0.3; afficher();
+          // Envoi : avancement estimé (environ 1 Mo/s), plafonné à 95 % tant que Drive n'a pas confirmé
+          var debut = Date.now(), duree = Math.max(1500, l.f.size / 1000);
+          minuteur = setInterval(function () {
+            l.part = 0.3 + 0.65 * (1 - Math.exp(-(Date.now() - debut) / duree));
+            afficher();
+          }, 200);
+          return K.appel('apiPieceDeposer', a.id, dossier, { nom: l.f.name, type: l.f.type, donnees: donnees });
+        }).then(function (r) {
+          arreterMinuteur(); l.etat = 'rangé'; l.part = 1; faits++; dernier = r;
+        }, function (e) {
+          arreterMinuteur(); l.etat = 'erreur';
+          K.toast('« ' + l.f.name + ' » non déposé : ' + e.message, true);
+        }).then(suivant);
       };
       suivant();
     };
@@ -908,10 +945,11 @@
     });
   }
 
-  function lireBase64(fichier) {
+  function lireBase64(fichier, progres) {
     return new Promise(function (ok, ko) {
       var r = new FileReader();
-      r.onload = function () { ok(String(r.result).replace(/^data:[^,]*,/, '')); };
+      if (progres) r.onprogress = function (ev) { if (ev.lengthComputable && ev.total) progres(ev.loaded / ev.total); };
+      r.onload = function () { if (progres) progres(1); ok(String(r.result).replace(/^data:[^,]*,/, '')); };
       r.onerror = function () { ko(new Error('lecture du fichier impossible')); };
       r.readAsDataURL(fichier);
     });

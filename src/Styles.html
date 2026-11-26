@@ -295,6 +295,18 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .depot__input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .depot.est-occupe .depot__zone { opacity: .6; pointer-events: none; }
 .depot__etat { min-height: 1.5em; margin-top: var(--kompa-s2); }
+.depot-prog { height: 10px; border-radius: 999px; background: var(--kompa-brume); overflow: hidden; border: var(--kompa-filet-fin); }
+.depot-prog__barre { height: 100%; width: 0; background: var(--kompa-rouille); transition: width .2s ease-out; }
+.depot-prog__barre.est-active { background-image: linear-gradient(45deg, rgba(255,255,255,.25) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.25) 50%, rgba(255,255,255,.25) 75%, transparent 75%);
+  background-size: 16px 16px; animation: depot-rayures 1s linear infinite; }
+@keyframes depot-rayures { from { background-position: 0 0; } to { background-position: 16px 0; } }
+@media (prefers-reduced-motion: reduce) { .depot-prog__barre.est-active { animation: none; } .depot-prog__barre { transition: none; } }
+.depot-prog__texte { display: flex; justify-content: space-between; gap: var(--kompa-s2); margin: var(--kompa-s1) 0 0; color: var(--kompa-encre); }
+.depot-prog__liste { list-style: none; margin: var(--kompa-s2) 0 0; padding: 0; font-size: .9em; }
+.depot-prog__liste li { padding: 2px 0; overflow-wrap: anywhere; }
+.depot-prog__liste .est-range span:first-child { color: var(--app-statut-gagnee); font-weight: 700; }
+.depot-prog__liste .est-erreur span:first-child { color: var(--app-statut-perdue); font-weight: 700; }
+.depot-prog__liste .est-en-attente { opacity: .6; }
 .pieces { display: grid; gap: var(--kompa-s4); }
 .pieces { gap: var(--kompa-s3); }
 .pieces__dossier h3 { margin: 0 0 var(--kompa-s1); font-size: var(--kompa-fs-body); font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--kompa-ardoise); }
@@ -350,7 +362,7 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .etapes-ao { list-style: none; padding: 0; margin: 0 0 var(--kompa-s5); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .etapes-ao li { display: flex; }
 .etape-ao { flex: 1; display: flex; gap: var(--kompa-s3); align-items: flex-start; text-align: left; font: inherit; cursor: pointer; background: var(--kompa-blanc);
-  border: var(--kompa-filet-fin); margin-left: -1px; padding: var(--kompa-s3) var(--kompa-s4); color: var(--kompa-texte); }
+  border: var(--kompa-filet-fin); margin-left: -1px; padding: var(--kompa-s3) var(--kompa-s4); color: var(--kompa-encre); }
 .etapes-ao li:first-child .etape-ao { border-radius: var(--kompa-radius) 0 0 var(--kompa-radius); margin-left: 0; }
 .etapes-ao li:last-child .etape-ao { border-radius: 0 var(--kompa-radius) var(--kompa-radius) 0; }
 .etape-ao b { display: block; color: var(--kompa-ardoise); }

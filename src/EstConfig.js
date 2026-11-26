@@ -11,7 +11,7 @@
  */
 
 /** Doit être égale à APP.VERSION (Code.gs) : sinon l'accueil signale une mise à jour incomplète. */
-var EST_VERSION = '1.6.6';
+var EST_VERSION = '1.6.7';
 
 /**
  * Tables du module, toutes dans le classeur EST. Mêmes conventions que le suivi :
