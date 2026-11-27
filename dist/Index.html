@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Kartes Affaires 1.7.7 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
+<!-- Kartes Affaires 1.8.0 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
 <html lang="fr">
 <head>
   <base target="_top">
@@ -391,6 +391,24 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .table-bc td:nth-child(3) { width: 6rem; }
 .table-bc input.champ { width: 100%; min-width: 0; }
 .bpu-suppr { margin-left: auto; }
+.fiche-paire { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--kompa-s5); align-items: stretch; }
+.fiche-paire > div > .fiche-bloc { height: calc(100% - var(--kompa-s6)); box-sizing: border-box; }
+#pieces-offre.carte-bloc { border: var(--kompa-filet-fin); border-radius: var(--kompa-radius); padding: var(--kompa-s3) var(--kompa-s4); }
+#pieces-offre .fiche-bloc__titre { border-top: 0; padding-top: 0; margin: 0; }
+.pieces-avancement { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kompa-s2) var(--kompa-s4); margin: 0 0 var(--kompa-s3); }
+.pieces-avancement.est-complet strong { color: var(--app-statut-gagnee); }
+.pieces-jauge { flex: 1 1 12rem; height: 10px; background: var(--kompa-brume); border-radius: 999px; overflow: hidden; }
+.pieces-jauge span { display: block; height: 100%; background: var(--kompa-ardoise); }
+.pieces-avancement.est-complet .pieces-jauge span { background: var(--app-statut-gagnee); }
+.pieces-grille { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--kompa-s2) var(--kompa-s3); }
+.piece-carte { display: flex; align-items: center; gap: var(--kompa-s2); border: var(--kompa-filet-fin); border-radius: var(--kompa-radius-sm); padding: var(--kompa-s2) var(--kompa-s3); min-width: 0; }
+.piece-carte__texte { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+.piece-carte__cat { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--kompa-gris); }
+.piece-carte .etat-piece { min-width: 0; width: auto; flex: none; }
+.piece-carte__suppr { flex: none; border: 0; background: none; color: var(--kompa-gris); cursor: pointer; padding: 2px 4px; opacity: .35; font-size: 13px; }
+.piece-carte:hover .piece-carte__suppr, .piece-carte__suppr:focus-visible { opacity: 1; }
+@media (max-width: 1100px) { .pieces-grille { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .pieces-grille, .fiche-paire { grid-template-columns: minmax(0, 1fr); } }
 .liste-choix { display: grid; gap: var(--kompa-s2); max-height: 50vh; overflow-y: auto; }
 .liste-choix .case { align-items: flex-start; }
 .bpu-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kompa-s2); margin: var(--kompa-s3) 0; }
@@ -1924,8 +1942,10 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
         var ac = f.accordCadre, bO = blocsParId.offre;
         // Accord-cadre : pas de tranches ni de jours par tranche, le BPU les remplace
         if (ac && bO) bO = Object.assign({}, bO, { champs: bO.champs.filter(function (c) { return ['tranches', 'jours_par_tranche'].indexOf(c.nom) < 0; }) });
-        return '<div class="fiche-deux"><div>' + (bO ? blocFiche(bO, a) : '') + (ac ? bloc('accordcadre') : '') + bloc('depot') + '</div><div>' + blocPiecesOffre(f) + '</div></div>' +
-          (ac ? blocBpu(f) : '');
+        // Pièces en haut (pleine largeur), Chiffrage | Dépôt côte à côte, puis Accord-cadre et BPU en pleine largeur
+        return blocPiecesOffre(f) +
+          '<div class="fiche-paire"><div>' + (bO ? blocFiche(bO, a) : '') + '</div><div>' + bloc('depot') + '</div></div>' +
+          (ac ? bloc('accordcadre') + blocBpu(f) : '');
       },
       resultat: function () { return bloc('resultat') + '<section class="fiche-bloc">' + tableCriteres(f.criteres) + '</section>' + bloc('enseignements'); },
       marche: function () { return bloc('execution') + (f.accordCadre ? bloc('accordcadre') + blocPeriodesAC(f) : blocTranches(f)); },
@@ -2421,33 +2441,25 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
 
   function blocPiecesOffre(f) {
     var a = f.affaire, pieces = f.pieces || [], r = f.piecesResume || { total: 0, pretes: 0 };
-    var controle = '';
-    if (r.total) {
-      var depot = a.date_limite_remise ? plusJours(a.date_limite_remise, -2) : '';
-      controle = r.pretes === r.total
-        ? '<div class="encadre-controle est-complet"><strong>Dossier complet</strong> : ' + r.total + ' pièce' + (r.total > 1 ? 's' : '') + ' prête' + (r.total > 1 ? 's' : '') + (depot ? ', dépôt conseillé le <span class="mono">' + jour(depot) + '</span> (48 h avant l\'heure limite)' : '') + '.</div>'
-        : '<div class="encadre-controle"><strong>' + (r.total - r.pretes) + ' pièce' + (r.total - r.pretes > 1 ? 's' : '') + ' à finir</strong> sur ' + r.total + (depot ? ' avant le dépôt conseillé le <span class="mono">' + jour(depot) + '</span>' : '') + '.</div>';
-    }
-    var lignes = pieces.map(function (p) {
-      return '<tr data-piece="' + esc(p.id) + '"><td class="legende">' + esc(p.categorie) + '</td><td>' + esc(p.libelle) + '</td>' +
-        '<td><select class="champ etat-piece ' + (CLASSES_ETAT[p.etat] || '') + '" data-etat-piece aria-label="État de « ' + esc(p.libelle) + ' »">' +
-        ETATS_PIECE.map(function (e) { return '<option' + (e === p.etat ? ' selected' : '') + '>' + e + '</option>'; }).join('') + '</select></td>' +
-        '<td><button type="button" class="bouton bouton--discret bouton--petit" data-suppr-piece aria-label="Retirer « ' + esc(p.libelle) + ' »">Retirer</button></td></tr>';
+    var depot = a.date_limite_remise ? plusJours(a.date_limite_remise, -2) : '';
+    var pct = r.total ? Math.round(r.pretes / r.total * 100) : 0;
+    var avancement = r.total
+      ? '<div class="pieces-avancement' + (r.pretes === r.total ? ' est-complet' : '') + '"><strong>' + (r.pretes === r.total ? 'Dossier complet' : r.pretes + ' sur ' + r.total + ' prête' + (r.pretes > 1 ? 's' : '')) + '</strong>' +
+          '<div class="pieces-jauge" role="progressbar" aria-label="Pièces prêtes" aria-valuemin="0" aria-valuemax="' + r.total + '" aria-valuenow="' + r.pretes + '"><span style="width:' + pct + '%"></span></div>' +
+          (depot ? '<span class="legende">dépôt conseillé le <span class="mono">' + jour(depot) + '</span> (48 h avant l\'heure limite)</span>' : '') + '</div>'
+      : '';
+    var cartes = pieces.map(function (p) {
+      return '<div class="piece-carte" data-piece="' + esc(p.id) + '"><span class="piece-carte__texte"><span class="piece-carte__cat">' + esc(p.categorie) + '</span>' + esc(p.libelle) + '</span>' +
+        '<select class="champ champ--compact etat-piece ' + (CLASSES_ETAT[p.etat] || '') + '" data-etat-piece aria-label="État de « ' + esc(p.libelle) + ' »">' +
+          ETATS_PIECE.map(function (e) { return '<option' + (e === p.etat ? ' selected' : '') + '>' + e + '</option>'; }).join('') + '</select>' +
+        '<button type="button" class="piece-carte__suppr" data-suppr-piece aria-label="Retirer « ' + esc(p.libelle) + ' »" title="Retirer">✕</button></div>';
     }).join('');
-    return '<section class="fiche-bloc" id="pieces-offre"><h2 class="fiche-bloc__titre">Pièces à remettre</h2>' + controle +
-      (pieces.length
-        ? '<div class="tableau-conteneur"><table class="table-pieces"><thead><tr><th scope="col">Catégorie</th><th scope="col">Pièce</th><th scope="col">État</th><th scope="col"><span class="seul-lecteur">Action</span></th></tr></thead><tbody>' + lignes + '</tbody></table></div>'
-        : '<p class="vide">Aucune pièce listée.</p>') +
-      '<p class="actions-pieces"><button type="button" class="bouton' + (pieces.length ? ' bouton--discret' : '') + '" data-coller-liste>Coller la liste du DCE</button>' +
-      (pieces.length ? '' : ' <button type="button" class="bouton bouton--discret" data-liste-type>Ajouter la liste type</button>') +
-      ' <span class="legende">' + (pieces.length ? 'Ajoute les pièces manquantes, sans doublon.' : 'Liste du DCE : rubrique « Pièces à remettre » de l\'analyse du DCE ou du RC. Liste type : pièces courantes (paramètre liste.pieces_offre).') + '</span></p>' +
-      '<form class="ajout-piece ajout-piece--titre" data-ajout-piece novalidate><h3>Ajouter une pièce</h3>' +
-        '<div class="ajout-piece__ligne">' +
-          '<div class="champ-bloc"><label for="ajout-piece-cat">Catégorie</label><select class="champ" id="ajout-piece-cat"><option>Candidature</option><option selected>Offre</option></select></div>' +
-          '<div class="champ-bloc ajout-piece__lib"><label for="ajout-piece-lib">Intitulé de la pièce</label><input class="champ" id="ajout-piece-lib" placeholder="ex. Mémoire environnemental (démarche RSE)"></div>' +
-          '<button type="submit" class="bouton bouton--discret">Ajouter</button></div>' +
-        '<p class="legende">Candidature : pièces qui présentent l\'entreprise (DC1, DC2, DUME, attestations, références). Offre : pièces qui répondent au marché (acte d\'engagement, prix, mémoire technique).</p>' +
-      '</form></section>';
+    return '<section class="fiche-bloc carte-bloc" id="pieces-offre"><div class="bloc-lect__tete"><h2 class="fiche-bloc__titre">Pièces à remettre</h2>' +
+        '<button type="button" class="bouton bouton--petit bouton--discret" data-coller-liste>+ Ajouter / coller la liste du DCE</button></div>' +
+      avancement +
+      (pieces.length ? '<div class="pieces-grille">' + cartes + '</div><p class="legende">Changez l\'état d\'une pièce dans sa liste ; ✕ pour la retirer.</p>'
+        : '<p class="vide">Aucune pièce listée. <button type="button" class="bouton bouton--petit" data-liste-type>Ajouter la liste type</button> ou collez la liste du DCE (rubrique « Pièces à remettre » de l\'analyse du DCE ou du RC).</p>') +
+      '</section>';
   }
 
   function brancherPiecesOffre(el, f, recharger) {
@@ -2463,27 +2475,25 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     $$('[data-etat-piece]', zone).forEach(function (sel) {
       sel.addEventListener('change', function () {
         sel.className = 'champ etat-piece ' + (CLASSES_ETAT[sel.value] || '');
-        appel('apiPieceOffreMaj', [sel.closest('tr').getAttribute('data-piece'), { etat: sel.value }]);
+        appel('apiPieceOffreMaj', [sel.closest('[data-piece]').getAttribute('data-piece'), { etat: sel.value }]);
       });
     });
     $$('[data-suppr-piece]', zone).forEach(function (b) {
-      b.addEventListener('click', function () { b.disabled = true; appel('apiPieceOffreSupprimer', [b.closest('tr').getAttribute('data-piece')], 'Pièce retirée.'); });
+      b.addEventListener('click', function () { b.disabled = true; appel('apiPieceOffreSupprimer', [b.closest('[data-piece]').getAttribute('data-piece')], 'Pièce retirée.'); });
     });
-    $('[data-ajout-piece]', zone).addEventListener('submit', function (ev) {
-      ev.preventDefault();
-      var lib = $('#ajout-piece-lib', zone).value.trim();
-      if (!lib) { K.toast('Intitulé de la pièce obligatoire.', true); return; }
-      appel('apiPieceOffreAjouter', [{ categorie: $('#ajout-piece-cat', zone).value, libelle: lib }], 'Pièce ajoutée.');
-    });
+
   }
 
   function dialogueCollerListe(a, recharger) {
     var d = document.createElement('dialog');
     d.className = 'dialogue';
-    d.innerHTML = '<form method="dialog" novalidate><h2>Coller la liste des pièces</h2>' +
-      '<p class="legende">Une pièce par ligne. Une ligne « Candidature » ou « Offre » seule vaut pour les lignes qui suivent ; on peut aussi écrire « Candidature : DC1 ». Sans précision : Offre. Les puces, cases et numéros sont ignorés ; les pièces déjà listées ne sont pas ajoutées deux fois.</p>' +
+    d.innerHTML = '<form method="dialog" novalidate><h2>Ajouter des pièces à remettre</h2>' +
+      '<div class="ajout-piece__ligne"><div class="champ-bloc"><label for="ajout-piece-cat">Catégorie</label><select class="champ" id="ajout-piece-cat"><option>Candidature</option><option selected>Offre</option></select></div>' +
+        '<div class="champ-bloc ajout-piece__lib"><label for="ajout-piece-lib">Une pièce</label><input class="champ" id="ajout-piece-lib" placeholder="ex. Mémoire environnemental (démarche RSE)"></div></div>' +
+      '<p class="legende"><strong>Ou la liste du DCE</strong>, une pièce par ligne. Une ligne « Candidature » ou « Offre » seule vaut pour les lignes qui suivent ; on peut aussi écrire « Candidature : DC1 ». Sans précision : Offre. Les puces, cases et numéros sont ignorés ; les pièces déjà listées ne sont pas ajoutées deux fois.</p>' +
       '<textarea class="champ mono" id="coller-liste" rows="12" aria-label="Liste des pièces" placeholder="Candidature\nDC1 ou DUME\nDC2\nAttestation d\'assurance RC professionnelle\nOffre\nActe d\'engagement\nMémoire technique\nBPU"></textarea>' +
-      '<div class="dialogue__actions"><button type="button" class="bouton bouton--discret" data-fermer>Annuler</button><button type="submit" class="bouton">Ajouter les pièces</button></div></form>';
+      '<p class="legende">Ou <button type="button" class="bouton bouton--petit bouton--discret" data-liste-type-d>la liste type</button> (pièces courantes, paramètre liste.pieces_offre).</p>' +
+      '<div class="dialogue__actions"><button type="button" class="bouton bouton--discret" data-fermer>Annuler</button><button type="submit" class="bouton">Ajouter</button></div></form>';
     document.body.appendChild(d);
     var fermer = function () { d.close(); d.remove(); };
     d.querySelector('[data-fermer]').addEventListener('click', fermer);
@@ -2491,8 +2501,17 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     d.querySelector('form').addEventListener('submit', function (ev) {
       ev.preventDefault();
       var texte = d.querySelector('#coller-liste').value;
-      if (!texte.trim()) { K.toast('Collez au moins une pièce.', true); return; }
-      var b = d.querySelector('button[type=submit]'); b.disabled = true;
+      var lib = d.querySelector('#ajout-piece-lib').value.trim();
+      var b = d.querySelector('button[type=submit]');
+      if (!texte.trim() && lib) {
+        b.disabled = true;
+        K.appel('apiPieceOffreAjouter', a.id, { categorie: d.querySelector('#ajout-piece-cat').value, libelle: lib })
+          .then(function (fiche) { fermer(); K.toast('Pièce ajoutée.'); recharger(fiche); })
+          .catch(function (e) { b.disabled = false; K.toast(e.message, true); });
+        return;
+      }
+      if (!texte.trim()) { K.toast('Indiquez une pièce ou collez la liste du DCE.', true); return; }
+      b.disabled = true;
       K.appel('apiPiecesOffreColler', a.id, texte).then(function (fiche) {
         var c = fiche.collage || { ajoutees: 0, doublons: 0 };
         fermer();
@@ -2500,8 +2519,13 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
         recharger(fiche);
       }).catch(function (e) { b.disabled = false; K.toast(e.message, true); });
     });
+    d.querySelector('[data-liste-type-d]').addEventListener('click', function () {
+      this.disabled = true;
+      K.appel('apiPiecesOffreListeType', a.id).then(function (fiche) { fermer(); K.toast('Liste type ajoutée.'); recharger(fiche); })
+        .catch(function (e) { K.toast(e.message, true); });
+    });
     d.showModal();
-    d.querySelector('#coller-liste').focus();
+    d.querySelector('#ajout-piece-lib').focus();
   }
 
   // ——— Documents : dossier Drive de l'affaire dans un panneau, rangé par étape ———

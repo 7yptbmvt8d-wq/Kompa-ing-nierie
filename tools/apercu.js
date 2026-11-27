@@ -216,16 +216,17 @@ function assembler() {
   // Affaire en Go : la fiche s'ouvre sur Appel d'offres › Offre ; liste type des pièces, une pièce prête
   await p.waitForSelector('[data-sous="offre"][aria-selected="true"]');
   await p.click('[data-liste-type]');
-  await p.waitForSelector('#pieces-offre tr[data-piece]');
-  assert.strictEqual(await p.locator('#pieces-offre tr[data-piece]').count(), 7);
+  await p.waitForSelector('#pieces-offre [data-piece]');
+  assert.strictEqual(await p.locator('#pieces-offre [data-piece]').count(), 7);
   // Collage de la liste du DCE : seules les pièces absentes sont ajoutées
   await p.click('[data-coller-liste]');
+  await p.waitForSelector('dialog.dialogue[open] #coller-liste');
   await p.fill('#coller-liste', 'Offre :\n- Mémoire technique\n- Planning prévisionnel\nCandidature : Certificat de visite');
   await p.screenshot({ path: path.join(sortie, 'pc-fiche-coller-liste.png') });
   await p.click('dialog.dialogue button[type=submit]');
   await p.waitForSelector('#toast:has-text("2 pièces ajoutées (1 déjà listée)")');
-  assert.strictEqual(await p.locator('#pieces-offre tr[data-piece]').count(), 9);
-  await p.locator('#pieces-offre tr[data-piece]').nth(5).locator('select').selectOption('prête');
+  assert.strictEqual(await p.locator('#pieces-offre [data-piece]').count(), 9);
+  await p.locator('#pieces-offre [data-piece]').nth(5).locator('select').selectOption('prête');
   await p.waitForSelector('.synthese:has-text("1 sur 9 prêtes")');
   // Montant HT calculé : jours par tranche × prix par jour
   await p.click('[data-modifier="offre"]');
