@@ -1,4 +1,4 @@
-/* Kartes Affaires 1.7.3 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
+/* Kartes Affaires 1.7.4 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
 
 // ════════ Setup.js ════════
 
@@ -451,6 +451,14 @@ function AC_bpuDepuisTableau_(feuilles) {
     out.forEach(function (x) { if (!x.quantite_dqe && parNumero[x.numero] !== undefined) x.quantite_dqe = parNumero[x.numero]; });
   }
   return out;
+}
+
+/** Supprime tout le BPU de l'affaire (erreur d'import) ; en accord-cadre, le montant de l'offre revient à 0. */
+function AC_bpuSupprimer(idAffaire) {
+  var n = AC_bpu(idAffaire).length;
+  AC_bpuEnregistrer(idAffaire, []);
+  if (n) Affaires_ajouterNote(idAffaire, 'BPU supprimé (' + n + ' ligne' + (n > 1 ? 's' : '') + ')');
+  return n;
 }
 
 /** Import d'un fichier Excel lu par le navigateur : remplace le BPU (ou ajoute, ajouter = true). */
@@ -1207,6 +1215,10 @@ function apiBpuImporterTableau(id, feuilles, ajouter, nomFichier) {
   });
 }
 
+function apiBpuSupprimer(id) {
+  return repondre_(function () { var n = AC_bpuSupprimer(id); var f = ficheClient_(id); f.supprimees = n; return f; });
+}
+
 function apiBpuImporterSkill(id) {
   return repondre_(function () { var r = AC_bpuImporterSkill(id); var f = ficheClient_(id); f.importe = { lignes: r.lignes, fichier: r.fichier.nom }; return f; });
 }
@@ -1743,7 +1755,7 @@ function arrondi_(n) {
 var APP = {
   NOM: 'Kartes Affaires',
   ENTREPRISE: 'Kartes Ingénierie',
-  VERSION: '1.7.3',
+  VERSION: '1.7.4',
   CLASSEUR: 'Kartes Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kartes Affaires — sauvegardes',
   ANCIEN_NOM: 'Kompa', // nom d'avant le 22/11/2026 : fichiers et dossiers renommés par la mise à jour automatique

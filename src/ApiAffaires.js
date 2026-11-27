@@ -58,6 +58,10 @@ function apiBpuImporterTableau(id, feuilles, ajouter, nomFichier) {
   });
 }
 
+function apiBpuSupprimer(id) {
+  return repondre_(function () { var n = AC_bpuSupprimer(id); var f = ficheClient_(id); f.supprimees = n; return f; });
+}
+
 function apiBpuImporterSkill(id) {
   return repondre_(function () { var r = AC_bpuImporterSkill(id); var f = ficheClient_(id); f.importe = { lignes: r.lignes, fichier: r.fichier.nom }; return f; });
 }

@@ -387,17 +387,28 @@ function assembler() {
     await p.waitForSelector('.fiche-tete');
     await p.click('[data-volet="ao"]');
     await p.click('[data-sous="offre"]');
-    await p.waitForSelector('#bpu [data-bpu-ligne]');
-    assert.strictEqual(await p.locator('#bpu [data-bpu-ligne]').count(), 4);
+    // Bloc BPU en lecture (comme les autres blocs), bouton Modifier → édition avec Annuler / Enregistrer
+    await p.waitForSelector('#bpu .table-bpu-lecture tbody tr');
+    assert.strictEqual(await p.locator('#bpu .table-bpu-lecture tbody tr').count(), 4);
+    assert.ok(await p.locator('#bpu [data-bpu-edition]').isHidden());
     await p.locator('#bpu').scrollIntoViewIfNeeded();
     await p.screenshot({ path: path.join(sortie, 'pc-ac-bpu.png'), fullPage: true });
+    await p.click('#bpu [data-bpu-modifier]');
+    await p.waitForSelector('#bpu [data-bpu-ligne]');
+    assert.ok(await p.locator('#bpu [data-bpu-enregistrer]').isDisabled(), 'Enregistrer actif sans modification');
+    await p.fill('#bpu [data-bpu-ligne]:nth-child(2) [data-bpu="quantite_dqe"]', '14');
+    assert.ok(await p.locator('#bpu [data-bpu-enregistrer]').isEnabled());
+    await p.screenshot({ path: path.join(sortie, 'pc-ac-bpu-edition.png'), fullPage: true });
+    await p.click('#bpu [data-bpu-enregistrer]');
+    await p.waitForFunction(() => { const t = document.querySelector('#bpu .table-bpu-lecture tbody tr:nth-child(2) td:nth-child(5)'); return t && t.textContent.trim() === '14'; });
     // Import direct d'un fichier Excel de BPU vierge (cellules fusionnées, « Tranche quantitative ») : remplace le BPU
+    await p.click('#bpu [data-bpu-modifier]');
     p.once('dialog', (d) => d.accept());
     await p.setInputFiles('#bpu-fichier', path.join(__dirname, 'fixtures', 'bpu-exemple.xlsx'));
-    await p.waitForFunction(() => document.querySelectorAll('#bpu [data-bpu-ligne]').length === 6, null, { timeout: 30000 });
-    const numeros = await p.$$eval('#bpu [data-bpu="numero"]', (els) => els.map((e) => e.value));
+    await p.waitForFunction(() => document.querySelectorAll('#bpu .table-bpu-lecture tbody tr').length === 6, null, { timeout: 30000 });
+    const numeros = await p.$$eval('#bpu .table-bpu-lecture tbody td:first-child', (els) => els.map((e) => e.textContent.trim()));
     assert.deepStrictEqual(numeros, ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2']);
-    assert.match(await p.inputValue('#bpu [data-bpu-ligne]:nth-child(2) [data-bpu="designation"]'), /Étude de faisabilité d'un équipement — 500 m²/);
+    assert.match(await p.textContent('#bpu .table-bpu-lecture tbody tr:nth-child(2) td:nth-child(2)'), /Étude de faisabilité d'un équipement — 500 m²/);
     await p.screenshot({ path: path.join(sortie, 'pc-ac-bpu-import-excel.png'), fullPage: true });
     // Remise du BPU de démonstration (prix) pour la suite de l'aperçu
     A.apiBpuColler(ac, '1\tÉtude de faisabilité / programme d\'un équipement < 1 000 m²\tforfait\t6600\t2\n2\tRéunion (préparation, animation, compte rendu)\tréunion\t330\t12\n3\tAnalyse des candidatures et des offres de maîtrise d\'œuvre\tconsultation\t2200\t2\n4\tJournée d\'assistance (vacation)\tjour\t550\t10');

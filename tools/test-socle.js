@@ -2487,6 +2487,13 @@ test('accord-cadre : fichier Excel du BPU de l\'acheteur (colonnes par titre, «
   assert.match(A.Affaires_get_(id).notes, /BPU importé depuis KI-2026-011 - BPU - ind B\.xlsx : 6 lignes/);
   // Fichier sans en-tête reconnu : message clair
   assert.match(brut(A.apiBpuImporterTableau(id, [{ nom: 'X', lignes: [['a', 'b'], ['c', 'd']] }])).erreur, /BPU non reconnu/);
+  // Supprimer le BPU (erreur d'import) : plus aucune ligne, montant de l'offre à 0
+  const sup = brut(A.apiBpuSupprimer(id));
+  assert.ok(sup.ok, sup.erreur);
+  assert.strictEqual(sup.data.supprimees, 6);
+  assert.strictEqual(sup.data.bpu.length, 0);
+  assert.strictEqual(sup.data.affaire.montant_ht, 0);
+  assert.match(A.Affaires_get_(id).notes, /BPU supprimé \(6 lignes\)/);
 });
 
 test('URSSAF : périodes antérieures au début du suivi non relancées', () => {

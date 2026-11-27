@@ -229,6 +229,14 @@ function AC_bpuDepuisTableau_(feuilles) {
   return out;
 }
 
+/** Supprime tout le BPU de l'affaire (erreur d'import) ; en accord-cadre, le montant de l'offre revient à 0. */
+function AC_bpuSupprimer(idAffaire) {
+  var n = AC_bpu(idAffaire).length;
+  AC_bpuEnregistrer(idAffaire, []);
+  if (n) Affaires_ajouterNote(idAffaire, 'BPU supprimé (' + n + ' ligne' + (n > 1 ? 's' : '') + ')');
+  return n;
+}
+
 /** Import d'un fichier Excel lu par le navigateur : remplace le BPU (ou ajoute, ajouter = true). */
 function AC_bpuImporterTableau(idAffaire, feuilles, ajouter, nomFichier) {
   var nouvelles = AC_bpuDepuisTableau_(feuilles);

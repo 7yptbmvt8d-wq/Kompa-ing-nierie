@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Kartes Affaires 1.7.3 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
+<!-- Kartes Affaires 1.7.4 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
 <html lang="fr">
 <head>
   <base target="_top">
@@ -384,10 +384,13 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .pieces__fichier { min-width: 0; }
 .table-bpu input.champ { width: 100%; min-width: 0; }
 .table-bpu td:nth-child(1) { width: 5.5rem; }
+.table-bpu-lecture td:nth-child(2) { min-width: 18rem; }
+.table-bpu-lecture td:nth-child(1) { white-space: nowrap; }
 .table-bpu td:nth-child(2) { min-width: 16rem; }
 .table-bpu td:nth-child(4), .table-bpu td:nth-child(5) { width: 8rem; }
 .table-bc td:nth-child(3) { width: 6rem; }
 .table-bc input.champ { width: 100%; min-width: 0; }
+.bpu-suppr { margin-left: auto; }
 .bpu-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kompa-s2); margin: var(--kompa-s3) 0; }
 .entete-ac { margin-bottom: var(--kompa-s4); }
 .entete-ac__ligne { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--kompa-s2) var(--kompa-s4); }
@@ -1974,21 +1977,36 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
   function blocBpu(f) {
     var a = f.affaire, bpu = f.bpu || [];
     var pj = Number(a.prix_jour) || 0;
-    return '<section class="fiche-bloc" id="bpu">' +
-      '<h2 class="fiche-bloc__titre">Bordereau des prix unitaires (BPU) et détail quantitatif estimatif (DQE)</h2>' +
-      '<div class="tableau-conteneur"><table class="table-bpu"><thead><tr><th scope="col">N°</th><th scope="col">Désignation (prestation du BPU)</th><th scope="col">Unité</th>' +
-        '<th scope="col" class="num">Prix unitaire HT</th><th scope="col" class="num">Qté DQE</th><th scope="col" class="num">Montant DQE</th><th scope="col"><span class="seul-lecteur">Retirer</span></th></tr></thead>' +
-        '<tbody data-bpu-corps>' + (bpu.length ? bpu.map(ligneBpu).join('') : ligneBpu({}, 0)) + '</tbody>' +
-        '<tfoot><tr class="ligne-total"><td colspan="5">Montant du DQE (montant de l\'offre)</td><td class="num mono" data-bpu-total>' + K.euros(f.accordCadre ? f.accordCadre.dqe : 0) + '</td><td></td></tr></tfoot></table></div>' +
+    var dqe = f.accordCadre ? f.accordCadre.dqe : 0;
+    var entete = '<thead><tr><th scope="col">N°</th><th scope="col">Désignation (prestation du BPU)</th><th scope="col">Unité</th>' +
+      '<th scope="col" class="num">Prix unitaire HT</th><th scope="col" class="num">Qté DQE</th><th scope="col" class="num">Montant DQE</th>';
+    var lecture = bpu.length
+      ? '<div class="tableau-conteneur"><table class="table-bpu-lecture">' + entete + '</tr></thead><tbody>' + bpu.map(function (l) {
+          return '<tr><td class="mono">' + esc(l.numero) + '</td><td>' + esc(l.designation) + '</td><td>' + esc(l.unite) + '</td>' +
+            '<td class="num mono">' + (l.prix_unitaire ? K.euros(l.prix_unitaire) : '<span class="statut statut--alerte">à chiffrer</span>') + '</td>' +
+            '<td class="num mono">' + decimal(l.quantite_dqe) + '</td><td class="num mono">' + K.euros(l.montant) + '</td></tr>';
+        }).join('') + '</tbody><tfoot><tr class="ligne-total"><td colspan="5">Montant du DQE (montant de l\'offre)</td><td class="num mono">' + K.euros(dqe) + '</td></tr></tfoot></table></div>' +
+        (pj && dqe ? '<p class="calcul-lecture">' + bpu.length + ' prix · DQE <strong class="mono">' + K.euros(dqe) + ' HT</strong> ≈ ' + String(Math.round(dqe / pj * 10) / 10).replace('.', ',') + ' j au prix de journée de ' + K.euros(pj) + '</p>' : '')
+      : '<p class="vide">Aucune ligne. Cliquez sur Modifier pour importer le fichier Excel du BPU du DCE, coller des lignes ou les saisir.</p>';
+    return '<section class="fiche-bloc bloc-lect" id="bpu">' +
+      '<div class="bloc-lect__tete"><h2 class="fiche-bloc__titre">Bordereau des prix unitaires (BPU) et DQE</h2>' +
+        '<button type="button" class="bouton bouton--petit bouton--discret" data-bpu-modifier>Modifier</button></div>' +
       (f.bpuFichier ? '<div class="bandeau bandeau--info">Le skill a déposé <strong>' + esc(f.bpuFichier.nom) + '</strong> (' + esc(f.bpuFichier.date) + ') dans le dossier Drive. ' +
         '<button type="button" class="bouton bouton--petit" data-bpu-importer>Importer le BPU du skill</button></div>' : '') +
-      '<div class="bpu-actions"><button type="button" class="bouton bouton--petit bouton--discret" data-bpu-ajouter>+ Ligne</button>' +
-        '<label class="bouton bouton--petit" for="bpu-fichier">Importer le fichier Excel du BPU</label><input type="file" id="bpu-fichier" class="depot__input" accept=".xlsx,.xls,.xlsm,.ods,.csv" data-bpu-fichier>' +
-        '<button type="button" class="bouton bouton--petit bouton--discret" data-bpu-coller>Coller des lignes</button>' +
-        '<button type="button" class="bouton bouton--petit" data-bpu-enregistrer>Enregistrer le BPU</button>' +
-        '<span class="legende" data-bpu-etat></span></div>' +
-      '<p class="legende">Importez directement le fichier Excel du BPU du DCE : les colonnes sont reconnues par leur titre (n°, désignation, unité, précision, prix, quantité ; une feuille DQE complète les quantités). Le montant du DQE devient le montant HT de l\'offre (celui que l\'acheteur compare)' +
-        (pj ? '. Repère : prix de journée ' + K.euros(pj) + ' HT — <span data-bpu-jours></span>' : '') + '.</p></section>';
+      '<div data-bpu-lecture>' + lecture + '</div>' +
+      '<div class="bloc-form" data-bpu-edition hidden>' +
+        '<div class="bpu-actions"><label class="bouton bouton--petit bouton--discret" for="bpu-fichier">Importer le fichier Excel du BPU</label><input type="file" id="bpu-fichier" class="depot__input" accept=".xlsx,.xls,.xlsm,.ods,.csv" data-bpu-fichier>' +
+          '<button type="button" class="bouton bouton--petit bouton--discret" data-bpu-coller>Coller des lignes</button>' +
+          (bpu.length ? '<button type="button" class="bouton bouton--petit bouton--discret bpu-suppr" data-bpu-supprimer>Supprimer le BPU</button>' : '') +
+          '<span class="legende" data-bpu-etat></span></div>' +
+        '<div class="tableau-conteneur"><table class="table-bpu">' + entete + '<th scope="col"><span class="seul-lecteur">Retirer</span></th></tr></thead>' +
+          '<tbody data-bpu-corps>' + (bpu.length ? bpu.map(ligneBpu).join('') : ligneBpu({}, 0)) + '</tbody>' +
+          '<tfoot><tr class="ligne-total"><td colspan="5">Montant du DQE (montant de l\'offre)</td><td class="num mono" data-bpu-total>' + K.euros(dqe) + '</td><td></td></tr></tfoot></table></div>' +
+        '<p><button type="button" class="bouton bouton--petit bouton--discret" data-bpu-ajouter>+ Ligne</button></p>' +
+        '<p class="legende">Fichier Excel du DCE : colonnes reconnues par leur titre (n°, désignation, unité, précision, prix, quantité ; une feuille DQE complète les quantités) ; il remplace les lignes et s\'enregistre aussitôt. ' +
+          'Le montant du DQE devient le montant HT de l\'offre' + (pj ? ' — repère : prix de journée ' + K.euros(pj) + ' HT, <span data-bpu-jours></span>' : '') + '.</p>' +
+        '<div class="bloc-form__actions"><button type="button" class="bouton bouton--discret" data-bpu-annuler>Annuler</button><button type="button" class="bouton" data-bpu-enregistrer disabled>Enregistrer</button></div>' +
+      '</div></section>';
   }
 
   function brancherBpu(el, f, recharger) {
@@ -1996,6 +2014,20 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     if (!zone) return;
     var a = f.affaire, corps = $('[data-bpu-corps]', zone), etatTxt = $('[data-bpu-etat]', zone);
     var pj = Number(a.prix_jour) || 0;
+    var edition = $('[data-bpu-edition]', zone), lectureZ = $('[data-bpu-lecture]', zone), bModifier = $('[data-bpu-modifier]', zone);
+    var bEnregistrer = $('[data-bpu-enregistrer]', zone);
+    bModifier.addEventListener('click', function () {
+      lectureZ.hidden = true; bModifier.hidden = true; edition.hidden = false;
+      var premier = $('input:not([type=file])', edition); if (premier) premier.focus();
+    });
+    $('[data-bpu-annuler]', zone).addEventListener('click', function () { recharger(f); });
+    var bs = $('[data-bpu-supprimer]', zone);
+    if (bs) bs.addEventListener('click', function () {
+      if (!window.confirm('Supprimer les ' + f.bpu.length + ' lignes du BPU ? Vous pourrez ensuite importer le bon fichier.' + (f.accordCadre && f.accordCadre.bons.length ? '\n\nLes bons de commande déjà saisis sont conservés.' : ''))) return;
+      bs.disabled = true;
+      K.appel('apiBpuSupprimer', a.id).then(function (fiche) { K.toast('BPU supprimé (' + fiche.supprimees + ' lignes).'); recharger(fiche); })
+        .catch(function (e) { bs.disabled = false; K.toast(e.message, true); });
+    });
     var lire = function () {
       return $$('[data-bpu-ligne]', corps).map(function (tr) {
         var o = {};
@@ -2014,7 +2046,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       $('[data-bpu-total]', zone).textContent = K.euros(total);
       var j = $('[data-bpu-jours]', zone);
       if (j && pj) j.textContent = 'DQE ≈ ' + String(Math.round(total / pj * 10) / 10).replace('.', ',') + ' jours';
-      if (modifie) etatTxt.textContent = 'Modifications non enregistrées.';
+      if (modifie) bEnregistrer.disabled = false;
     };
     var brancherLigne = function (tr) {
       $$('input', tr).forEach(function (c) { c.addEventListener('input', function () { calculer(true); }); });
@@ -2033,7 +2065,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     });
     $('[data-bpu-enregistrer]', zone).addEventListener('click', function () {
       var b = this; b.disabled = true;
-      K.appel('apiBpuEnregistrer', a.id, lire()).then(function (fiche) { K.toast('BPU enregistré : DQE ' + K.euros(fiche.accordCadre ? fiche.accordCadre.dqe : 0) + ' HT = montant de l\'offre.'); recharger(fiche); })
+      K.appel('apiBpuEnregistrer', a.id, lire()).then(function (fiche) { K.toast('Bloc « BPU » enregistré : DQE ' + K.euros(fiche.accordCadre ? fiche.accordCadre.dqe : 0) + ' HT = montant de l\'offre.'); recharger(fiche); })
         .catch(function (e) { b.disabled = false; K.toast(e.message, true); });
     });
     var bf = $('[data-bpu-fichier]', zone);
@@ -2067,7 +2099,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
         ((f.bpu || []).length ? '<label class="case"><input type="checkbox" data-bpu-ajout> Ajouter à la suite des ' + f.bpu.length + ' lignes actuelles (sinon, elles sont remplacées)</label>' : '');
       dialogue('Coller le BPU depuis Excel', corpsD, 'Ajouter les lignes', function (form) {
         var ajout = $('[data-bpu-ajout]', form);
-        return K.appel('apiBpuColler', a.id, lireChamps(form).texte, !!(ajout && ajout.checked)).then(function (fiche) { K.toast(fiche.ajoutees + ' ligne' + (fiche.ajoutees > 1 ? 's' : '') + ' ajoutée' + (fiche.ajoutees > 1 ? 's' : '') + ' au BPU' + (fiche.sansPrix ? ' dont ' + fiche.sansPrix + ' sans prix : complétez les prix unitaires puis « Enregistrer le BPU »' : '') + '.'); recharger(fiche); });
+        return K.appel('apiBpuColler', a.id, lireChamps(form).texte, !!(ajout && ajout.checked)).then(function (fiche) { K.toast(fiche.ajoutees + ' ligne' + (fiche.ajoutees > 1 ? 's' : '') + ' ajoutée' + (fiche.ajoutees > 1 ? 's' : '') + ' au BPU' + (fiche.sansPrix ? ' dont ' + fiche.sansPrix + ' sans prix : Modifier pour compléter les prix unitaires' : '') + '.'); recharger(fiche); });
       });
     });
   }
