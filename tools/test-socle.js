@@ -2533,8 +2533,11 @@ test('accord-cadre : BPU choisi directement dans le dossier Drive de l\'affaire 
   A.Drive_deposer(id, '01 DCE', { nom: 'RC.pdf', type: 'application/pdf', donnees: Buffer.from('rc').toString('base64') });
   A.Drive_deposer(id, '01 DCE', { nom: 'KI - BPU - ind B.xlsx', type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', donnees: xlsx.toString('base64') });
   A.Drive_deposer(id, '01 DCE', { nom: 'Annexe.ods', type: 'application/vnd.oasis.opendocument.spreadsheet', donnees: Buffer.from('x').toString('base64') });
+  // Ancien indice rangé dans 01 DCE/Archives : jamais proposé
+  const dce = A.Drive_dossierAffaire_(A.Affaires_get_(id)).getFoldersByName('01 DCE').next();
+  dce.createFolder('Archives').createFile(A.Utilities.newBlob(Array.from(xlsx), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'KI - BPU - ind A.xlsx'));
   const l = brut(A.apiBpuTableursDrive(id)).data;
-  assert.deepStrictEqual(l.map((x) => x.nom), ['KI - BPU - ind B.xlsx', 'Annexe.ods']); // pas le PDF ; BPU en tête
+  assert.deepStrictEqual(l.map((x) => x.nom), ['KI - BPU - ind B.xlsx', 'Annexe.ods']); // ni le PDF, ni Archives ; BPU en tête
   assert.strictEqual(l[0].dossier, '01 DCE');
   assert.strictEqual(l[0].type, 'xlsx');
   const c = brut(A.apiBpuTableurContenu(id, l[0].id));

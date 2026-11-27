@@ -1,4 +1,4 @@
-/* Kartes Affaires 1.7.6 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
+/* Kartes Affaires 1.7.7 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
 
 // ════════ Setup.js ════════
 
@@ -463,7 +463,7 @@ var AC_TYPES_TABLEUR = {
 };
 
 /**
- * Tableurs du dossier Drive de l'affaire (dossier et sous-dossiers d'étape, y compris Archives),
+ * Tableurs du dossier Drive de l'affaire (dossier et sous-dossiers d'étape, hors dossiers « Archives »),
  * lus directement dans Drive (et non dans la copie synchronisée de l'ordinateur) : les plus récents d'abord,
  * ceux dont le nom contient « BPU » en tête. [{ id, nom, dossier, date, type }]
  */
@@ -481,7 +481,11 @@ function AC_tableursDrive(idAffaire, avecFichier) {
         date: Utilities.formatDate(f.getLastUpdated(), APP.FUSEAU, 'dd/MM/yyyy HH:mm') });
     }
     var sd = d.getFolders();
-    while (sd.hasNext()) { var s = sd.next(); if (chemin.split('/').length < 3) voir(s, chemin ? chemin + '/' + s.getName() : s.getName()); }
+    while (sd.hasNext()) {
+      var s = sd.next();
+      if (/^archives?$/i.test(String(s.getName()).trim())) continue; // anciens indices : jamais proposés
+      if (chemin.split('/').length < 3) voir(s, chemin ? chemin + '/' + s.getName() : s.getName());
+    }
   };
   voir(dossier, '');
   out.sort(function (x, y) { return (/bpu/i.test(y.nom) ? 1 : 0) - (/bpu/i.test(x.nom) ? 1 : 0) || y.quand - x.quand; });
@@ -1832,7 +1836,7 @@ function arrondi_(n) {
 var APP = {
   NOM: 'Kartes Affaires',
   ENTREPRISE: 'Kartes Ingénierie',
-  VERSION: '1.7.6',
+  VERSION: '1.7.7',
   CLASSEUR: 'Kartes Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kartes Affaires — sauvegardes',
   ANCIEN_NOM: 'Kompa', // nom d'avant le 22/11/2026 : fichiers et dossiers renommés par la mise à jour automatique
