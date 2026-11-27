@@ -1,4 +1,4 @@
-/* Kartes Affaires — module Estimation 1.7.4 — fichier généré par tools/build.js depuis src/Est*.js. Ne pas modifier ici. */
+/* Kartes Affaires — module Estimation 1.7.5 — fichier généré par tools/build.js depuis src/Est*.js. Ne pas modifier ici. */
 
 // ════════ EstConfig.js ════════
 
@@ -15,7 +15,7 @@
  */
 
 /** Doit être égale à APP.VERSION (Code.gs) : sinon l'accueil signale une mise à jour incomplète. */
-var EST_VERSION = '1.7.4';
+var EST_VERSION = '1.7.5';
 
 /**
  * Tables du module, toutes dans le classeur EST. Mêmes conventions que le suivi :

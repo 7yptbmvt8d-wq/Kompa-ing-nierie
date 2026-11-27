@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Kartes Affaires 1.7.4 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
+<!-- Kartes Affaires 1.7.5 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
 <html lang="fr">
 <head>
   <base target="_top">
@@ -1469,6 +1469,8 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       input = '<textarea class="champ" id="' + id + '" data-champ="' + c.nom + '" rows="3"' + req + '>' + esc(v) + '</textarea>';
     } else if (t === 'date') {
       input = '<input class="champ mono" type="date" id="' + id + '" data-champ="' + c.nom + '" value="' + esc(v.slice(0, 10)) + '"' + req + '>';
+    } else if (t === 'heure') {
+      input = '<input class="champ mono" type="time" id="' + id + '" data-champ="' + c.nom + '" value="' + esc(v.slice(0, 5)) + '"' + req + '>';
     } else if (t === 'nombre' || t === 'euros') {
       input = '<input class="champ mono num" type="text" inputmode="decimal" id="' + id + '" data-champ="' + c.nom + '" value="' + esc(v) + '"' + req + '>';
       if (t === 'euros') input = '<div class="champ-unite">' + input + '<span aria-hidden="true">€</span></div>';
@@ -1601,7 +1603,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
         lignes.map(function (a) {
           return '<tr data-ouvrir="' + esc(a.id) + '" tabindex="0">' +
             '<td class="mono">' + esc(a.id) + '</td><td>' + esc(a.acheteur) + '</td><td class="objet-court">' + esc(a.objet) + '</td>' +
-            '<td>' + pastille(a.statut) + '</td><td class="mono">' + jour(a.date_limite_remise) + ' ' + badgeDelai(a) + '</td>' +
+            '<td>' + pastille(a.statut) + '</td><td class="mono">' + jour(a.date_limite_remise) + (a.heure_limite_remise ? ' ' + esc(a.heure_limite_remise) : '') + ' ' + badgeDelai(a) + '</td>' +
             '<td class="num mono">' + montant(a.montant_notifie || a.montant_ht) + '</td>' +
             '<td class="num mono">' + esc(a.score_final || a.pre_score || '') + '</td></tr>';
         }).join('') + '</tbody></table></div>';
@@ -1649,7 +1651,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       '<div class="carte-affaire__acheteur">' + esc(a.acheteur) + (a.departement ? ' <span class="mono legende">(' + esc(a.departement) + ')</span>' : '') + '</div>' +
       '<div class="carte-affaire__objet">' + esc(a.objet) + '</div>' +
       '<div class="carte-affaire__pied mono">' +
-        (a.date_limite_remise ? '<span>Remise ' + jour(a.date_limite_remise) + '</span>' : '<span></span>') +
+        (a.date_limite_remise ? '<span>Remise ' + jour(a.date_limite_remise) + (a.heure_limite_remise ? ' ' + esc(a.heure_limite_remise) : '') + '</span>' : '<span></span>') +
         '<span>' + montant(a.montant_notifie || a.montant_ht) + '</span></div>' +
       '</article>';
   }
@@ -1766,6 +1768,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
       .filter(function (x) { return x[1] && joursAvant(x[1]) >= 0; })
       .sort(function (x, y) { return String(x[1]) < String(y[1]) ? -1 : 1; });
     if (['En étude', 'Go'].indexOf(s) >= 0 && futur.length) ech = futur[0];
+    if (ech && ech[0] === 'Remise' && a.heure_limite_remise) ech = ['Remise', ech[1], a.heure_limite_remise];
     if (s === 'Déposée' && a.date_depot && a.validite_offre_jours) ech = ['Fin de validité', plusJours(a.date_depot, Number(a.validite_offre_jours))];
     var relance = f.relances.filter(function (r) { return r.statut === 'à faire'; })
       .sort(function (x, y) { return String(x.date_prevue) < String(y.date_prevue) ? -1 : 1; })[0];
@@ -1797,7 +1800,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     var jn = ech ? joursAvant(ech[1]) : null;
     return '<section class="synthese" aria-label="Synthèse de l\'affaire">' +
       '<div class="synthese__action"><div class="synthese__etiq">Prochaine action</div><div class="synthese__val">' + action + '</div></div>' +
-      '<div><div class="synthese__etiq">Échéance</div><div class="synthese__val">' + (ech ? esc(ech[0]) + ' <span class="mono">' + jour(ech[1]) + '</span> <span class="jours">' + (jn === 0 ? 'aujourd\'hui' : jn < 0 ? 'retard ' + (-jn) + ' j' : 'J-' + jn) + '</span>' : '<span class="vide">—</span>') + '</div></div>' +
+      '<div><div class="synthese__etiq">Échéance</div><div class="synthese__val">' + (ech ? esc(ech[0]) + ' <span class="mono">' + jour(ech[1]) + (ech[2] ? ' à ' + esc(ech[2]) : '') + '</span> <span class="jours">' + (jn === 0 ? 'aujourd\'hui' : jn < 0 ? 'retard ' + (-jn) + ' j' : 'J-' + jn) + '</span>' : '<span class="vide">—</span>') + '</div></div>' +
       '<div><div class="synthese__etiq">' + avancement[0] + '</div><div class="synthese__val">' + avancement[1] + '</div></div>' +
       '<div><div class="synthese__etiq">' + troisieme[0] + '</div><div class="synthese__val">' + troisieme[1] + '</div></div>' +
     '</section>';
@@ -1808,6 +1811,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     if (v === '' || v === null || v === undefined) return '<span class="vide">—</span>';
     var t = c.type;
     if (t === 'date') return '<span class="mono">' + jour(v) + '</span>';
+    if (t === 'heure') return '<span class="mono">' + esc(String(v).slice(0, 5)) + '</span>';
     if (t === 'euros') return '<span class="mono">' + K.euros(Number(v)) + '</span>';
     if (t === 'nombre') return '<span class="mono">' + esc(String(v).replace('.', ',')) + '</span>';
     if (t === 'lien') return '<a href="' + esc(v) + '" target="_blank" rel="noopener" data-externe>Ouvrir ↗</a>';
@@ -4660,7 +4664,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     if (maj && maj.changements && maj.changements.length) alertes += '<div class="mob-info">Classeur complété automatiquement (version ' + esc(maj.version) + ') : ' + esc(maj.changements.join(' ; ')) + '.</div>';
     var remises = s.echeances.filter(function (e) { return e.type === 'Remise' && e.jours >= 0 && e.jours <= 3; });
     alertes += remises.map(function (e) {
-      return '<div class="mob-alerte"><div class="mob-alerte__tete">Remise ' + esc(quand(e.jours)) + ' · <span class="mono">' + jour(e.date) + '</span></div>' +
+      return '<div class="mob-alerte"><div class="mob-alerte__tete">Remise ' + esc(quand(e.jours)) + ' · <span class="mono">' + jour(e.date) + (e.heure ? ' avant ' + esc(e.heure) : '') + '</span></div>' +
         '<div><strong>' + esc(e.acheteur) + '</strong></div><div class="mob-legende">' + esc(String(e.objet || '').slice(0, 120)) + '</div></div>';
     }).join('');
 

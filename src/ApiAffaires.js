@@ -91,7 +91,7 @@ function apiBonSupprimer(id, idBon) {
 /** Liste des affaires (résumé) + méta. */
 function apiAffaires() {
   return repondre_(function () {
-    var resume = ['id', 'acheteur', 'departement', 'objet', 'statut', 'date_statut', 'date_limite_remise',
+    var resume = ['id', 'acheteur', 'departement', 'objet', 'statut', 'date_statut', 'date_limite_remise', 'heure_limite_remise',
       'pre_score', 'score_final', 'montant_ht', 'montant_notifie', 'type_acheteur', 'procedure'];
     return {
       meta: Affaires_meta_(),

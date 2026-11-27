@@ -121,7 +121,7 @@ function Email_construire(quand, depuis) {
       '<div style="color:' + C.rouille + ';font-weight:700;font-size:16px;margin-bottom:4px">Remise imminente</div>' +
       remises.map(function (e) {
         return '<div style="padding:8px 0;border-top:1px solid ' + C.filet + '">' +
-          '<div><span style="' + mono + 'color:' + C.rouille + ';font-weight:600">' + (e.jours === 0 ? 'J0' : 'J-' + e.jours) + ' · ' + jr(e.date) + '</span> — remise ' + quandRemise(e.jours) + '</div>' +
+          '<div><span style="' + mono + 'color:' + C.rouille + ';font-weight:600">' + (e.jours === 0 ? 'J0' : 'J-' + e.jours) + ' · ' + jr(e.date) + (e.heure ? ' à ' + e.heure : '') + '</span> — remise ' + quandRemise(e.jours) + (e.heure ? ', avant ' + e.heure : '') + '</div>' +
           '<div style="font-weight:600">' + h(e.acheteur) + '</div><div>' + h(String(e.objet || '').slice(0, 140)) + '</div>' +
           '<div style="font-size:13px;color:' + (e.pieces.total && e.pieces.pretes === e.pieces.total ? C.gris : C.rouille) + '">' + h(etatPieces(e.pieces)) + '</div>' +
           '<div style="font-size:13px;color:' + C.gris + ';margin-bottom:6px">' + h(conseilDepot(e)) + '</div>' +

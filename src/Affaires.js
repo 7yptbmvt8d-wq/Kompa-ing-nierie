@@ -91,6 +91,7 @@ var FICHE_BLOCS = [
   ] },
   { id: 'echeances', titre: 'Échéances', champs: [
     ['date_limite_remise', 'Date limite de remise', 'date'],
+    ['heure_limite_remise', 'Heure limite de remise', 'heure'],
     ['date_limite_questions', 'Date limite des questions', 'date'],
     ['date_visite', 'Visite de site', 'date'],
     ['validite_offre_jours', 'Validité de l\'offre (jours)', 'nombre']
@@ -160,6 +161,7 @@ var AIDES_CHAMPS = {
   lien_dce: ['Rempli automatiquement à la création du dossier Drive.'],
 
   date_limite_remise: ['Date limite de réception des offres, dans le règlement de consultation (RC). L\'échéancier vous la rappelle.'],
+  heure_limite_remise: ['Heure limite de réception des offres (RC), souvent 12:00. Un dépôt arrivé une minute après est irrecevable : visez la veille.', '12:00'],
   date_limite_questions: ['Dernier jour pour poser vos questions à l\'acheteur (voir le RC, souvent quelques jours avant la remise).'],
   date_visite: ['Date de la visite de site, si elle est prévue ou obligatoire (voir le RC).'],
   validite_offre_jours: ['Durée pendant laquelle votre offre vous engage, indiquée dans le RC. Sert à relancer l\'acheteur si la décision tarde.', '120'],
@@ -205,7 +207,7 @@ var AIDES_CHAMPS = {
 
 /** Champs du formulaire court « Nouvelle affaire ». */
 var CHAMPS_CREATION = ['acheteur', 'type_acheteur', 'departement', 'objet', 'procedure',
-  'date_limite_remise', 'lien_avis', 'reference_acheteur'];
+  'date_limite_remise', 'heure_limite_remise', 'lien_avis', 'reference_acheteur'];
 
 // ——— Lecture ———
 
@@ -264,9 +266,20 @@ function Affaires_prochainNumero_(annee) {
  * Crée une affaire au statut « En étude ».
  * options.date : date de création simulée (affaire saisie a posteriori).
  */
+/** Heure saisie « 12h », « 12h30 », « 9:5 », « 12:00:00 » → « 12:00 » ; vide → '' ; illisible → erreur. */
+function Affaires_heure_(v) {
+  if (Object.prototype.toString.call(v) === '[object Date]') return isNaN(v.getTime()) ? '' : Utilities.formatDate(v, APP.FUSEAU, 'HH:mm');
+  var t = String(v === null || v === undefined ? '' : v).trim().toLowerCase().replace(/\s+/g, '');
+  if (!t) return '';
+  var m = t.match(/^(\d{1,2})(?:[h:.](\d{0,2}))?(?::\d{2})?$/);
+  if (!m || Number(m[1]) > 23 || Number(m[2] || 0) > 59) throw new Error('Heure limite de remise : heure attendue (ex. 12:00).');
+  return ('0' + Number(m[1])).slice(-2) + ':' + ('0' + Number(m[2] || 0)).slice(-2);
+}
+
 function Affaires_creer(donnees, options) {
   options = options || {};
   var champs = depuisClient_(TABLES.AFFAIRES, donnees);
+  if ('heure_limite_remise' in champs) champs.heure_limite_remise = Affaires_heure_(champs.heure_limite_remise);
   if (!champs.acheteur) throw new Error('L\'acheteur est obligatoire.');
   if (!champs.objet) throw new Error('L\'objet est obligatoire.');
   var quand = options.date ? date_(options.date) : new Date();
@@ -316,6 +329,7 @@ function Affaires_maj(id, donnees) {
   }
   ['id', 'statut', 'date_statut', 'decision', 'statut_final', 'notes', 'cree_le', 'modifie_le']
     .forEach(function (k) { delete champs[k]; });
+  if ('heure_limite_remise' in champs) champs.heure_limite_remise = Affaires_heure_(champs.heure_limite_remise);
   if ('acheteur' in champs && !champs.acheteur) throw new Error('L\'acheteur est obligatoire.');
   if ('objet' in champs && !champs.objet) throw new Error('L\'objet est obligatoire.');
   return Db_maj(TABLES.AFFAIRES, id, champs);

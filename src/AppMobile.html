@@ -48,7 +48,7 @@
     if (maj && maj.changements && maj.changements.length) alertes += '<div class="mob-info">Classeur complété automatiquement (version ' + esc(maj.version) + ') : ' + esc(maj.changements.join(' ; ')) + '.</div>';
     var remises = s.echeances.filter(function (e) { return e.type === 'Remise' && e.jours >= 0 && e.jours <= 3; });
     alertes += remises.map(function (e) {
-      return '<div class="mob-alerte"><div class="mob-alerte__tete">Remise ' + esc(quand(e.jours)) + ' · <span class="mono">' + jour(e.date) + '</span></div>' +
+      return '<div class="mob-alerte"><div class="mob-alerte__tete">Remise ' + esc(quand(e.jours)) + ' · <span class="mono">' + jour(e.date) + (e.heure ? ' avant ' + esc(e.heure) : '') + '</span></div>' +
         '<div><strong>' + esc(e.acheteur) + '</strong></div><div class="mob-legende">' + esc(String(e.objet || '').slice(0, 120)) + '</div></div>';
     }).join('');
 

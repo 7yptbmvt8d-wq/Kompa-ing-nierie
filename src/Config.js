@@ -8,7 +8,7 @@
 var APP = {
   NOM: 'Kartes Affaires',
   ENTREPRISE: 'Kartes Ingénierie',
-  VERSION: '1.7.4',
+  VERSION: '1.7.5',
   CLASSEUR: 'Kartes Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kartes Affaires — sauvegardes',
   ANCIEN_NOM: 'Kompa', // nom d'avant le 22/11/2026 : fichiers et dossiers renommés par la mise à jour automatique
@@ -74,6 +74,8 @@ var TABLES = {
       'date_notification', 'montant_notifie',
       // Accord-cadre à bons de commande (26/11/2026)
       'type_marche', 'ac_debut', 'ac_duree_mois', 'ac_reconductions', 'ac_minimum', 'ac_maximum',
+      // Heure limite de remise des offres (27/11/2026), « 12:00 »
+      'heure_limite_remise',
       // Journal
       'notes'
     ],
@@ -83,7 +85,7 @@ var TABLES = {
       'ac_duree_mois', 'ac_reconductions', 'ac_minimum', 'ac_maximum'
     ],
     horodatages: ['date_statut'],
-    texteBrut: ['departement', 'reference_acheteur', 'repartition_ca', 'tranches_etat']
+    texteBrut: ['departement', 'reference_acheteur', 'repartition_ca', 'tranches_etat', 'heure_limite_remise']
   },
   HISTORIQUE: {
     onglet: 'Historique',

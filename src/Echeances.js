@@ -64,7 +64,8 @@ function Echeances_calculer(debut, fin, quand) {
       var dr = date_(a.date_limite_remise);
       if (dr) {
         var jr = ecartJours_(dr, auj);
-        ajouter(dr, 'Remise', 'Remise de l\'offre', a, { alerte: alertesRemise.indexOf(jr) >= 0 || (jr >= 0 && jr <= 1) });
+        var hr = String(a.heure_limite_remise || '');
+        ajouter(dr, 'Remise', 'Remise de l\'offre' + (hr ? ' avant ' + hr : ''), a, { alerte: alertesRemise.indexOf(jr) >= 0 || (jr >= 0 && jr <= 1), heure: hr });
       }
       ajouter(date_(a.date_limite_questions), 'Questions', 'Date limite des questions à l\'acheteur', a,
         { alerte: ecartJours_(date_(a.date_limite_questions) || auj, auj) === Params_nombre('echeance.questions_alerte_j', 3) });

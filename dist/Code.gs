@@ -1,4 +1,4 @@
-/* Kartes Affaires 1.7.4 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
+/* Kartes Affaires 1.7.5 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. */
 
 // ════════ Setup.js ════════
 
@@ -780,6 +780,7 @@ var FICHE_BLOCS = [
   ] },
   { id: 'echeances', titre: 'Échéances', champs: [
     ['date_limite_remise', 'Date limite de remise', 'date'],
+    ['heure_limite_remise', 'Heure limite de remise', 'heure'],
     ['date_limite_questions', 'Date limite des questions', 'date'],
     ['date_visite', 'Visite de site', 'date'],
     ['validite_offre_jours', 'Validité de l\'offre (jours)', 'nombre']
@@ -849,6 +850,7 @@ var AIDES_CHAMPS = {
   lien_dce: ['Rempli automatiquement à la création du dossier Drive.'],
 
   date_limite_remise: ['Date limite de réception des offres, dans le règlement de consultation (RC). L\'échéancier vous la rappelle.'],
+  heure_limite_remise: ['Heure limite de réception des offres (RC), souvent 12:00. Un dépôt arrivé une minute après est irrecevable : visez la veille.', '12:00'],
   date_limite_questions: ['Dernier jour pour poser vos questions à l\'acheteur (voir le RC, souvent quelques jours avant la remise).'],
   date_visite: ['Date de la visite de site, si elle est prévue ou obligatoire (voir le RC).'],
   validite_offre_jours: ['Durée pendant laquelle votre offre vous engage, indiquée dans le RC. Sert à relancer l\'acheteur si la décision tarde.', '120'],
@@ -894,7 +896,7 @@ var AIDES_CHAMPS = {
 
 /** Champs du formulaire court « Nouvelle affaire ». */
 var CHAMPS_CREATION = ['acheteur', 'type_acheteur', 'departement', 'objet', 'procedure',
-  'date_limite_remise', 'lien_avis', 'reference_acheteur'];
+  'date_limite_remise', 'heure_limite_remise', 'lien_avis', 'reference_acheteur'];
 
 // ——— Lecture ———
 
@@ -953,9 +955,20 @@ function Affaires_prochainNumero_(annee) {
  * Crée une affaire au statut « En étude ».
  * options.date : date de création simulée (affaire saisie a posteriori).
  */
+/** Heure saisie « 12h », « 12h30 », « 9:5 », « 12:00:00 » → « 12:00 » ; vide → '' ; illisible → erreur. */
+function Affaires_heure_(v) {
+  if (Object.prototype.toString.call(v) === '[object Date]') return isNaN(v.getTime()) ? '' : Utilities.formatDate(v, APP.FUSEAU, 'HH:mm');
+  var t = String(v === null || v === undefined ? '' : v).trim().toLowerCase().replace(/\s+/g, '');
+  if (!t) return '';
+  var m = t.match(/^(\d{1,2})(?:[h:.](\d{0,2}))?(?::\d{2})?$/);
+  if (!m || Number(m[1]) > 23 || Number(m[2] || 0) > 59) throw new Error('Heure limite de remise : heure attendue (ex. 12:00).');
+  return ('0' + Number(m[1])).slice(-2) + ':' + ('0' + Number(m[2] || 0)).slice(-2);
+}
+
 function Affaires_creer(donnees, options) {
   options = options || {};
   var champs = depuisClient_(TABLES.AFFAIRES, donnees);
+  if ('heure_limite_remise' in champs) champs.heure_limite_remise = Affaires_heure_(champs.heure_limite_remise);
   if (!champs.acheteur) throw new Error('L\'acheteur est obligatoire.');
   if (!champs.objet) throw new Error('L\'objet est obligatoire.');
   var quand = options.date ? date_(options.date) : new Date();
@@ -1005,6 +1018,7 @@ function Affaires_maj(id, donnees) {
   }
   ['id', 'statut', 'date_statut', 'decision', 'statut_final', 'notes', 'cree_le', 'modifie_le']
     .forEach(function (k) { delete champs[k]; });
+  if ('heure_limite_remise' in champs) champs.heure_limite_remise = Affaires_heure_(champs.heure_limite_remise);
   if ('acheteur' in champs && !champs.acheteur) throw new Error('L\'acheteur est obligatoire.');
   if ('objet' in champs && !champs.objet) throw new Error('L\'objet est obligatoire.');
   return Db_maj(TABLES.AFFAIRES, id, champs);
@@ -1248,7 +1262,7 @@ function apiBonSupprimer(id, idBon) {
 /** Liste des affaires (résumé) + méta. */
 function apiAffaires() {
   return repondre_(function () {
-    var resume = ['id', 'acheteur', 'departement', 'objet', 'statut', 'date_statut', 'date_limite_remise',
+    var resume = ['id', 'acheteur', 'departement', 'objet', 'statut', 'date_statut', 'date_limite_remise', 'heure_limite_remise',
       'pre_score', 'score_final', 'montant_ht', 'montant_notifie', 'type_acheteur', 'procedure'];
     return {
       meta: Affaires_meta_(),
@@ -1755,7 +1769,7 @@ function arrondi_(n) {
 var APP = {
   NOM: 'Kartes Affaires',
   ENTREPRISE: 'Kartes Ingénierie',
-  VERSION: '1.7.4',
+  VERSION: '1.7.5',
   CLASSEUR: 'Kartes Affaires — données',
   DOSSIER_SAUVEGARDES: 'Kartes Affaires — sauvegardes',
   ANCIEN_NOM: 'Kompa', // nom d'avant le 22/11/2026 : fichiers et dossiers renommés par la mise à jour automatique
@@ -1821,6 +1835,8 @@ var TABLES = {
       'date_notification', 'montant_notifie',
       // Accord-cadre à bons de commande (26/11/2026)
       'type_marche', 'ac_debut', 'ac_duree_mois', 'ac_reconductions', 'ac_minimum', 'ac_maximum',
+      // Heure limite de remise des offres (27/11/2026), « 12:00 »
+      'heure_limite_remise',
       // Journal
       'notes'
     ],
@@ -1830,7 +1846,7 @@ var TABLES = {
       'ac_duree_mois', 'ac_reconductions', 'ac_minimum', 'ac_maximum'
     ],
     horodatages: ['date_statut'],
-    texteBrut: ['departement', 'reference_acheteur', 'repartition_ca', 'tranches_etat']
+    texteBrut: ['departement', 'reference_acheteur', 'repartition_ca', 'tranches_etat', 'heure_limite_remise']
   },
   HISTORIQUE: {
     onglet: 'Historique',
@@ -2770,7 +2786,8 @@ function Echeances_calculer(debut, fin, quand) {
       var dr = date_(a.date_limite_remise);
       if (dr) {
         var jr = ecartJours_(dr, auj);
-        ajouter(dr, 'Remise', 'Remise de l\'offre', a, { alerte: alertesRemise.indexOf(jr) >= 0 || (jr >= 0 && jr <= 1) });
+        var hr = String(a.heure_limite_remise || '');
+        ajouter(dr, 'Remise', 'Remise de l\'offre' + (hr ? ' avant ' + hr : ''), a, { alerte: alertesRemise.indexOf(jr) >= 0 || (jr >= 0 && jr <= 1), heure: hr });
       }
       ajouter(date_(a.date_limite_questions), 'Questions', 'Date limite des questions à l\'acheteur', a,
         { alerte: ecartJours_(date_(a.date_limite_questions) || auj, auj) === Params_nombre('echeance.questions_alerte_j', 3) });
@@ -3127,7 +3144,7 @@ function Email_construire(quand, depuis) {
       '<div style="color:' + C.rouille + ';font-weight:700;font-size:16px;margin-bottom:4px">Remise imminente</div>' +
       remises.map(function (e) {
         return '<div style="padding:8px 0;border-top:1px solid ' + C.filet + '">' +
-          '<div><span style="' + mono + 'color:' + C.rouille + ';font-weight:600">' + (e.jours === 0 ? 'J0' : 'J-' + e.jours) + ' · ' + jr(e.date) + '</span> — remise ' + quandRemise(e.jours) + '</div>' +
+          '<div><span style="' + mono + 'color:' + C.rouille + ';font-weight:600">' + (e.jours === 0 ? 'J0' : 'J-' + e.jours) + ' · ' + jr(e.date) + (e.heure ? ' à ' + e.heure : '') + '</span> — remise ' + quandRemise(e.jours) + (e.heure ? ', avant ' + e.heure : '') + '</div>' +
           '<div style="font-weight:600">' + h(e.acheteur) + '</div><div>' + h(String(e.objet || '').slice(0, 140)) + '</div>' +
           '<div style="font-size:13px;color:' + (e.pieces.total && e.pieces.pretes === e.pieces.total ? C.gris : C.rouille) + '">' + h(etatPieces(e.pieces)) + '</div>' +
           '<div style="font-size:13px;color:' + C.gris + ';margin-bottom:6px">' + h(conseilDepot(e)) + '</div>' +
@@ -5805,6 +5822,13 @@ function Veille_archiver_(quand) {
 
 // ——— Actions sur les avis ———
 
+/** Heure de la date limite d'un avis (« 12:00 »), '' si inconnue (minuit = date seule). */
+function Veille_heureLimite_(d) {
+  if (Object.prototype.toString.call(d) !== '[object Date]' || isNaN(d.getTime())) return '';
+  var h = Utilities.formatDate(d, APP.FUSEAU, 'HH:mm');
+  return h === '00:00' ? '' : h;
+}
+
 /** « Étudier » : crée l'affaire (statut En étude) liée à l'avis. */
 function Avis_etudier(idAvis) {
   var a = Db_trouver(TABLES.AVIS, idAvis);
@@ -5815,6 +5839,7 @@ function Avis_etudier(idAvis) {
     reference_acheteur: a.reference_acheteur, procedure: Veille_procedure_(a.procedure),
     plateforme: a.source === SOURCE_BOAMP ? 'BOAMP' : '', lien_avis: a.lien,
     date_limite_remise: a.date_limite instanceof Date ? jourIso_(a.date_limite) : a.date_limite,
+    heure_limite_remise: Veille_heureLimite_(a.date_limite),
     pre_score: a.pre_score, id_avis: a.id
   }, { commentaire: 'Créée depuis l\'avis ' + a.id + ' (' + a.source + ', pré-score ' + a.pre_score + ')' });
   Db_maj(TABLES.AVIS, idAvis, { statut: 'étudié', id_affaire: affaire.id });

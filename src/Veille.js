@@ -499,6 +499,13 @@ function Veille_archiver_(quand) {
 
 // ——— Actions sur les avis ———
 
+/** Heure de la date limite d'un avis (« 12:00 »), '' si inconnue (minuit = date seule). */
+function Veille_heureLimite_(d) {
+  if (Object.prototype.toString.call(d) !== '[object Date]' || isNaN(d.getTime())) return '';
+  var h = Utilities.formatDate(d, APP.FUSEAU, 'HH:mm');
+  return h === '00:00' ? '' : h;
+}
+
 /** « Étudier » : crée l'affaire (statut En étude) liée à l'avis. */
 function Avis_etudier(idAvis) {
   var a = Db_trouver(TABLES.AVIS, idAvis);
@@ -509,6 +516,7 @@ function Avis_etudier(idAvis) {
     reference_acheteur: a.reference_acheteur, procedure: Veille_procedure_(a.procedure),
     plateforme: a.source === SOURCE_BOAMP ? 'BOAMP' : '', lien_avis: a.lien,
     date_limite_remise: a.date_limite instanceof Date ? jourIso_(a.date_limite) : a.date_limite,
+    heure_limite_remise: Veille_heureLimite_(a.date_limite),
     pre_score: a.pre_score, id_avis: a.id
   }, { commentaire: 'Créée depuis l\'avis ' + a.id + ' (' + a.source + ', pré-score ' + a.pre_score + ')' });
   Db_maj(TABLES.AVIS, idAvis, { statut: 'étudié', id_affaire: affaire.id });

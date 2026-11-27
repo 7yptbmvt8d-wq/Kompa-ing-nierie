@@ -2496,6 +2496,33 @@ test('accord-cadre : fichier Excel du BPU de l\'acheteur (colonnes par titre, «
   assert.match(A.Affaires_get_(id).notes, /BPU supprimé \(6 lignes\)/);
 });
 
+test('heure limite de remise : saisie (12h, 9h30…), échéancier, e-mail du matin, reprise de l\'avis BOAMP', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  A.installer({ exercice: false });
+  assert.deepStrictEqual(['12h', '12h30', '9:5', '12:00:00', ' 8 ', ''].map((v) => A.Affaires_heure_(v)), ['12:00', '12:30', '09:05', '12:00', '08:00', '']);
+  assert.throws(() => A.Affaires_heure_('midi'), /heure attendue/);
+  assert.throws(() => A.Affaires_heure_('25:00'), /heure attendue/);
+  const demain = new Date(); demain.setDate(demain.getDate() + 1);
+  const iso = Utilities_iso(demain);
+  const id = A.Affaires_creer({ acheteur: 'Commune de Gap', objet: 'AMO école', date_limite_remise: iso, heure_limite_remise: '12h' }).id;
+  assert.strictEqual(A.Affaires_get_(id).heure_limite_remise, '12:00');
+  assert.match(brut(A.apiAffaire(id)).data.affaire.heure_limite_remise, /^12:00$/);
+  A.Affaires_maj(id, { heure_limite_remise: '16h30' });
+  assert.strictEqual(A.Affaires_get_(id).heure_limite_remise, '16:30');
+  const e = brut(A.Echeances_calculer(new Date(), demain, new Date())).find((x) => x.type === 'Remise' && x.id_affaire === id);
+  assert.strictEqual(e.libelle, 'Remise de l\'offre avant 16:30');
+  assert.strictEqual(e.heure, '16:30');
+  assert.match(A.Email_construire(new Date()).html, /avant 16:30/);
+  // Avis BOAMP avec date et heure : l'heure passe dans l'affaire créée par « Étudier »
+  const av = A.Db_inserer(A.TABLES.AVIS, { source: 'BOAMP', id_source: 'h1', acheteur: 'Ville de Digne', objet: 'AMO programmation', lien: 'https://www.boamp.fr/h1',
+    date_limite: new Date(2026, 11, 10, 12, 0), statut: 'nouveau', pre_score: 70 });
+  const aff = A.Avis_etudier(av.id);
+  assert.strictEqual(aff.heure_limite_remise, '12:00');
+});
+
+function Utilities_iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
 test('URSSAF : périodes antérieures au début du suivi non relancées', () => {
   const { A } = jeuFiscal();
   A.Params_enregistrer('fiscal.debut_suivi', '2026-11-01');
