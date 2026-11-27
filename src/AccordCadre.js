@@ -229,6 +229,60 @@ function AC_bpuDepuisTableau_(feuilles) {
   return out;
 }
 
+var AC_TYPES_TABLEUR = {
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.ms-excel.sheet.macroEnabled.12': 'xlsm',
+  'application/vnd.oasis.opendocument.spreadsheet': 'ods',
+  'text/csv': 'csv',
+  'application/vnd.google-apps.spreadsheet': 'Google Sheets'
+};
+
+/**
+ * Tableurs du dossier Drive de l'affaire (dossier et sous-dossiers d'étape, y compris Archives),
+ * lus directement dans Drive (et non dans la copie synchronisée de l'ordinateur) : les plus récents d'abord,
+ * ceux dont le nom contient « BPU » en tête. [{ id, nom, dossier, date, type }]
+ */
+function AC_tableursDrive(idAffaire, avecFichier) {
+  var a = Affaires_get_(idAffaire);
+  var dossier = Drive_dossierAffaire_(a);
+  if (!dossier) return [];
+  var out = [];
+  var voir = function (d, chemin) {
+    var it = d.getFiles();
+    while (it.hasNext()) {
+      var f = it.next(), type = AC_TYPES_TABLEUR[f.getMimeType()] || (/\.(xlsx|xls|xlsm|ods|csv)$/i.test(f.getName()) ? f.getName().split('.').pop().toLowerCase() : '');
+      if (!type) continue;
+      out.push({ id: f.getId(), nom: f.getName(), dossier: chemin, type: type, quand: f.getLastUpdated(), fichier: avecFichier ? f : undefined,
+        date: Utilities.formatDate(f.getLastUpdated(), APP.FUSEAU, 'dd/MM/yyyy HH:mm') });
+    }
+    var sd = d.getFolders();
+    while (sd.hasNext()) { var s = sd.next(); if (chemin.split('/').length < 3) voir(s, chemin ? chemin + '/' + s.getName() : s.getName()); }
+  };
+  voir(dossier, '');
+  out.sort(function (x, y) { return (/bpu/i.test(y.nom) ? 1 : 0) - (/bpu/i.test(x.nom) ? 1 : 0) || y.quand - x.quand; });
+  return out.slice(0, 60).map(function (x) { delete x.quand; if (!avecFichier) delete x.fichier; return x; });
+}
+
+/** Contenu d'un tableur du dossier de l'affaire, en base64 (.xlsx pour un Google Sheets) : { nom, base64 }. */
+function AC_tableurContenu(idAffaire, idFichier) {
+  var liste = AC_tableursDrive(idAffaire, true);
+  var x = liste.filter(function (f) { return f.id === String(idFichier); })[0];
+  if (!x) throw new Error('Fichier introuvable dans le dossier Drive de l\'affaire.');
+  var octets;
+  if (x.type === 'Google Sheets') {
+    var rep = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + x.id + '/export?format=xlsx', {
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true
+    });
+    if (rep.getResponseCode() !== 200) throw new Error('Lecture du Google Sheets refusée par Google (HTTP ' + rep.getResponseCode() + ').');
+    octets = rep.getBlob().getBytes();
+  } else {
+    octets = x.fichier.getBlob().getBytes();
+  }
+  if (octets.length > 15 * 1048576) throw new Error('Fichier trop lourd (plus de 15 Mo).');
+  return { nom: x.nom, base64: Utilities.base64Encode(octets) };
+}
+
 /** Supprime tout le BPU de l'affaire (erreur d'import) ; en accord-cadre, le montant de l'offre revient à 0. */
 function AC_bpuSupprimer(idAffaire) {
   var n = AC_bpu(idAffaire).length;

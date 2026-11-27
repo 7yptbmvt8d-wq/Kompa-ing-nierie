@@ -58,6 +58,15 @@ function apiBpuImporterTableau(id, feuilles, ajouter, nomFichier) {
   });
 }
 
+/** Tableurs du dossier Drive de l'affaire (choix du BPU sans passer par l'ordinateur). */
+function apiBpuTableursDrive(id) {
+  return repondre_(function () { return AC_tableursDrive(id); });
+}
+
+function apiBpuTableurContenu(id, idFichier) {
+  return repondre_(function () { return AC_tableurContenu(id, idFichier); });
+}
+
 function apiBpuSupprimer(id) {
   return repondre_(function () { var n = AC_bpuSupprimer(id); var f = ficheClient_(id); f.supprimees = n; return f; });
 }

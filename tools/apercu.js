@@ -410,6 +410,20 @@ function assembler() {
     assert.deepStrictEqual(numeros, ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2']);
     assert.match(await p.textContent('#bpu .table-bpu-lecture tbody tr:nth-child(2) td:nth-child(2)'), /Étude de faisabilité d'un équipement — 500 m²/);
     await p.screenshot({ path: path.join(sortie, 'pc-ac-bpu-import-excel.png'), fullPage: true });
+    // Choix du BPU directement dans le dossier Drive de l'affaire (sans le sélecteur de l'ordinateur)
+    A.apiBpuSupprimer(ac);
+    A.Drive_deposer(ac, '04 Offre', { nom: 'KI - BPU - ind B.xlsx', type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      donnees: require('fs').readFileSync(path.join(__dirname, 'fixtures', 'bpu-exemple.xlsx')).toString('base64') });
+    await p.evaluate((id) => { window.KA.viderMemoire(); window.KA.afficher('affaire/' + id, true); }, ac);
+    await p.waitForSelector('.fiche-tete');
+    await p.click('[data-volet="ao"]');
+    await p.click('[data-sous="offre"]');
+    await p.click('#bpu [data-bpu-modifier]');
+    await p.click('#bpu [data-bpu-drive]');
+    await p.waitForSelector('dialog.dialogue[open] input[name="bpu-drive"]');
+    await p.screenshot({ path: path.join(sortie, 'pc-ac-bpu-drive.png') });
+    await p.click('dialog.dialogue[open] button[type=submit]');
+    await p.waitForFunction(() => document.querySelectorAll('#bpu .table-bpu-lecture tbody tr').length === 6, null, { timeout: 30000 });
     // Remise du BPU de démonstration (prix) pour la suite de l'aperçu
     A.apiBpuColler(ac, '1\tÉtude de faisabilité / programme d\'un équipement < 1 000 m²\tforfait\t6600\t2\n2\tRéunion (préparation, animation, compte rendu)\tréunion\t330\t12\n3\tAnalyse des candidatures et des offres de maîtrise d\'œuvre\tconsultation\t2200\t2\n4\tJournée d\'assistance (vacation)\tjour\t550\t10');
     await p.evaluate((id) => { window.KA.viderMemoire(); window.KA.afficher('affaire/' + id, true); }, ac);

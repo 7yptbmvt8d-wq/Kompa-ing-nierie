@@ -2523,6 +2523,27 @@ test('heure limite de remise : saisie (12h, 9h30…), échéancier, e-mail du ma
 
 function Utilities_iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
+test('accord-cadre : BPU choisi directement dans le dossier Drive de l\'affaire (tableurs seulement, contenu en base64)', () => {
+  const env = creerEnvironnement();
+  const A = env.ctx;
+  A.installer({ exercice: false });
+  const id = A.Affaires_creer({ acheteur: 'Ville X', objet: 'AC AMO' }).id;
+  const autre = A.Affaires_creer({ acheteur: 'Ville Y', objet: 'AC AMO 2' }).id;
+  const xlsx = require('fs').readFileSync(require('path').join(__dirname, 'fixtures', 'bpu-exemple.xlsx'));
+  A.Drive_deposer(id, '01 DCE', { nom: 'RC.pdf', type: 'application/pdf', donnees: Buffer.from('rc').toString('base64') });
+  A.Drive_deposer(id, '01 DCE', { nom: 'KI - BPU - ind B.xlsx', type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', donnees: xlsx.toString('base64') });
+  A.Drive_deposer(id, '01 DCE', { nom: 'Annexe.ods', type: 'application/vnd.oasis.opendocument.spreadsheet', donnees: Buffer.from('x').toString('base64') });
+  const l = brut(A.apiBpuTableursDrive(id)).data;
+  assert.deepStrictEqual(l.map((x) => x.nom), ['KI - BPU - ind B.xlsx', 'Annexe.ods']); // pas le PDF ; BPU en tête
+  assert.strictEqual(l[0].dossier, '01 DCE');
+  assert.strictEqual(l[0].type, 'xlsx');
+  const c = brut(A.apiBpuTableurContenu(id, l[0].id));
+  assert.ok(c.ok, c.erreur);
+  assert.strictEqual(c.data.base64, xlsx.toString('base64'));
+  // Un fichier d'une autre affaire n'est pas lisible depuis celle-ci
+  assert.match(brut(A.apiBpuTableurContenu(autre, l[0].id)).erreur, /introuvable/);
+});
+
 test('URSSAF : périodes antérieures au début du suivi non relancées', () => {
   const { A } = jeuFiscal();
   A.Params_enregistrer('fiscal.debut_suivi', '2026-11-01');

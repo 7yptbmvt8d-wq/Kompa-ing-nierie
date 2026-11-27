@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Kartes Affaires 1.7.5 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
+<!-- Kartes Affaires 1.7.6 — fichier généré par tools/build.js depuis src/. Ne pas modifier ici. -->
 <html lang="fr">
 <head>
   <base target="_top">
@@ -391,6 +391,8 @@ textarea.courrier { font-family: var(--kompa-font-sans); font-size: var(--kompa-
 .table-bc td:nth-child(3) { width: 6rem; }
 .table-bc input.champ { width: 100%; min-width: 0; }
 .bpu-suppr { margin-left: auto; }
+.liste-choix { display: grid; gap: var(--kompa-s2); max-height: 50vh; overflow-y: auto; }
+.liste-choix .case { align-items: flex-start; }
 .bpu-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--kompa-s2); margin: var(--kompa-s3) 0; }
 .entete-ac { margin-bottom: var(--kompa-s4); }
 .entete-ac__ligne { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--kompa-s2) var(--kompa-s4); }
@@ -1999,7 +2001,8 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
         '<button type="button" class="bouton bouton--petit" data-bpu-importer>Importer le BPU du skill</button></div>' : '') +
       '<div data-bpu-lecture>' + lecture + '</div>' +
       '<div class="bloc-form" data-bpu-edition hidden>' +
-        '<div class="bpu-actions"><label class="bouton bouton--petit bouton--discret" for="bpu-fichier">Importer le fichier Excel du BPU</label><input type="file" id="bpu-fichier" class="depot__input" accept=".xlsx,.xls,.xlsm,.ods,.csv" data-bpu-fichier>' +
+        '<div class="bpu-actions"><button type="button" class="bouton bouton--petit" data-bpu-drive>Choisir dans le dossier Drive de l\'affaire</button>' +
+          '<label class="bouton bouton--petit bouton--discret" for="bpu-fichier">Importer depuis l\'ordinateur</label><input type="file" id="bpu-fichier" class="depot__input" accept=".xlsx,.xls,.xlsm,.ods,.csv" data-bpu-fichier>' +
           '<button type="button" class="bouton bouton--petit bouton--discret" data-bpu-coller>Coller des lignes</button>' +
           (bpu.length ? '<button type="button" class="bouton bouton--petit bouton--discret bpu-suppr" data-bpu-supprimer>Supprimer le BPU</button>' : '') +
           '<span class="legende" data-bpu-etat></span></div>' +
@@ -2088,6 +2091,31 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
         recharger(fiche);
       }).catch(function (e) { etatTxt.textContent = ''; K.toast(e.message, true); });
     });
+    var bd = $('[data-bpu-drive]', zone);
+    if (bd) bd.addEventListener('click', function () {
+      bd.disabled = true;
+      K.appel('apiBpuTableursDrive', a.id).then(function (liste) {
+        bd.disabled = false;
+        if (!liste.length) { K.toast('Aucun tableur (.xlsx, .xls, .ods, .csv, Google Sheets) dans le dossier Drive de l\'affaire.', true); return; }
+        var corpsD = '<p class="legende">Fichiers lus directement dans Drive (à jour), BPU en tête puis du plus récent au plus ancien.' + ((f.bpu || []).length ? ' Le fichier choisi <strong>remplace</strong> les ' + f.bpu.length + ' lignes actuelles.' : '') + '</p>' +
+          '<div class="liste-choix">' + liste.map(function (x, i) {
+            return '<label class="case"><input type="radio" name="bpu-drive" value="' + esc(x.id) + '"' + (i === 0 ? ' checked' : '') + '> <span><strong>' + esc(x.nom) + '</strong>' +
+              ' <span class="legende">' + esc(x.dossier || 'dossier de l\'affaire') + ' · ' + esc(x.type) + ' · ' + esc(x.date) + '</span></span></label>';
+          }).join('') + '</div>';
+        dialogue('Choisir le BPU dans le dossier Drive', corpsD, 'Importer', function (form) {
+          var choix = $('input[name="bpu-drive"]:checked', form);
+          if (!choix) throw new Error('Choisissez un fichier.');
+          var nom = liste.filter(function (x) { return x.id === choix.value; })[0].nom;
+          return K.appel('apiBpuTableurContenu', a.id, choix.value).then(function (c) { return lireTableurBase64(c.base64); })
+            .then(function (feuilles) { return K.appel('apiBpuImporterTableau', a.id, feuilles, false, nom); })
+            .then(function (fiche) {
+              K.toast(fiche.ajoutees + ' ligne' + (fiche.ajoutees > 1 ? 's' : '') + ' importée' + (fiche.ajoutees > 1 ? 's' : '') + ' de « ' + nom + ' »' +
+                (fiche.sansPrix ? ', dont ' + fiche.sansPrix + ' sans prix à compléter' : '') + ' : DQE ' + K.euros(fiche.accordCadre ? fiche.accordCadre.dqe : 0) + ' HT.');
+              recharger(fiche);
+            });
+        });
+      }).catch(function (e) { bd.disabled = false; K.toast(e.message, true); });
+    });
     var bi = $('[data-bpu-importer]', zone);
     if (bi) bi.addEventListener('click', function () {
       if ((f.bpu || []).length && !window.confirm('Remplacer les ' + f.bpu.length + ' lignes actuelles du BPU par celles de ' + f.bpuFichier.nom + ' ?')) return;
@@ -2122,6 +2150,30 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
     });
   }
 
+  function lireTableurBase64(base64) {
+    return chargerXlsx().then(function (XLSX) { return feuillesClasseur(XLSX, XLSX.read(base64, { type: 'base64' })); });
+  }
+
+  function feuillesClasseur(XLSX, wb) {
+    return wb.SheetNames.slice(0, 8).map(function (nom) {
+      var ws = wb.Sheets[nom];
+      if (!ws || !ws['!ref']) return null;
+      var plage = XLSX.utils.decode_range(ws['!ref']);
+      var lignes = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '', blankrows: true });
+      (ws['!merges'] || []).forEach(function (m) {
+        if (m.e.r <= m.s.r) return;
+        var l0 = lignes[m.s.r - plage.s.r] || [], v = l0[m.s.c - plage.s.c];
+        for (var i = m.s.r + 1; i <= m.e.r; i++) {
+          var li = lignes[i - plage.s.r] = lignes[i - plage.s.r] || [];
+          if (li[m.s.c - plage.s.c] === '' || li[m.s.c - plage.s.c] === undefined) li[m.s.c - plage.s.c] = v;
+        }
+      });
+      return { nom: nom, lignes: lignes.slice(0, 600).map(function (l) {
+        return (l || []).slice(0, 30).map(function (v) { return v instanceof Date ? v.toISOString().slice(0, 10) : (typeof v === 'number' ? v : String(v === null || v === undefined ? '' : v)); });
+      }) };
+    }).filter(Boolean);
+  }
+
   function lireTableur(fichier) {
     return chargerXlsx().then(function (XLSX) {
       return new Promise(function (ok, ko) {
@@ -2130,24 +2182,7 @@ html[data-theme="neon"] .etape-ao[aria-selected="true"] { background: var(--komp
         r.onload = function () {
           try {
             var wb = XLSX.read(new Uint8Array(r.result), { type: 'array' });
-            var feuilles = wb.SheetNames.slice(0, 8).map(function (nom) {
-              var ws = wb.Sheets[nom];
-              if (!ws || !ws['!ref']) return null;
-              var plage = XLSX.utils.decode_range(ws['!ref']);
-              var lignes = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '', blankrows: true });
-              (ws['!merges'] || []).forEach(function (m) {
-                if (m.e.r <= m.s.r) return;
-                var l0 = lignes[m.s.r - plage.s.r] || [], v = l0[m.s.c - plage.s.c];
-                for (var i = m.s.r + 1; i <= m.e.r; i++) {
-                  var li = lignes[i - plage.s.r] = lignes[i - plage.s.r] || [];
-                  if (li[m.s.c - plage.s.c] === '' || li[m.s.c - plage.s.c] === undefined) li[m.s.c - plage.s.c] = v;
-                }
-              });
-              return { nom: nom, lignes: lignes.slice(0, 600).map(function (l) {
-                return (l || []).slice(0, 30).map(function (v) { return v instanceof Date ? v.toISOString().slice(0, 10) : (typeof v === 'number' ? v : String(v === null || v === undefined ? '' : v)); });
-              }) };
-            }).filter(Boolean);
-            ok(feuilles);
+            ok(feuillesClasseur(XLSX, wb));
           } catch (e) { ko(new Error('Fichier illisible : ' + e.message)); }
         };
         r.readAsArrayBuffer(fichier);

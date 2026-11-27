@@ -189,6 +189,7 @@ function creerEnvironnement(options = {}) {
     Utilities: {
       getUuid: () => crypto.randomUUID(), formatDate, sleep: () => {},
       base64Decode: (t) => Array.from(Buffer.from(t, 'base64')),
+      base64Encode: (o) => Buffer.from(o).toString('base64'),
       newBlob: (octets, type, nom) => ({ octets, type, nom })
     },
     MailApp: { envois: [], getRemainingDailyQuota: () => 100, sendEmail: (m) => { gas.MailApp.envois.push(m); } },
@@ -277,7 +278,7 @@ function creerEnvironnement(options = {}) {
             const f = {
               id: 'FIC' + fichiersDrive.length, nom: blob.nom, dossier: d, corbeille: false, octets: blob.octets, type: blob.type,
               cree: new Date(Date.now() + fichiersDrive.length * 1000),
-              getId: () => f.id, getName: () => f.nom, getBlob: () => ({ getDataAsString: () => Buffer.from(f.octets).toString('utf8') }), getUrl: () => 'https://drive.google.com/file/d/' + f.id + '/view', getSize: () => f.octets.length,
+              getId: () => f.id, getName: () => f.nom, getBlob: () => ({ getDataAsString: () => Buffer.from(f.octets).toString('utf8'), getBytes: () => f.octets.slice() }), getMimeType: () => f.type || '', getLastUpdated: () => f.cree, getUrl: () => 'https://drive.google.com/file/d/' + f.id + '/view', getSize: () => f.octets.length,
               getDateCreated: () => f.cree, setTrashed: (v) => { f.corbeille = v; }
             };
             fichiersDrive.push(f);
